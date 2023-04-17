@@ -1,45 +1,60 @@
 grammar sysy;
 
-// FIXME: adapt grammer from c1 to sysy
-
-compilationUnit: (decl | funcdef)+;
+compUnit: (decl | funcdef)+;
 
 decl: (constdecl | vardecl) SemiColon;
 
 constdecl: Const (Int | Float) constdef (Comma constdef)*;
 
-constdef: Identifier Assign exp
-        | Identifier LeftBracket exp RightBracket Assign LeftBrace exp (Comma exp)* RightBrace;
+constdef: Identifier (LeftBracket constexp RightBracket)* Assign constInit;
+
+constInit: LeftBrace constInit (Comma constInit)* RightBrace
+         | constexp;
 
 vardecl: (Int | Float) vardef (Comma vardef)*;
 
-vardef: Identifier (Assign exp)?
-      | Identifier LeftBracket exp RightBracket (Assign LeftBrace exp (Comma exp)* RightBrace)?;
+vardef: Identifier (LeftBracket constexp RightBracket)* (Assign varInit)?;
 
-funcdef: Void Identifier LeftParen RightParen block;
+varInit: LeftBrace varInit (Comma varInit)* RightBrace
+       | exp;
+
+funcdef: (Void | Int | Float) Identifier LeftParen (funcparam (Comma funcparam)*)? RightParen block;
+
+funcparam: (Int | Float) Identifier (LeftBracket RightBracket (LeftBracket constexp RightBracket)*)?;
 
 block: LeftBrace (decl | stmt)* RightBrace;
 
+// semicolon is not a stmt
 stmt: lval Assign exp SemiColon
-    | Identifier LeftParen RightParen SemiColon
+    | exp SemiColon
     | block
     | If LeftParen cond RightParen stmt (Else stmt)?
     | While LeftParen cond RightParen stmt
-    | SemiColon;
+    | Break SemiColon
+    | Continue SemiColon
+    | Return exp* SemiColon;
 
-lval: Identifier
-    | Identifier LeftBracket exp RightBracket;
+lval: Identifier (LeftBracket exp RightBracket)*;
 
-cond: exp (Equal | NonEqual | Less | Greater | LessEqual | GreaterEqual) exp;
+// not cond is not allowed
+cond: Not cond
+    | cond (Less | Greater | LessEqual | GreaterEqual) cond 
+    | cond (Equal | NonEqual) cond 
+    | cond And cond 
+    | cond Or cond 
+    | exp;
 
-exp:
-    (Plus | Minus) exp
-    | exp (Multiply | Divide | Modulo) exp
-    | exp (Plus | Minus) exp
-    | LeftParen exp RightParen
-    | number
-    | lval
-;
+// not is only allowed in cond
+exp: (Plus | Minus) exp
+   | exp (Multiply | Divide | Modulo) exp
+   | exp (Plus | Minus) exp
+   | LeftParen exp RightParen
+   | number
+   | lval
+   | Identifier LeftParen (exp (Comma exp)*)? RightParen;
+
+// identifiers in a constexp should all be const
+constexp: exp;
 
 number: FloatConst
       | IntConst;
@@ -56,6 +71,9 @@ RightParen: ')';
 If: 'if';
 Else: 'else';
 While: 'while';
+Break: 'break';
+Continue: 'continue';
+Return: 'return';
 Const: 'const';
 Equal: '==';
 NonEqual: '!=';
@@ -63,6 +81,9 @@ Less: '<';
 Greater: '>';
 LessEqual: '<=';
 GreaterEqual: '>=';
+Not: '!';
+And: '&&';
+Or: '||';
 Plus: '+';
 Minus: '-';
 Multiply: '*';

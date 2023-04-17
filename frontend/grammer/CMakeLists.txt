@@ -14,7 +14,13 @@ endif ()
 find_package(antlr4-runtime REQUIRED)
 find_package(antlr4-generator REQUIRED)
 
-antlr4_generate(sysy ${CMAKE_CURRENT_SOURCE_DIR}/sysy.g4 BOTH)
+antlr4_generate(
+    sysy
+    ${CMAKE_CURRENT_SOURCE_DIR}/sysy.g4
+    BOTH
+    FALSE
+    TRUE
+)
 
 add_library(parser ${ANTLR4_SRC_FILES_sysy})
 
