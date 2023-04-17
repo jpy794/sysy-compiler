@@ -1,5 +1,14 @@
 # antlr executable file path
-set(ANTLR4_JAR_LOCATION /usr/share/java/antlr-complete.jar)
+if (NOT DEFINED ANTLR4_JAR_LOCATION)
+    find_package(Java COMPONENTS Runtime REQUIRED)
+    include(UseJava)
+    find_jar(
+        ANTLR4_JAR
+        NAMES antlr-complete
+        PATHS /usr/share/java
+    )
+    set(ANTLR4_JAR_LOCATION ${ANTLR4_JAR})
+endif ()
 
 # ref https://github.com/antlr/antlr4/blob/master/runtime/Cpp/cmake/Antlr4Package.md
 find_package(antlr4-runtime REQUIRED)
