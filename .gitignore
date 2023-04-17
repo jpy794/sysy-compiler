@@ -3,3 +3,6 @@
 
 # clangd
 /.cache/
+
+# antlr
+.antlr
