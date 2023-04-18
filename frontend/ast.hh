@@ -13,15 +13,6 @@ namespace ast {
 template <typename T> using Ptr = std::unique_ptr<T>;
 template <typename T> using PtrList = std::vector<Ptr<T>>;
 
-/* type alias can not be recursive, define a struct template instead */
-template <typename T> struct InitVals {
-    std::vector<std::variant<T, std::unique_ptr<InitVals>>> literal_or_initvals;
-    InitVals() : literal_or_initvals(std::vector<T>{}) {}
-    InitVals(std::vector<T> &&literal) : literal_or_initvals(literal) {}
-    InitVals(std::vector<std::unique_ptr<InitVals>> &&initvals)
-        : literal_or_initvals(initvals) {}
-};
-
 enum class BaseType { VOID, FLOAT, INT };
 struct SysYType {
     BaseType base;
@@ -71,11 +62,15 @@ struct VarDefNode; // also global def
 /* cond or exp */
 struct CondOrExpNode;
 struct CondNode;
-struct ExpNode; // also stmt
+struct ExpNode; // also stmt, init
 struct ArithExpNode;
 struct CallNode;
 struct LiteralNode;
 struct LValNode;
+
+/* init exps */
+struct InitNode;
+struct ArrayInitNode;
 
 /* visitor pattern allows multiple nodes of the same super class
    to be visited through super class pointer (by the virtual accept).
@@ -107,6 +102,8 @@ class ASTVisitor {
     virtual std::any visit(const LiteralNode &node) = 0;
     virtual std::any visit(const LValNode &node) = 0;
     virtual std::any visit(const ArithExpNode &node) = 0;
+    virtual std::any visit(const InitNode &node) = 0;
+    virtual std::any visit(const ArrayInitNode &node) = 0;
 };
 
 struct RootNode : ASTNode {
@@ -151,7 +148,14 @@ struct CondNode : CondOrExpNode {
     }
 };
 
-struct ExpNode : StmtNode, CondOrExpNode {};
+struct InitNode : ASTNode {
+    PtrList<InitNode> init_exps;
+    std::any accept(ASTVisitor &visitor) const override {
+        return visitor.visit(*this);
+    }
+};
+
+struct ExpNode : StmtNode, CondOrExpNode, InitNode {};
 
 struct ArithExpNode : ExpNode {
     ExpOp op;
@@ -230,11 +234,17 @@ struct CallNode : ExpNode {
 };
 
 struct VarDefNode : GlobalDefNode, StmtOrVarDefNode {
-
     bool is_const;
     std::string var_name;
     SysYType type;
-    std::variant<InitVals<float>, InitVals<int>> init_vals;
+    Ptr<InitNode> init_val;
+    std::any accept(ASTVisitor &visitor) const override {
+        return visitor.visit(*this);
+    }
+};
+
+struct ArrayInitNode : InitNode {
+    PtrList<InitNode> init_vals;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
     }
