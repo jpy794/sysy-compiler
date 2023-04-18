@@ -1,6 +1,14 @@
 #include "ast.hh"
-#include "sysyParser.h"
+#include "sysyVisitor.h"
 
+#include <any>
 #include <iostream>
 
-AST::AST() { std::cout << "hello AST\n"; }
+using namespace std;
+using namespace ast;
+
+class ASTBuilder : public sysyVisitor {
+    any visitExp(sysyParser::ExpContext *ctx) override { return {}; }
+};
+
+AST::AST(const string &src_file) { std::cout << "hello AST\n"; }

@@ -26,7 +26,7 @@ block: LeftBrace (decl | stmt)* RightBrace;
 
 // semicolon is not a stmt
 stmt: lval Assign exp SemiColon
-    | exp SemiColon
+    | exp? SemiColon
     | block
     | If LeftParen cond RightParen stmt (Else stmt)?
     | While LeftParen cond RightParen stmt
@@ -37,15 +37,14 @@ stmt: lval Assign exp SemiColon
 lval: Identifier (LeftBracket exp RightBracket)*;
 
 // not cond is not allowed
-cond: Not cond
-    | cond (Less | Greater | LessEqual | GreaterEqual) cond 
+cond: cond (Less | Greater | LessEqual | GreaterEqual) cond 
     | cond (Equal | NonEqual) cond 
     | cond And cond 
     | cond Or cond 
     | exp;
 
 // not is only allowed in cond
-exp: (Plus | Minus) exp
+exp: (Plus | Minus | Not) exp
    | exp (Multiply | Divide | Modulo) exp
    | exp (Plus | Minus) exp
    | LeftParen exp RightParen
