@@ -1,59 +1,51 @@
 grammar sysy;
 
-compUnit: (decl | funcdef)+;
+compUnit: (vardecl | funcdef)+;
 
-decl: (constdecl | vardecl) SemiColon;
+vardecl: Const? (Int | Float) vardef (Comma vardef)* SemiColon;
 
-constdecl: Const (Int | Float) constdef (Comma constdef)*;
-
-constdef: Identifier (LeftBracket constexp RightBracket)* Assign constInit;
-
-constInit: LeftBrace constInit (Comma constInit)* RightBrace
-         | constexp;
-
-vardecl: (Int | Float) vardef (Comma vardef)*;
-
-vardef: Identifier (LeftBracket constexp RightBracket)* (Assign varInit)?;
+vardef: Identifier (LeftBracket exp RightBracket)* (Assign varInit)?;
 
 varInit: LeftBrace varInit (Comma varInit)* RightBrace
        | exp;
 
 funcdef: (Void | Int | Float) Identifier LeftParen (funcparam (Comma funcparam)*)? RightParen block;
 
-funcparam: (Int | Float) Identifier (LeftBracket RightBracket (LeftBracket constexp RightBracket)*)?;
+funcparam: (Int | Float) Identifier (LeftBracket RightBracket (LeftBracket exp RightBracket)*)?;
 
-block: LeftBrace (decl | stmt)* RightBrace;
+block: LeftBrace (stmt)* RightBrace;
+
+expStmt: exp? SemiColon;
 
 // semicolon is not a stmt
 stmt: lval Assign exp SemiColon
-    | exp? SemiColon
+    | expStmt
     | block
-    | If LeftParen cond RightParen stmt (Else stmt)?
-    | While LeftParen cond RightParen stmt
+    | If LeftParen exp stmt (Else stmt)?
+    | While LeftParen exp RightParen stmt
     | Break SemiColon
     | Continue SemiColon
-    | Return exp* SemiColon;
+    | Return exp* SemiColon
+    | vardecl;
 
 lval: Identifier (LeftBracket exp RightBracket)*;
 
-// not cond is not allowed
-cond: cond (Less | Greater | LessEqual | GreaterEqual) cond 
-    | cond (Equal | NonEqual) cond 
-    | cond And cond 
-    | cond Or cond 
-    | exp;
+funcCall: Identifier LeftParen (exp (Comma exp)*)? RightParen;
+
+parenExp: LeftParen exp RightParen;
 
 // not is only allowed in cond
 exp: (Plus | Minus | Not) exp
    | exp (Multiply | Divide | Modulo) exp
    | exp (Plus | Minus) exp
-   | LeftParen exp RightParen
+   | exp (Less | Greater | LessEqual | GreaterEqual) exp
+   | exp (Equal | NonEqual) exp
+   | exp And exp
+   | exp Or exp
+   | parenExp
    | number
    | lval
-   | Identifier LeftParen (exp (Comma exp)*)? RightParen;
-
-// identifiers in a constexp should all be const
-constexp: exp;
+   | funcCall;
 
 number: FloatConst
       | IntConst;

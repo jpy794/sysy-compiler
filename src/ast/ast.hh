@@ -16,7 +16,7 @@ template <typename T> using PtrList = std::vector<Ptr<T>>;
 
 enum class BaseType { VOID, FLOAT, INT };
 
-enum class BinOp { ADD, SUB, MUL, DIV, MOD, LT, GT, LE, GE, EQ, NE };
+enum class BinOp { ADD, SUB, MUL, DIV, MOD, LT, GT, LE, GE, EQ, NE, AND, OR };
 enum class UnaryOp { PlUS, MINUS, /* only apply to cond expr */ NOT };
 
 class ASTVisitor;
@@ -106,7 +106,8 @@ struct FunDefGlobal : Global {
     struct Param {
         BaseType type;
         std::string name;
-        /* evaluated when building AST */
+        /* evaluated when building AST
+           dim[0] should always be 0 */
         std::vector<size_t> dims;
     };
     /* void, int or float */
@@ -245,6 +246,9 @@ class AST {
   public:
     AST(const std::string &src_file);
     void visit(ASTVisitor &visitor) {
+        if (not root) {
+            throw std::logic_error{"trying to visit an empty AST"};
+        }
         /* it's safe to strip unique_ptr here
            as long as visitor does not save ptr to AST node */
         visitor.visit(*root.get());
