@@ -1,13 +1,16 @@
 add_subdirectory(grammer)
 
 add_library(
-    frontend
+    ast
     ast.cc
 )
 
 target_include_directories(
-    frontend
+    ast
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-target_link_libraries(frontend PRIVATE parser)
+target_link_libraries(
+    ast
+    PRIVATE parser
+)
