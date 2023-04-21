@@ -3,14 +3,15 @@ project(sysy-compiler)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 list(APPEND CMAKE_CXX_FLAGS "-Wall")
 
-add_subdirectory(frontend)
+add_subdirectory(src)
 
 add_executable(sysyc main.cc)
 
 target_link_libraries(
     sysyc
-    frontend
+    ast
     IR_lib
 )
