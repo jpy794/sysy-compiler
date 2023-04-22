@@ -12,4 +12,5 @@ add_executable(sysyc main.cc)
 target_link_libraries(
     sysyc
     frontend
+    IR_lib
 )
