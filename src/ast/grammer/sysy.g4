@@ -21,11 +21,11 @@ expStmt: exp? SemiColon;
 stmt: lval Assign exp SemiColon
     | expStmt
     | block
-    | If LeftParen exp stmt (Else stmt)?
+    | If LeftParen exp RightParen stmt (Else stmt)?
     | While LeftParen exp RightParen stmt
     | Break SemiColon
     | Continue SemiColon
-    | Return exp* SemiColon
+    | Return exp* SemiColon // lxq: should be `exp?`?
     | vardecl;
 
 lval: Identifier (LeftBracket exp RightBracket)*;
