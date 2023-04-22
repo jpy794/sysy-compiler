@@ -169,7 +169,8 @@ struct CallExpr : Expr {
 
 struct IfStmt : Stmt {
     Ptr<Expr> cond;
-    Ptr<Stmt> then_body, else_body;
+    Ptr<Stmt> then_body;
+    std::optional<Ptr<Stmt>> else_body;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
     }
@@ -196,7 +197,7 @@ struct ContinueStmt : Stmt {
 };
 
 struct ReturnStmt : Stmt {
-    Ptr<Expr> ret_val;
+    std::optional<Ptr<Expr>> ret_val;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
     }

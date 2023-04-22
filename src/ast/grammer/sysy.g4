@@ -17,7 +17,6 @@ block: LeftBrace (stmt)* RightBrace;
 
 expStmt: exp? SemiColon;
 
-// semicolon is not a stmt
 stmt: lval Assign exp SemiColon
     | expStmt
     | block
@@ -25,7 +24,7 @@ stmt: lval Assign exp SemiColon
     | While LeftParen exp RightParen stmt
     | Break SemiColon
     | Continue SemiColon
-    | Return exp* SemiColon // lxq: should be `exp?`?
+    | Return exp? SemiColon
     | vardecl;
 
 lval: Identifier (LeftBracket exp RightBracket)*;

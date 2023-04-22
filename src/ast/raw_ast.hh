@@ -4,16 +4,19 @@
 
 namespace ast {
 
-struct RawInitList : Expr {
+struct RawInitExpr : Expr {
     PtrList<Expr> init_vals;
 };
 
 struct RawVarDefStmt : Stmt {
-    bool is_const;
-    BaseType type;
-    std::string var_name;
-    PtrList<Expr> dims;
-    Ptr<RawInitList> init_vals;
+    struct Entry {
+        bool is_const;
+        BaseType type;
+        std::string var_name;
+        PtrList<Expr> dims;
+        Ptr<Expr> init_vals;
+    };
+    PtrList<Entry> var_defs;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
     }
