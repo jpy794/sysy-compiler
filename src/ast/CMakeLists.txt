@@ -2,7 +2,10 @@ add_subdirectory(grammer)
 
 add_library(
     ast
+    ast.hh
     ast.cc
+    raw_ast.hh
+    raw_ast.cc
 )
 
 target_include_directories(

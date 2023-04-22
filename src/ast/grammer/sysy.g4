@@ -1,45 +1,50 @@
 grammar sysy;
 
-// FIXME: adapt grammer from c1 to sysy
+compUnit: (vardecl | funcdef)+;
 
-compilationUnit: (decl | funcdef)+;
+vardecl: Const? (Int | Float) vardef (Comma vardef)* SemiColon;
 
-decl: (constdecl | vardecl) SemiColon;
+vardef: Identifier (LeftBracket exp RightBracket)* (Assign varInit)?;
 
-constdecl: Const (Int | Float) constdef (Comma constdef)*;
+varInit: LeftBrace varInit (Comma varInit)* RightBrace
+       | exp;
 
-constdef: Identifier Assign exp
-        | Identifier LeftBracket exp RightBracket Assign LeftBrace exp (Comma exp)* RightBrace;
+funcdef: (Void | Int | Float) Identifier LeftParen (funcparam (Comma funcparam)*)? RightParen block;
 
-vardecl: (Int | Float) vardef (Comma vardef)*;
+funcparam: (Int | Float) Identifier (LeftBracket RightBracket (LeftBracket exp RightBracket)*)?;
 
-vardef: Identifier (Assign exp)?
-      | Identifier LeftBracket exp RightBracket (Assign LeftBrace exp (Comma exp)* RightBrace)?;
+block: LeftBrace (stmt)* RightBrace;
 
-funcdef: Void Identifier LeftParen RightParen block;
-
-block: LeftBrace (decl | stmt)* RightBrace;
+expStmt: exp? SemiColon;
 
 stmt: lval Assign exp SemiColon
-    | Identifier LeftParen RightParen SemiColon
+    | expStmt
     | block
-    | If LeftParen cond RightParen stmt (Else stmt)?
-    | While LeftParen cond RightParen stmt
-    | SemiColon;
+    | If LeftParen exp RightParen stmt (Else stmt)?
+    | While LeftParen exp RightParen stmt
+    | Break SemiColon
+    | Continue SemiColon
+    | Return exp? SemiColon
+    | vardecl;
 
-lval: Identifier
-    | Identifier LeftBracket exp RightBracket;
+lval: Identifier (LeftBracket exp RightBracket)*;
 
-cond: exp (Equal | NonEqual | Less | Greater | LessEqual | GreaterEqual) exp;
+funcCall: Identifier LeftParen (exp (Comma exp)*)? RightParen;
 
-exp:
-    (Plus | Minus) exp
-    | exp (Multiply | Divide | Modulo) exp
-    | exp (Plus | Minus) exp
-    | LeftParen exp RightParen
-    | number
-    | lval
-;
+parenExp: LeftParen exp RightParen;
+
+// not is only allowed in cond
+exp: (Plus | Minus | Not) exp
+   | exp (Multiply | Divide | Modulo) exp
+   | exp (Plus | Minus) exp
+   | exp (Less | Greater | LessEqual | GreaterEqual) exp
+   | exp (Equal | NonEqual) exp
+   | exp And exp
+   | exp Or exp
+   | parenExp
+   | number
+   | lval
+   | funcCall;
 
 number: FloatConst
       | IntConst;
@@ -56,6 +61,9 @@ RightParen: ')';
 If: 'if';
 Else: 'else';
 While: 'while';
+Break: 'break';
+Continue: 'continue';
+Return: 'return';
 Const: 'const';
 Equal: '==';
 NonEqual: '!=';
@@ -63,6 +71,9 @@ Less: '<';
 Greater: '>';
 LessEqual: '<=';
 GreaterEqual: '>=';
+Not: '!';
+And: '&&';
+Or: '||';
 Plus: '+';
 Minus: '-';
 Multiply: '*';
