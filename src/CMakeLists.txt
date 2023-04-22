@@ -4,10 +4,11 @@ include_directories(
 )
 
 add_subdirectory(ast)
-
+add_subdirectory(ir)
 add_executable(sysyc main.cc)
 
 target_link_libraries(
     sysyc
     ast
+    IR_lib
 )
