@@ -1,16 +1,18 @@
-#ifndef IR_MODULE
-#define IR_MODULE
+#pragma once
 
 #include <string>
 using std::string;
 
 class Module {
-public:
-    Module(string& name);
-    ~Module() = default;
+  public:
+    explicit Module(string &name);
+    // TODO
+    // - global variables
+    // - Functions: declaration, defination
+    // - symbol table: maybe unnecassary
+    // - Types: give each type a unique address, for convenience of equal-judge
+    // - and so on
 
-private:
-    std::string module_name_;
+  private:
+    string _name;
 };
-
-#endif
