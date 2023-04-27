@@ -5,6 +5,9 @@
 
 template <typename T> class ilist {
   public:
+    /* the derived class should inherit node publicly,
+       or the public member of node (from view of friend ilist)
+       will be inaccessible in the derived class */
     class node {
         friend class ilist<T>;
 
