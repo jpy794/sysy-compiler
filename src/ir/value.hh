@@ -1,11 +1,20 @@
-#ifndef IR_VALUE
-#define IR_VALUE
+#pragma once
+#include<string>
+class Type;
 class Value{
     public:
-        Value(Type* type, const std::string &name="");
-        ~Value=defalut;
+        Value()=default;
+
+        Value(Type* type, const std::string &name);
+
+        ~Value()=default;
+
+        Type* get_type() const { return _type; };
+
+        const std::string& get_name() const { return _name; }
+        
+        void set_name(const std::string &name);
     private:
-        std::string name_;
-        Type* type_;
-}
-#endif
+        Type* _type;
+        std::string _name;
+};

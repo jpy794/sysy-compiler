@@ -1,14 +1,10 @@
 #pragma once
 
-#include "Module.hh"
-
 #include <cassert>
 #include <string>
 #include <vector>
 
-using std::string;
-using std::vector;
-
+class Module;
 /* Design Rule:
  * - maintain enough class members to express the semantics
  * - use api to access the class members
@@ -42,28 +38,32 @@ class Type {
 
     Module *get_module() const { return _m; }
 
-    virtual string print() const;
+    virtual std::string print() const;
 
   private:
     TypeID _tid;
     Module *_m;
 };
 
-class FloatType : Type {};
-
-class VoidType : Type {
+class FloatType : public Type {
   public:
-    VoidType(Module *m) : Type(VoidTypeID, m) {}
-    string print() const { return "void"; }
+    FloatType(Module *m) : Type(FloatTypeID, m) {}
+    std::string print() const { return "float"; }
 };
 
-class FuncType : Type {
+class VoidType : public Type {
+  public:
+    VoidType(Module *m) : Type(VoidTypeID, m) {}
+    std::string print() const { return "void"; }
+};
+
+class FuncType : public Type {
   private:
     Type *_retTp;
-    vector<Type *> _paramsTp;
+    std::vector<Type *> _paramsTp;
 
   public:
-    FuncType(Module *m, Type *ret, const vector<Type *> &params)
+    FuncType(Module *m, Type *ret, const std::vector<Type *> &params)
         : Type(FunctionTypeID, m), _retTp(ret), _paramsTp(params) {}
 
     unsigned get_num_params() const { return _paramsTp.size(); }
@@ -78,10 +78,10 @@ class FuncType : Type {
     // Answer maybe: An array is passed in by start address
     static bool is_valid_argument_type(Type *);
 
-    string print() const; // Is this useful?
+    std::string print() const; // Is this useful?
 };
 
-class IntType : Type {
+class IntType : public Type {
   private:
     unsigned _nbits;
 
@@ -92,10 +92,10 @@ class IntType : Type {
     };
 
     unsigned get_num_bits() const { return _nbits; }
-    string print() const { return "i" + std::to_string(_nbits); }
+    std::string print() const { return "i" + std::to_string(_nbits); }
 };
 
-class PointerType : Type {
+class PointerType : public Type {
   private:
     Type *_elementTp;
 
@@ -103,27 +103,33 @@ class PointerType : Type {
     PointerType(Module *m, Type *elementTp)
         : Type(PointerTypeID, m), _elementTp(elementTp) {}
     Type *get_element_type() const { return _elementTp; }
-    string print() const { return _elementTp->print() + "*"; }
+    std::string print() const { return _elementTp->print() + "*"; }
 };
 
-class LabelType : Type {
+class LabelType : public Type {
   public:
     LabelType(Module *m) : Type(LabelTypeID, m) {}
-    string print() const { return "SysYlabel"; }
+    std::string print() const { return "SysYlabel"; }
 };
-class ArrayType : Type {
+class ArrayType : public Type {
   private:
     Type *_elementTp;
-    vector<unsigned> _dims;
+    unsigned _length;
+    // std::vector<unsigned> _dims;
 
   public:
-    ArrayType(Module *m, Type *elem_type, vector<unsigned> dims)
-        : Type(ArrayTypeID, m), _elementTp(elem_type), _dims(dims) {}
+    // ArrayType(Module *m, Type *elem_type, std::vector<unsigned> dims)
+    //     : Type(ArrayTypeID, m), _elementTp(elem_type), _dims(dims) {}
+    ArrayType(Module *m, Type *elem_type, unsigned length)
+        : Type(ArrayTypeID, m), _elementTp(elem_type), _length(length) {}
 
     Type *get_element_type() const { return _elementTp; }
-    unsigned get_dim(unsigned i) const { return _dims.at(i); }
+    
+    unsigned get_length() const { return _length; }
 
-    const decltype(_dims) &get_dims() const { return _dims; }
+    // unsigned get_dim(unsigned i) const { return _dims.at(i); }
 
-    string print() const;
+    // const decltype(_dims) &get_dims() const { return _dims; }
+
+    std::string print() const;
 };

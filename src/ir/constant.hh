@@ -1,4 +1,11 @@
 #pragma once
+#include <string>
+#include <vector>
+
+#include "module.hh"
+#include "value.hh"
+class Type;
+class Module;
 class Constant: public Value{
     public:
         Constant(Type* type, const std::string &name) : Value(type, name) {};
@@ -7,28 +14,28 @@ class Constant: public Value{
 };
 class ConstantInt: public Constant{
     public:
-        ConstantInt(Type* type, int val) : Constant(type, std::to_string(val)), value_(val) {};
+        ConstantInt(Type* type, int val) : Constant(type, std::to_string(val)), _value(val) {};
         ~ConstantInt()=default;
-        int get_value() const { return value_; }
+        int get_value() const { return _value; }
         static ConstantInt* get(int val, Module* m);
     private:
-        int value_;
+        int _value;
 };
 class ConstantFloat: public Constant{
     public:
-        ConstantFloat(Type* type, float val) : Constant(type, std::to_string(val)), value_(val) {};
+        ConstantFloat(Type* type, float val) : Constant(type, std::to_string(val)), _value(val) {};
         ~ConstantFloat()=default;
-        float get_value() const { return value_; }
+        float get_value() const { return _value; }
         static ConstantFloat* get(float val, Module* m);
     private:
-        float value_;
+        float _value;
 };
 class ConstantArray: public Constant{
     public:
-        ConstantArray(Type* type, std::vector<Constant*> &array) : Constant(type, ""), array_(array) {};
+        ConstantArray(Type* type, std::vector<Constant*> &array) : Constant(type, "array"), _array(array) {};
         ~ConstantArray()=default;
         static ConstantArray* get(std::vector<int> &array, Module* m);
         static ConstantArray* get(std::vector<float> &array, Module* m);
     private:
-        std::vector<Constant*> array_;
+        std::vector<Constant*> _array;
 };

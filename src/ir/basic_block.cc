@@ -1,8 +1,9 @@
-BasicBlock::BasicBlock(Type* type, const std::string &name, Function* parent)
-        : Value(type, name), parent_(parent) {parent->add_bb(this);}
-static BasicBlock* BasicBlock::create(const std::string &name, Function* parent, Module* m){
-    return new BasicBlock(m->get_label_type(), parent, name);
+#include "basic_block.hh"
+BasicBlock::BasicBlock(const std::string &name, Function* parent)
+        : Value(parent->get_module()->get_label_type(), name), _parent(parent) {parent->add_basic_block(this);}
+BasicBlock* BasicBlock::create(const std::string &name, Function* parent){
+    return new BasicBlock(name, parent);
 }
 void BasicBlock::add_instruction(Instruction* instr){
-    instr_list_.push_back(instr);
+    _instr_list.push_back(instr);
 }
