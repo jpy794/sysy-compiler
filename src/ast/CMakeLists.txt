@@ -18,3 +18,19 @@ target_link_libraries(
     PRIVATE parser
     PRIVATE utils
 )
+
+add_library(
+    astPrinter
+    astprinter.cc
+    astprinter.hh
+)
+
+target_include_directories(
+    astPrinter
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(
+    astPrinter
+    PRIVATE ast
+)
