@@ -1,5 +1,7 @@
 #pragma once
 
+#include "module.hh"
+
 #include <cassert>
 #include <string>
 #include <vector>
