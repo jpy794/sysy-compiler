@@ -1,6 +1,8 @@
 grammar sysy;
 
-compUnit: (vardecl | funcdef)+;
+compUnit: globalDef+;
+
+globalDef: (vardecl | funcdef);
 
 vardecl: Const? (Int | Float) vardef (Comma vardef)* SemiColon;
 

@@ -25,16 +25,25 @@ struct RawVarDefStmt : Stmt {
 struct RawFunDefGlobal : Global {
     struct Param {
         BaseType type;
-        std::string name;
+        bool is_ptr;
+        // dim starts from the 2nd one
         PtrList<Expr> dims;
     };
     BaseType ret_type;
     std::string fun_name;
-    std::vector<Param> params;
+    PtrList<Param> params;
     Ptr<BlockStmt> body;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
     }
+};
+
+class RawASTVisitor : public ASTVisitor {
+  public:
+    using ASTVisitor::visit;
+    virtual std::any visit(const RawInitExpr &node) = 0;
+    virtual std::any visit(const RawVarDefStmt &node) = 0;
+    virtual std::any visit(const RawFunDefGlobal &node) = 0;
 };
 
 class RawAST {
@@ -48,7 +57,12 @@ class RawAST {
         visitor.visit(*root.get());
     }
 
-    static RawAST parse_sysy_src(const std::string &src);
+    // parse a sysy source file
+    RawAST(const std::string &src);
+
+    // delete copy constructor
+    RawAST(const RawAST &rhs) = delete;
+    RawAST &operator=(const RawAST &rhs) = delete;
 
   private:
     Ptr<Root> root;
