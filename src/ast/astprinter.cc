@@ -81,23 +81,73 @@ std::any ASTPrinter::visit(const ReturnStmt &node) {
             kvpair("ret_val", any_string(node.ret_val.value()->accept(*this)));
     return make_return("ReturnStmt", body);
 }
-std::any ASTPrinter::visit(const AssignStmt &node) {
 
+std::any ASTPrinter::visit(const AssignStmt &node) {
+    string body{};
+    body += kvpair("var_name", node.var_name, STP::String);
+    body += kvpair("idxs", visitArrayLike(node.idxs));
+    body += kvpair("val", any_string(node.val->accept(*this)));
+    return make_return("AssignStmt", body);
 }
+
 std::any ASTPrinter::visit(const VarDefStmt &node) {
+    string body{};
+    body += kvpair("const", node.is_const ? "true" : "false");
+    body += kvpair("type", BaseTypeStr(node.type), STP::String);
+    body += kvpair("var_name", node.var_name, STP::String);
+    body += kvpair("dims", dims2array(node.dims));
+    // TODO: init_vals
+    return make_return("VarDefStmt", body);
 }
 
 std::any ASTPrinter::visit(const ExprStmt &node) {
+    string body{};
+    if (node.expr.has_value())
+        body += kvpair("expr", any_string(node.expr.value()->accept(*this)));
+    return make_return("ExprStmt", body);
 }
+
 std::any ASTPrinter::visit(const CallExpr &node) {
+    string body{};
+    body += kvpair("fun_name", node.fun_name, STP::String);
+    body += kvpair("args", visitArrayLike(node.args));
+    return make_return("CallExpr", body);
 }
+
 std::any ASTPrinter::visit(const LiteralExpr &node) {
+    string body{};
+    body += kvpair("type", BaseTypeStr(node.type), STP::String);
+    switch (node.type) {
+    case BaseType::INT:
+        body += kvpair("val", to_string(get<int>(node.val)));
+        break;
+    case BaseType::FLOAT:
+        body += kvpair("val", to_string(get<float>(node.val)));
+        break;
+    default:
+        throw logic_error("invalid type for LiteralExpr");
+    }
+    return make_return("LiteralExpr", body);
 }
 
 std::any ASTPrinter::visit(const LValExpr &node) {
+    string body{};
+    body += kvpair("var_name", node.var_name, STP::String);
+    body += kvpair("idxs", visitArrayLike(node.idxs));
+    return make_return("LValExpr", body);
 }
 
 std::any ASTPrinter::visit(const BinaryExpr &node) {
+    string body{};
+    body += kvpair("op", BinOpStr(node.op), STP::String);
+    body += kvpair("lhs", any_string(node.lhs->accept(*this)));
+    body += kvpair("rhs", any_string(node.rhs->accept(*this)));
+    return make_return("BinaryExpr", body);
 }
+
 std::any ASTPrinter::visit(const UnaryExpr &node) {
+    string body{};
+    body += kvpair("op", UnaryOpStr(node.op), STP::String);
+    body += kvpair("rhs", any_string(node.rhs->accept(*this)));
+    return make_return("UnaryExpr", body);
 }

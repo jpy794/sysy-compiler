@@ -13,24 +13,10 @@ using std::string;
 #define no_trailing(x) (x.substr(0, x.size() - 1))
 
 class ASTPrinter : public ASTVisitor {
-
     // SurroundType
     enum class STP { Void, Object, Array, String };
 
   private:
-    int _indent{0};
-    const std::string _prefix{">-- "};
-    const std::string _fill{"|  "};
-
-  private:
-    void indent() { _indent++; }
-    void unindent() { _indent--; }
-    void print1line(std::string content, std::ostream &os = std::cout) {
-        for (int i = 0; i < _indent; ++i)
-            os << _fill;
-        os << _prefix << content << std::endl;
-    };
-
     inline static string surround(const string &s, STP st) {
         switch (st) {
         case STP::Object:
@@ -41,6 +27,8 @@ class ASTPrinter : public ASTVisitor {
             return "\"" + s + "\"";
         case STP::Void:
             return s;
+        default:
+            throw std::runtime_error("unexpected cases");
         }
     }
 
@@ -147,23 +135,6 @@ class ASTPrinter : public ASTVisitor {
             break;
         }
         throw std::runtime_error("unexpected cases");
-    }
-
-    std::string Dims2Str(const std::vector<size_t> &dims) {
-        std::string diminfo;
-        for (auto dim : dims)
-            diminfo += "[" + std::to_string(dim) + "]";
-        return diminfo;
-    }
-
-    void idx_helper(const PtrList<Expr> &idxs) {
-        if (idxs.size()) {
-            print1line("idxs");
-            indent();
-            for (auto &idx : idxs)
-                idx->accept(*this);
-            unindent();
-        }
     }
 
   public:
