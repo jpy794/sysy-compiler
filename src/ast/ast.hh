@@ -58,6 +58,11 @@ struct CallExpr;
 struct LiteralExpr;
 struct LValExpr;
 
+/* raw node that should only exisit in raw_ast */
+struct RawVarDefStmt;
+struct RawFunDefGlobal;
+struct RawVarDefGlobal;
+
 /* visitor pattern allows multiple nodes of the same super class
    to be visited through super class pointer (by the virtual accept).
    we can use dynamic_cast instead, but it involves in a lot of if else
@@ -93,6 +98,11 @@ class ASTVisitor {
     virtual std::any visit(const LValExpr &node) = 0;
     virtual std::any visit(const BinaryExpr &node) = 0;
     virtual std::any visit(const UnaryExpr &node) = 0;
+    /* raw node should only exisits in raw_ast
+       ast visitor should throw exception on following nodes */
+    virtual std::any visit(const RawVarDefStmt &node) = 0;
+    virtual std::any visit(const RawFunDefGlobal &node) = 0;
+    virtual std::any visit(const RawVarDefGlobal &node) = 0;
 };
 
 struct Root : ASTNode {
@@ -105,7 +115,6 @@ struct Root : ASTNode {
 struct FunDefGlobal : Global {
     struct Param {
         BaseType type;
-        std::string name;
         /* evaluated when building AST
            dim[0] should always be 0 */
         std::vector<size_t> dims;
@@ -238,6 +247,49 @@ struct BlockStmt : Stmt {
 struct ExprStmt : Stmt {
     /* nullopt means it is an empty stmt, aka a semicolon */
     std::optional<Ptr<Expr>> expr;
+    std::any accept(ASTVisitor &visitor) const override {
+        return visitor.visit(*this);
+    }
+};
+
+/* raw node that should only exisit in raw_ast */
+
+struct RawVarDefGlobal : Global {
+    Ptr<RawVarDefStmt> vardef_stmt;
+    std::any accept(ASTVisitor &visitor) const override {
+        return visitor.visit(*this);
+    }
+};
+
+struct RawVarDefStmt : Stmt {
+    struct InitList {
+        std::variant<Ptr<Expr>, PtrList<InitList>> val;
+    };
+    struct Entry {
+        bool is_const;
+        BaseType type;
+        std::string var_name;
+        PtrList<Expr> dims;
+        /* nullopt means there's no initval for the entry */
+        std::optional<Ptr<InitList>> init_list;
+    };
+    PtrList<Entry> var_defs;
+    std::any accept(ASTVisitor &visitor) const override {
+        return visitor.visit(*this);
+    }
+};
+
+struct RawFunDefGlobal : Global {
+    struct Param {
+        BaseType type;
+        bool is_ptr;
+        // dim starts from the 2nd one
+        PtrList<Expr> dims;
+    };
+    BaseType ret_type;
+    std::string fun_name;
+    PtrList<Param> params;
+    Ptr<BlockStmt> body;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
     }

@@ -230,7 +230,9 @@ any RawASTBuilder::visitExpStmt(sysyParser::ExpStmtContext *ctx) {
     Stmt *ret{nullptr};
     auto node = new ExprStmt;
 
-    node->expr = as_ptr<Expr>(visit(ctx->exp()));
+    if (ctx->exp()) {
+        node->expr = as_ptr<Expr>(visit(ctx->exp()));
+    }
 
     ret = node;
     return ret;
@@ -271,20 +273,20 @@ any RawASTBuilder::visitVardef(sysyParser::VardefContext *ctx) {
     for (auto &&pexp : ctx->exp()) {
         entry->dims.push_back(as_ptr<Expr>(visit(pexp)));
     }
-    entry->init_vals = as_ptr<Expr>(ctx->varInit());
+    entry->init_list = as_ptr<RawVarDefStmt::InitList>(ctx->varInit());
     return entry;
 }
 
 any RawASTBuilder::visitVarInit(sysyParser::VarInitContext *ctx) {
-    Expr *ret{nullptr};
+    auto ret = new RawVarDefStmt::InitList;
     if (ctx->exp()) {
-        ret = as_raw_ptr<Expr>(visit(ctx->exp()));
+        ret->val = as_ptr<Expr>(visit(ctx->exp()));
     } else if (ctx->varInit().size() > 0) {
-        auto node = new RawInitExpr;
+        PtrList<RawVarDefStmt::InitList> list;
         for (auto &&pinit : ctx->varInit()) {
-            node->init_vals.push_back(as_ptr<Expr>(visit(pinit)));
+            list.push_back(as_ptr<RawVarDefStmt::InitList>(visit(pinit)));
         }
-        ret = node;
+        ret->val = std::move(list);
     } else {
         throw unreachable_error{};
     }
