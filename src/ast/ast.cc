@@ -320,7 +320,7 @@ PtrList<VarDefStmt> ASTBuilder::_split_vardef(RawVarDefStmt &raw_vardef) {
 any ASTBuilder::visit(const Root &node) {
     auto &n = const_cast<Root &>(node);
     for (auto it = n.globals.begin(); it != n.globals.end();) {
-        if (is<FunDefGlobal>(it->get())) {
+        if (is<RawFunDefGlobal>(it->get())) {
             auto &raw = dynamic_cast<RawFunDefGlobal &>(*(it->get()));
             auto fundef = new FunDefGlobal;
             fundef->body.swap(raw.body);
@@ -437,13 +437,13 @@ any ASTBuilder::visit(const IfStmt &node) {
 }
 
 AST::AST(RawAST &&raw_ast) {
-    auto root = raw_ast.release_root();
+    root = raw_ast.release_root();
     ASTBuilder builder;
     builder.visit(*root);
 }
 
 ostream &ast::operator<<(ostream &os, const AST &ast) {
     ASTPrinter printer;
-    ast.visit(printer);
+    os << any_cast<string>(ast.visit(printer));
     return os;
 }

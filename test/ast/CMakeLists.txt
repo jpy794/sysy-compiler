@@ -13,4 +13,4 @@ function(ast_test BASE CASE)
         out/${BASE}/${CASE}.json)
 endfunction()
 
-ast_test(2022/functional 00_main)
+ast_test(2022/func 00_main)

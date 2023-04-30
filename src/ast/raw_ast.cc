@@ -33,7 +33,7 @@ class RawASTBuilder : public sysyVisitor {
 template <typename T> T *as_raw_ptr(const any &rhs) {
     auto raw_ptr = any_cast<T *>(rhs);
     if (raw_ptr == nullptr) {
-        throw logic_error{"trying to as_raw_ptr(nullptr)"};
+        throw logic_error{"as_raw_ptr results in nullptr"};
     }
     return raw_ptr;
 }
@@ -102,10 +102,15 @@ any RawASTBuilder::visitExp(sysyParser::ExpContext *ctx) {
             throw unreachable_error{};
         }
         ret = node;
-    } else if (ctx->parenExp() || ctx->lval() || ctx->number() ||
-               ctx->funcCall()) {
+    } else if (ctx->parenExp()) {
         // pass through
         ret = as_raw_ptr<Expr>(visit(ctx->parenExp()));
+    } else if (ctx->lval()) {
+        ret = as_raw_ptr<Expr>(visit(ctx->lval()));
+    } else if (ctx->number()) {
+        ret = as_raw_ptr<Expr>(visit(ctx->number()));
+    } else if (ctx->funcCall()) {
+        ret = as_raw_ptr<Expr>(visit(ctx->funcCall()));
     } else {
         throw unreachable_error{};
     }
@@ -307,7 +312,7 @@ any RawASTBuilder::visitFuncdef(sysyParser::FuncdefContext *ctx) {
         throw unreachable_error{};
     }
     node->fun_name = ctx->Identifier()->getText();
-    node->body = as_ptr<BlockStmt>(visit(ctx->block()));
+    node->body = cast_ptr<BlockStmt>(as_raw_ptr<Stmt>(visit(ctx->block())));
     for (auto &&pparam : ctx->funcparam()) {
         node->params.push_back(as_ptr<RawFunDefGlobal::Param>(visit(pparam)));
     }
