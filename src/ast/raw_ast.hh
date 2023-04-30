@@ -18,6 +18,8 @@ class RawAST {
     // parse a sysy source file
     RawAST(const std::string &src);
 
+    Ptr<Root> release_root() { return std::move(root); }
+
     // delete copy constructor
     RawAST(const RawAST &rhs) = delete;
     RawAST &operator=(const RawAST &rhs) = delete;

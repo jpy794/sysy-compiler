@@ -295,19 +295,22 @@ struct RawFunDefGlobal : Global {
     }
 };
 
+class RawAST;
+
 class AST {
   public:
-    AST(const std::string &src_file);
-    void visit(ASTVisitor &visitor) {
+    AST(RawAST &&raw_ast);
+    std::any visit(ASTVisitor &visitor) {
         if (not root) {
             throw std::logic_error{"trying to visit an empty AST"};
         }
         /* it's safe to strip unique_ptr here
            as long as visitor does not save ptr to AST node */
-        visitor.visit(*root.get());
+        return visitor.visit(*root.get());
     }
 
   private:
     Ptr<Root> root;
 };
+
 } // namespace ast

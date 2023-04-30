@@ -2,20 +2,45 @@
 #include "err.hh"
 #include "raw_ast.hh"
 
-#include <any>
-#include <iostream>
 #include <map>
 
 using namespace std;
 using namespace ast;
+
+template <typename K, typename V>
+bool contains(const std::map<K, V> &map, const K &key) {
+    return map.find(key) != map.end();
+}
+
+class ConstTable {
+  private:
+    // stack for scope
+    vector<map<string, const VarDefStmt *>> _const_table;
+
+  public:
+    const VarDefStmt *lookup(const string &name) const {
+        for (auto it = _const_table.rbegin(); it != _const_table.rend(); ++it) {
+            if (contains(*it, name)) {
+                return it->at(name);
+            }
+        }
+        return nullptr;
+    }
+
+    void insert(const string &name, const VarDefStmt *def) {
+        _const_table.back().emplace(name, def);
+    }
+
+    void push() { _const_table.emplace_back(); }
+    void pop() { _const_table.pop_back(); }
+};
 
 /* build ast from raw ast
    to share the same visitor interface with ast,
    const_cast is used on nodes that are needed to be modified */
 class ASTBuilder : public ASTVisitor {
   private:
-    // FIXME: use a stack for scope
-    map<string, const VarDefStmt *> _const_table;
+    ConstTable _const_table;
 
     /* depth: wrapped by how many brackets
        off: sequence number of current exp in current bracket (starts from 0) */
@@ -31,11 +56,11 @@ class ASTBuilder : public ASTVisitor {
     any visit(const BlockStmt &node) final;
     any visit(const IfStmt &node) final;
     any visit(const WhileStmt &node) final;
-    any visit(const BreakStmt &node) final { throw unreachable_error{}; }
-    any visit(const ContinueStmt &node) final { throw unreachable_error{}; }
-    any visit(const ReturnStmt &node) final { throw unreachable_error{}; }
-    any visit(const AssignStmt &node) final { throw unreachable_error{}; }
-    any visit(const ExprStmt &node) final { throw unreachable_error{}; }
+    any visit(const BreakStmt &node) final { return {}; }
+    any visit(const ContinueStmt &node) final { return {}; }
+    any visit(const ReturnStmt &node) final { return {}; }
+    any visit(const AssignStmt &node) final { return {}; }
+    any visit(const ExprStmt &node) final { return {}; }
     /* expr */
     any visit(const CallExpr &node) final;
     any visit(const LiteralExpr &node) final;
@@ -63,7 +88,7 @@ class ASTBuilder : public ASTVisitor {
         return literal
     else if binary or unary exp (except for NOT) and both operands are literals
         return literal result of the operation
-    else return expr
+    else return empty literal
 */
 
 struct ExprLiteral {
@@ -78,16 +103,11 @@ struct ExprLiteral {
 any ASTBuilder::visit(const CallExpr &node) { return ExprLiteral{}; }
 any ASTBuilder::visit(const LiteralExpr &node) { return ExprLiteral{node.val}; }
 
-template <typename K, typename V>
-bool contains(const std::map<K, V> &map, const K &key) {
-    return map.find(key) != map.end();
-}
-
 any ASTBuilder::visit(const LValExpr &node) {
-    if (not contains(_const_table, node.var_name)) {
+    auto vardef = _const_table.lookup(node.var_name);
+    if (not vardef) {
         return ExprLiteral{};
     }
-    auto &vardef = _const_table[node.var_name];
     vector<int> idxs;
     for (auto &pidx : node.idxs) {
         auto expr_literal = any_cast<ExprLiteral>(visit(*pidx));
@@ -217,9 +237,15 @@ any ASTBuilder::visit(const UnaryExpr &node) {
             evaluate dims
             serialize init_val
             if is_const
-                replace expr in init_val with literal expr node
+                TODO: replace expr in init_val with literal expr node
 
-    if blockstmt or function
+    for nodes that could contains raw fundef
+        replace the raw ast one with ast one
+
+    for nodes that could contains stmt (for vardef)
+        visit(all of its stmts)
+
+    if blockstmt
         adjust scope
 */
 
@@ -316,8 +342,11 @@ any ASTBuilder::visit(const Root &node) {
             }
             it = n.globals.erase(it);
             n.globals.emplace(it, fundef);
-        } else /* is VarDefGlobal */ {
-            auto &raw_global = dynamic_cast<RawVarDefGlobal &>(*(it->get()));
+
+            // check for more vardef stmt
+            visit(*fundef->body);
+        } else if (is<RawVarDefGlobal>(it->get())) {
+            auto &raw_global = dynamic_cast<RawVarDefGlobal &>(**it);
             auto &raw_stmt = *raw_global.vardef_stmt;
             auto vardefs = _split_vardef(raw_stmt);
             it = n.globals.erase(it);
@@ -326,9 +355,88 @@ any ASTBuilder::visit(const Root &node) {
                 global->vardef_stmt.swap(def);
                 n.globals.emplace(it, global);
             }
+        } else {
+            ++it;
         }
     }
     return {};
 }
 
-AST::AST(const string &src_file) { std::cout << "hello AST\n"; }
+any ASTBuilder::visit(const BlockStmt &node) {
+    // adjust scope
+    _const_table.push();
+    auto &n = const_cast<BlockStmt &>(node);
+    for (auto it = node.stmts.begin(); it != node.stmts.end();) {
+        if (not is<RawVarDefStmt>(it->get())) {
+            ++it;
+            continue;
+        }
+        auto &raw_stmt = dynamic_cast<RawVarDefStmt &>(**it);
+        auto vardefs = _split_vardef(raw_stmt);
+        it = n.stmts.erase(it);
+        for (auto &def : vardefs) {
+            auto new_stmt = static_cast<Stmt *>(def.release());
+            n.stmts.insert(it, Ptr<Stmt>{new_stmt});
+        }
+    }
+    _const_table.pop();
+    return {};
+}
+
+Ptr<Stmt> pack_vardefs_block(PtrList<VarDefStmt> &vardefs) {
+    // we need a block stmt if vardefs.size() > 1
+    auto block = new BlockStmt;
+    for (auto &def : vardefs) {
+        auto new_stmt = static_cast<Stmt *>(def.release());
+        block->stmts.push_back(Ptr<Stmt>{new_stmt});
+    }
+    auto new_stmt = Ptr<Stmt>(block);
+    return new_stmt;
+}
+
+any ASTBuilder::visit(const WhileStmt &node) {
+    auto &n = const_cast<WhileStmt &>(node);
+    if (not is<RawVarDefStmt>(n.body.get())) {
+        // check for more vardef stmt
+        visit(*n.body);
+        return {};
+    }
+    auto &raw_stmt = dynamic_cast<RawVarDefStmt &>(*n.body);
+    auto vardefs = _split_vardef(raw_stmt);
+    // we need a block stmt if vardefs.size() > 1
+    auto block = pack_vardefs_block(vardefs);
+    n.body.swap(block);
+    return {};
+}
+
+any ASTBuilder::visit(const IfStmt &node) {
+    auto &n = const_cast<IfStmt &>(node);
+    if (is<RawVarDefStmt>(n.then_body.get())) {
+        auto &raw_then = dynamic_cast<RawVarDefStmt &>(*n.then_body);
+        auto vardefs = _split_vardef(raw_then);
+        // we need a block stmt if vardefs.size() > 1
+        auto block = pack_vardefs_block(vardefs);
+        n.then_body.swap(block);
+    } else {
+        // check for more vardef stmt
+        visit(*n.then_body);
+    }
+    if (n.else_body.has_value() &&
+        is<RawVarDefStmt>(n.else_body.value().get())) {
+        auto &raw_else = dynamic_cast<RawVarDefStmt &>(*n.else_body.value());
+        auto vardefs = _split_vardef(raw_else);
+        // we need a block stmt if vardefs.size() > 1
+        auto block = pack_vardefs_block(vardefs);
+        n.else_body.value().swap(block);
+    } else if (n.else_body.has_value()) {
+        // check for more vardef stmt
+        visit(*n.else_body.value());
+    }
+    return {};
+}
+
+AST::AST(RawAST &&raw_ast) {
+    auto root = raw_ast.release_root();
+    ASTBuilder builder;
+    builder.visit(*root);
+}
