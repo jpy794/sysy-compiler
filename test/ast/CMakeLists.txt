@@ -1,8 +1,16 @@
-add_executable(ASTPrint ASTPrint.cc)
+add_executable(test_ast test_ast.cc)
 
 target_link_libraries(
-    ASTPrint
-    PRIVATE utils
+    test_ast
     PRIVATE ast
-    PRIVATE parser
 )
+
+function(ast_test BASE CASE)
+    add_test(
+        test_ast_${CASE}
+        test_ast
+        ${CMAKE_SOURCE_DIR}/test/cases/${BASE}/${CASE}.sy
+        out/${BASE}/${CASE}.json)
+endfunction()
+
+ast_test(2022/functional 00_main)
