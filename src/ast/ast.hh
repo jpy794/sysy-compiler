@@ -3,6 +3,7 @@
 #include <any>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -300,7 +301,7 @@ class RawAST;
 class AST {
   public:
     AST(RawAST &&raw_ast);
-    std::any visit(ASTVisitor &visitor) {
+    std::any visit(ASTVisitor &visitor) const {
         if (not root) {
             throw std::logic_error{"trying to visit an empty AST"};
         }
@@ -312,5 +313,7 @@ class AST {
   private:
     Ptr<Root> root;
 };
+
+std::ostream &operator<<(std::ostream &os, const AST &ast);
 
 } // namespace ast

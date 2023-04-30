@@ -1,4 +1,4 @@
-#include "astprinter.hh"
+#include "ast_printer.hh"
 #include <any>
 #include <cstdio>
 #include <stdexcept>
@@ -22,7 +22,6 @@ std::any ASTPrinter::visit(const FunDefGlobal &node) {
     for (auto param : node.params) {
         string paraminfo{};
         paraminfo += kvpair("type", BaseTypeStr(param.type), STP::String) + ",";
-        paraminfo += kvpair("name", param.name, STP::String) + ",";
         paraminfo += kvpair("dims", dims2array(param.dims));
 
         paramlist += Object(paraminfo) + ",";

@@ -1,4 +1,5 @@
 #include "ast.hh"
+#include "ast_printer.hh"
 #include "err.hh"
 #include "raw_ast.hh"
 
@@ -439,4 +440,10 @@ AST::AST(RawAST &&raw_ast) {
     auto root = raw_ast.release_root();
     ASTBuilder builder;
     builder.visit(*root);
+}
+
+ostream &ast::operator<<(ostream &os, const AST &ast) {
+    ASTPrinter printer;
+    ast.visit(printer);
+    return os;
 }

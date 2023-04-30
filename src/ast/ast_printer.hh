@@ -1,12 +1,16 @@
 #pragma once
+
 #include "ast.hh"
+#include "err.hh"
+
 #include <any>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-using namespace ast;
+namespace ast {
+
 using std::string;
 
 #define any_string(x) (std::any_cast<string>(x))
@@ -158,4 +162,16 @@ class ASTPrinter : public ASTVisitor {
     virtual std::any visit(const LValExpr &node) override final;
     virtual std::any visit(const BinaryExpr &node) override final;
     virtual std::any visit(const UnaryExpr &node) override final;
+    /* unexpected raw nodes */
+    std::any visit(const RawFunDefGlobal &node) final {
+        throw unreachable_error{};
+    }
+    std::any visit(const RawVarDefGlobal &node) final {
+        throw unreachable_error{};
+    }
+    std::any visit(const RawVarDefStmt &node) final {
+        throw unreachable_error{};
+    }
 };
+
+} // namespace ast
