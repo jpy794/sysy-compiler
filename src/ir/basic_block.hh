@@ -2,11 +2,12 @@
 
 #include <list>
 
+#include "ilist.hh"
 #include "instruction.hh"
-#include "module.hh"
+#include "type.hh"
 
 namespace ir {
-
+class Module;
 class Function;
 class BasicBlock : public Value, public ilist<BasicBlock>::node {
   public:
@@ -16,28 +17,25 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
     Function *get_function() const { return _parent; }
 
     // BasicBlock
-    const std::list<BasicBlock*> &get_pre_basic_blocks() const { return _pre_bbs; }
+    const std::vector<BasicBlock*> &get_pre_basic_blocks() const { return _pre_bbs; }
 
-    const std::list<BasicBlock*> &get_suc_basic_blocks() const { return _suc_bbs; }
+    const std::vector<BasicBlock*> &get_suc_basic_blocks() const { return _suc_bbs; }
 
-    void add_pre_basic_block(BasicBlock *bb) { _pre_bbs.push_back(bb); }
+    std::vector<BasicBlock*> &get_pre_basic_blocks() { return _pre_bbs; }
 
-    void add_suc_basic_block(BasicBlock *bb) { _suc_bbs.push_back(bb); }
+    std::vector<BasicBlock*> &get_suc_basic_blocks() { return _suc_bbs; }
 
-    unsigned get_num_pre_bbs() const { return _pre_bbs.size(); }
-
-    unsigned get_num_suc_bbs() const { return _suc_bbs.size(); }
     // Instruction
-    void add_instruction(Instruction *instr);
 
-    unsigned get_num_of_instr() const { return _instr_list.size(); }
+    const ilist<Instruction>& get_instructions() const { return _instr_list; }
 
+    ilist<Instruction>& get_instructions() { return _instr_list; }
     // print
     std::string print() const override;
   private:
     BasicBlock(Function *parent);
-    std::list<BasicBlock*> _pre_bbs;
-    std::list<BasicBlock*> _suc_bbs;
+    std::vector<BasicBlock*> _pre_bbs;
+    std::vector<BasicBlock*> _suc_bbs;
     ilist<Instruction> _instr_list;
     Function *_parent;
 };

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ilist.hh"
-#include "module.hh"
+#include "type.hh"
 #include "value.hh"
 
 #include <string>
@@ -9,6 +9,7 @@
 namespace ir {
 
 class Constant;
+class Module;
 class GlobalVariable : public Value, public ilist<GlobalVariable>::node {
   public:
     static GlobalVariable *get(Type *type, Constant *init, std::string &name,

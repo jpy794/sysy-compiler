@@ -2,7 +2,7 @@
 #include "basic_block.hh"
 #include "function.hh"
 #include "type.hh"
-
+#include "module.hh"
 #include <cassert>
 #include <string>
 #include <vector>

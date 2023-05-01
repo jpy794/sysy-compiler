@@ -1,12 +1,12 @@
 #pragma once
 
-#include "module.hh"
 #include "user.hh"
+#include "ilist.hh"
 
 namespace ir {
 
 class BasicBlock;
-
+class Module;
 class Instruction : public User, public ilist<Instruction>::node {
   public:
     enum OpID {
@@ -38,7 +38,6 @@ class Instruction : public User, public ilist<Instruction>::node {
     };
     Instruction(Type *type, const std::string& name, OpID id, unsigned num_ops,
                 std::vector<Value *> &operands, BasicBlock *parent);
-
     bool is_ret() const { return _id == ret; }
     bool is_br() const { return _id == br; }
     bool is_add() const { return _id == add; }

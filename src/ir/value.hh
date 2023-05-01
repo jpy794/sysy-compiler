@@ -9,6 +9,7 @@ class Type;
 class Value {
   public:
     Value(Type *type, const std::string &name);
+    virtual ~Value()=0;
     const Type *get_type() const { return _type; };
     const std::string &get_name() const { return _name; }
     virtual std::string print()const =0;
