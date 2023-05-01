@@ -49,7 +49,7 @@ ConstantArray *ConstantArray::get(std::vector<int> &array, Module *m) {
     for (auto &val : array)
         array_.push_back(ConstantInt::get(val, m));
     return new ConstantArray(
-        m->get_array_type(m->get_int_type(), {(unsigned)array.size()}), array_);
+        m->get_array_type(m->get_int_type(), (unsigned)array.size()), array_);
 }
 
 ConstantArray *ConstantArray::get(std::vector<float> &array, Module *m) {
@@ -58,6 +58,6 @@ ConstantArray *ConstantArray::get(std::vector<float> &array, Module *m) {
     for (auto &val : array)
         array_.push_back(ConstantFloat::get(val, m));
     return new ConstantArray(
-        m->get_array_type(m->get_float_type(), {(unsigned)array.size()}),
+        m->get_array_type(m->get_float_type(), (unsigned)array.size()),
         array_);
 }

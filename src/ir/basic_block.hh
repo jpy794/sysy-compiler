@@ -8,7 +8,7 @@ namespace ir {
 class Function;
 class BasicBlock : public Value, ilist<BasicBlock>::node {
   public:
-    static BasicBlock *create(const std::string &name, Function *parent);
+    static BasicBlock *create(Function *parent);
 
     // Function
     Function *get_function() const { return _parent; }
@@ -31,7 +31,7 @@ class BasicBlock : public Value, ilist<BasicBlock>::node {
     unsigned get_num_of_instr() const { return _instr_list.size(); }
 
   private:
-    BasicBlock(const std::string &name, Function *parent);
+    BasicBlock(Function *parent);
     ilist<BasicBlock> _pre_bbs;
     ilist<BasicBlock> _suc_bbs;
     ilist<Instruction> _instr_list;

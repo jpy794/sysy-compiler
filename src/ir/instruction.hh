@@ -36,7 +36,7 @@ class Instruction : public User, public ilist<Instruction>::node {
         fptosi,
         sitofp
     };
-    Instruction(Type *type, OpID id, unsigned num_ops,
+    Instruction(Type *type, const std::string& name, OpID id, unsigned num_ops,
                 std::vector<Value *> &operands, BasicBlock *parent);
 
     bool is_ret() const { return _id == ret; }

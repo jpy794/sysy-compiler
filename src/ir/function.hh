@@ -2,21 +2,12 @@
 
 #include "module.hh"
 #include "value.hh"
+#include <string>
 
 namespace ir {
 
 class BasicBlock;
-
-class Argument : public Value, public ilist<Argument>::node {
-  public:
-    Argument(Type *type, unsigned i, const std::string &name, Function *f)
-        : Value(type, name), _arg_no(i), _parent(f) {}
-    ~Argument() = default;
-
-  private:
-    unsigned _arg_no;
-    Function *_parent;
-};
+class Argument;
 
 class Function : public Value, public ilist<Function>::node {
   public:
@@ -43,9 +34,8 @@ class Function : public Value, public ilist<Function>::node {
 
     const ilist<BasicBlock> &get_basic_blocks() { return _bbs; }
 
-    // print
-    void set_instr_name();
-
+    // seq_cnt
+    unsigned get_seq() {return _seq_cnt++;}
   private:
     Function(FuncType *type, std::string &name, Module *parent);
     ilist<Argument> _args;
@@ -54,4 +44,14 @@ class Function : public Value, public ilist<Function>::node {
     unsigned _seq_cnt;
 };
 
+class Argument : public Value, public ilist<Argument>::node {
+  public:
+    Argument(Type *type, Function *parent)
+        : Value(type, "arg" + std::to_string(parent->get_seq())), _parent(parent) {}
+    ~Argument() = default;
+    Function* get_function() const { return _parent;}
+
+  private:
+    Function *_parent;
+};
 } // namespace ir
