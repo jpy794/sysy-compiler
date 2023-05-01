@@ -7,7 +7,6 @@ class inst : public ilist<inst>::node {
   public:
     std::string inst_str;
     inst(const std::string &s) : inst_str(s) {}
-    inst() = default;
 
     bool operator==(const inst &rhs) { return inst_str == rhs.inst_str; }
 };

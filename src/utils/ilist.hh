@@ -74,8 +74,8 @@ template <typename T> class ilist {
 
   public:
     ilist() {
-        _head = new T;
-        _tail = new T;
+        _head = static_cast<T *>(::operator new(sizeof(T)));
+        _tail = static_cast<T *>(::operator new(sizeof(T)));
         _head->_next = _tail;
         _tail->_prev = _head;
         _tag = _alloc_tag();
