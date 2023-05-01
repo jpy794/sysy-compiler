@@ -55,8 +55,8 @@ Instruction *BinaryInst::create(OpID id, std::vector<Value *> &&operands,
                                 BasicBlock *parent) {
     if (is_int_bina(id))
         return new BinaryInst(
-            parent->get_function()->get_module()->get_int_type(), id, operands,
-            parent);
+            parent->get_function()->get_module()->get_int32_type(), id,
+            operands, parent);
     else if (is_float_bina(id))
         return new BinaryInst(
             parent->get_function()->get_module()->get_float_type(), id,
@@ -129,7 +129,7 @@ Instruction *LoadInst::create(OpID id, std::vector<Value *> &&operands,
             ->get_element_type();
     Type *inst_type;
     if (element_type->is_int_type())
-        inst_type = parent->get_function()->get_module()->get_int_type();
+        inst_type = parent->get_function()->get_module()->get_int32_type();
     else if (element_type->is_float_type())
         inst_type = parent->get_function()->get_module()->get_float_type();
     else if (element_type->is_array_type())
@@ -165,8 +165,8 @@ CmpInst::CmpInst(Type *type, CmpOp id, vector<Value *> &operands,
       _id(id) {}
 Instruction *CmpInst::create(CmpOp id, std::vector<Value *> &&operands,
                              BasicBlock *parent) {
-    return new CmpInst(parent->get_function()->get_module()->get_int_type(), id,
-                       operands, parent);
+    return new CmpInst(parent->get_function()->get_module()->get_int1_type(),
+                       id, operands, parent);
 }
 string CmpInst::print() const {
     string CmpName;
@@ -202,7 +202,7 @@ FCmpInst::FCmpInst(Type *type, FCmpOp id, vector<Value *> &operands,
       _id(id) {}
 Instruction *FCmpInst::create(FCmpOp id, std::vector<Value *> &&operands,
                               BasicBlock *parent) {
-    return new FCmpInst(parent->get_function()->get_module()->get_int_type(),
+    return new FCmpInst(parent->get_function()->get_module()->get_int1_type(),
                         id, operands, parent);
 }
 string FCmpInst::print() const {
@@ -262,7 +262,7 @@ Fp2siInst::Fp2siInst(Type *type, OpID id, vector<Value *> &operands,
                   1, operands, parent) {}
 Instruction *Fp2siInst::create(OpID id, std::vector<Value *> &&operands,
                                BasicBlock *parent) {
-    return new Fp2siInst(parent->get_function()->get_module()->get_int_type(),
+    return new Fp2siInst(parent->get_function()->get_module()->get_int32_type(),
                          id, operands, parent);
 }
 string Fp2siInst::print() const {

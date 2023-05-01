@@ -3,11 +3,12 @@
 #include <string>
 #include <vector>
 
-#include "module.hh"
+#include "instruction.hh"
 #include "value.hh"
 
 namespace ir {
 
+class Module;
 class Constant : public Value {
   public:
     Constant(Type *type, const std::string &name) : Value(type, name){};
@@ -21,6 +22,7 @@ class ConstantInt : public Constant {
     ~ConstantInt() = default;
     int get_value() const { return _value; }
     static ConstantInt *get(int val, Module *m);
+    static ConstantInt *get(bool val, Module *m);
     std::string print() const override;
 
   private:

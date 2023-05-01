@@ -1,5 +1,6 @@
 #include "global_variable.hh"
 #include "constant.hh"
+#include "module.hh"
 using namespace ir;
 
 GlobalVariable::GlobalVariable(Type *type, Constant *init, std::string &name,
