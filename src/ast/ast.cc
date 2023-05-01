@@ -44,10 +44,11 @@ class ASTBuilder : public ASTVisitor {
     ConstTable _const_table;
 
     /* depth: wrapped by how many brackets
-       off: sequence number of current exp in current bracket (starts from 0) */
-    void _pack_initval(RawVarDefStmt::InitList &init, size_t depth, size_t off,
-                       const vector<size_t> &dims,
-                       vector<optional<Ptr<Expr>>> &res);
+       off: beginning index of current brace (starts from 0)
+       return: the new off */
+    size_t _pack_initval(RawVarDefStmt::InitList &init, size_t depth,
+                         size_t off, const vector<size_t> &dims,
+                         vector<optional<Ptr<Expr>>> &res, BaseType type);
     PtrList<VarDefStmt> _split_vardef(RawVarDefStmt &raw_vardef);
 
   public:
@@ -254,27 +255,47 @@ template <typename Derived, typename Base> bool is(Base *ptr) {
     return dynamic_cast<Derived *>(ptr) != nullptr;
 }
 
-void ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
-                               size_t off, const vector<size_t> &dims,
-                               vector<optional<Ptr<Expr>>> &res) {
-    auto sub_dim_len{1};
-    for (auto i = depth + 1; i < dims.size(); i++) {
-        sub_dim_len *= dims[i];
+size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
+                                 size_t off, const vector<size_t> &dims,
+                                 vector<optional<Ptr<Expr>>> &res,
+                                 BaseType type) {
+    auto dim_len{1};
+    for (auto i = depth; i < dims.size(); i++) {
+        dim_len *= dims[i];
     }
-    auto dim_len = dims[depth] * sub_dim_len;
-    auto dim_idx_begin = off * dim_len;
+    auto dim_idx_begin = off;
+    if (init.is_zero_list) {
+        // this is a zero init
+        for (auto i = 0; i < dim_len; i++) {
+            auto literal = new LiteralExpr{};
+            literal->type = type;
+            if (type == BaseType::INT) {
+                literal->val = 0;
+            } else if (type == BaseType::FLOAT) {
+                literal->val = 0.0f;
+            } else {
+                throw unreachable_error{};
+            }
+            res[dim_idx_begin + i] = Ptr<Expr>{literal};
+        }
+        return dim_idx_begin + dim_len;
+    }
     if (holds_alternative<Ptr<Expr>>(init.val)) {
         // this is a value, not a init list
         // TODO: evaluate the value for const vardef
         auto &expr = get<Ptr<Expr>>(init.val);
         res[dim_idx_begin] = Ptr<Expr>{};
         res[dim_idx_begin]->swap(expr);
+        return off + 1;
     }
     // this is a init list
     auto &list = get<PtrList<RawVarDefStmt::InitList>>(init.val);
     for (size_t i = 0; i < list.size(); i++) {
-        _pack_initval(*list[i], depth + 1, i, dims, res);
+        off = _pack_initval(*list[i], depth + 1, off, dims, res, type);
     }
+    // if there're undefined initval, off should be set to dim_idx_begin +
+    // dim_len
+    return max(off, dim_idx_begin + dim_len);
 }
 
 int expect_const_pos_int(const ExprLiteral &literal) {
@@ -310,7 +331,7 @@ PtrList<VarDefStmt> ASTBuilder::_split_vardef(RawVarDefStmt &raw_vardef) {
         vardef->init_vals.resize(len);
         if (entry->init_list.has_value()) {
             _pack_initval(*entry->init_list.value(), 0, 0, vardef->dims,
-                          vardef->init_vals);
+                          vardef->init_vals, vardef->type);
         }
         ret.push_back(Ptr<VarDefStmt>{vardef});
     }

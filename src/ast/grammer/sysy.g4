@@ -8,7 +8,7 @@ vardecl: Const? (Int | Float) vardef (Comma vardef)* SemiColon;
 
 vardef: Identifier (LeftBracket exp RightBracket)* (Assign varInit)?;
 
-varInit: LeftBrace varInit (Comma varInit)* RightBrace
+varInit: LeftBrace (varInit (Comma varInit)*)? RightBrace
        | exp;
 
 funcdef: (Void | Int | Float) Identifier LeftParen (funcparam (Comma funcparam)*)? RightParen block;

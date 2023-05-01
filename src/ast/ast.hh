@@ -264,6 +264,7 @@ struct RawVarDefGlobal : Global {
 
 struct RawVarDefStmt : Stmt {
     struct InitList {
+        bool is_zero_list;
         std::variant<Ptr<Expr>, PtrList<InitList>> val;
     };
     struct Entry {

@@ -278,20 +278,28 @@ any RawASTBuilder::visitVardef(sysyParser::VardefContext *ctx) {
     for (auto &&pexp : ctx->exp()) {
         entry->dims.push_back(as_ptr<Expr>(visit(pexp)));
     }
-    entry->init_list = as_ptr<RawVarDefStmt::InitList>(ctx->varInit());
+    if (ctx->varInit()) {
+        entry->init_list =
+            as_ptr<RawVarDefStmt::InitList>(visit(ctx->varInit()));
+    }
     return entry;
 }
 
 any RawASTBuilder::visitVarInit(sysyParser::VarInitContext *ctx) {
     auto ret = new RawVarDefStmt::InitList;
     if (ctx->exp()) {
+        ret->is_zero_list = false;
         ret->val = as_ptr<Expr>(visit(ctx->exp()));
     } else if (ctx->varInit().size() > 0) {
         PtrList<RawVarDefStmt::InitList> list;
         for (auto &&pinit : ctx->varInit()) {
             list.push_back(as_ptr<RawVarDefStmt::InitList>(visit(pinit)));
         }
+        ret->is_zero_list = false;
         ret->val = std::move(list);
+    } else if (ctx->LeftBrace() && ctx->RightBrace()) {
+        // zero init
+        ret->is_zero_list = true;
     } else {
         throw unreachable_error{};
     }
@@ -359,7 +367,10 @@ any RawASTBuilder::visitGlobalDef(sysyParser::GlobalDefContext *ctx) {
     if (ctx->funcdef()) {
         ret = as_raw_ptr<Global>(visit(ctx->funcdef()));
     } else if (ctx->vardecl()) {
-        ret = as_raw_ptr<Global>(visit(ctx->vardecl()));
+        auto node = new RawVarDefGlobal;
+        node->vardef_stmt =
+            cast_ptr<RawVarDefStmt>(as_raw_ptr<Stmt>(visit(ctx->vardecl())));
+        ret = node;
     } else {
         throw unreachable_error{};
     }
