@@ -19,6 +19,11 @@ class ConstTable {
     vector<map<string, const VarDefStmt *>> _const_table;
 
   public:
+    ConstTable() {
+        // global var
+        push();
+    }
+
     const VarDefStmt *lookup(const string &name) const {
         for (auto it = _const_table.rbegin(); it != _const_table.rend(); ++it) {
             if (contains(*it, name)) {
@@ -332,6 +337,9 @@ PtrList<VarDefStmt> ASTBuilder::_split_vardef(RawVarDefStmt &raw_vardef) {
         if (entry->init_list.has_value()) {
             _pack_initval(*entry->init_list.value(), 0, 0, vardef->dims,
                           vardef->init_vals, vardef->type);
+        }
+        if (vardef->is_const) {
+            _const_table.insert(vardef->var_name, vardef);
         }
         ret.push_back(Ptr<VarDefStmt>{vardef});
     }
