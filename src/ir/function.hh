@@ -1,9 +1,9 @@
 #pragma once
 
+#include "basic_block.hh"
 #include "ilist.hh"
 #include "type.hh"
 #include "value.hh"
-#include "basic_block.hh"
 #include <string>
 
 namespace ir {
@@ -23,7 +23,7 @@ class Function : public Value, public ilist<Function>::node {
     // Arguments
     unsigned get_num_of_args() const { return _args.size(); }
 
-    const std::vector<Argument*> &get_args();
+    const std::vector<Argument *> &get_args();
 
     void add_arg(Argument *arg);
 
@@ -37,12 +37,13 @@ class Function : public Value, public ilist<Function>::node {
     const ilist<BasicBlock> &get_basic_blocks() { return _bbs; }
 
     // seq_cnt
-    unsigned get_seq() {return _seq_cnt++;}
+    unsigned get_seq() { return _seq_cnt++; }
 
     std::string print() const override;
+
   private:
     Function(FuncType *type, std::string &name, Module *parent);
-    std::vector<Argument*> _args;
+    std::vector<Argument *> _args;
     ilist<BasicBlock> _bbs;
     Module *_parent;
     unsigned _seq_cnt;
@@ -51,10 +52,12 @@ class Function : public Value, public ilist<Function>::node {
 class Argument : public Value, public ilist<Argument>::node {
   public:
     Argument(Type *type, Function *parent)
-        : Value(type, "arg" + std::to_string(parent->get_seq())), _parent(parent) {}
+        : Value(type, "arg" + std::to_string(parent->get_seq())),
+          _parent(parent) {}
     ~Argument() = default;
-    Function* get_function() const { return _parent;}
+    Function *get_function() const { return _parent; }
     std::string print() const override final;
+
   private:
     Function *_parent;
 };

@@ -32,9 +32,7 @@ ConstantInt *ConstantInt::get(int val, Module *m) {
                         new ConstantInt(m->get_int_type(), val)))
             .get();
 }
-std::string ConstantInt::print() const{
-    return this->get_name();
-}
+std::string ConstantInt::print() const { return this->get_name(); }
 
 ConstantFloat *ConstantFloat::get(float val, Module *m) {
     if (cached_float.find(std::make_pair(val, m)) != cached_float.end())
@@ -45,9 +43,7 @@ ConstantFloat *ConstantFloat::get(float val, Module *m) {
                         new ConstantFloat(m->get_float_type(), val)))
             .get();
 }
-std::string ConstantFloat::print() const{
-    return this->get_name();
-}
+std::string ConstantFloat::print() const { return this->get_name(); }
 
 ConstantArray *ConstantArray::get(std::vector<int> &array, Module *m) {
     std::vector<Constant *> array_;
@@ -64,14 +60,13 @@ ConstantArray *ConstantArray::get(std::vector<float> &array, Module *m) {
     for (auto &val : array)
         array_.push_back(ConstantFloat::get(val, m));
     return new ConstantArray(
-        m->get_array_type(m->get_float_type(), (unsigned)array.size()),
-        array_);
+        m->get_array_type(m->get_float_type(), (unsigned)array.size()), array_);
 }
-std::string ConstantArray::print() const{
+std::string ConstantArray::print() const {
     std::string elems;
-    for(auto& elem : this->_array){
-        elems+= elem->print() + ",";
+    for (auto &elem : this->_array) {
+        elems += elem->print() + ",";
     }
-    elems[elems.size()-1]='}';
+    elems[elems.size() - 1] = '}';
     return "{" + elems;
 }

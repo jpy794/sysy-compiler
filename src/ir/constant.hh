@@ -22,6 +22,7 @@ class ConstantInt : public Constant {
     int get_value() const { return _value; }
     static ConstantInt *get(int val, Module *m);
     std::string print() const override;
+
   private:
     int _value;
 };
@@ -33,6 +34,7 @@ class ConstantFloat : public Constant {
     float get_value() const { return _value; }
     static ConstantFloat *get(float val, Module *m);
     std::string print() const override;
+
   private:
     float _value;
 };
@@ -44,6 +46,7 @@ class ConstantArray : public Constant {
     static ConstantArray *get(std::vector<int> &array, Module *m);
     static ConstantArray *get(std::vector<float> &array, Module *m);
     std::string print() const override;
+
   private:
     std::vector<Constant *> _array;
 };

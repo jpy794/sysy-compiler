@@ -11,6 +11,7 @@ GlobalVariable *GlobalVariable::get(Type *type, Constant *init,
     m->add_global_variable(global_v);
     return global_v;
 }
-std::string GlobalVariable::print() const{
-    return this->get_type()->print()+ " " +this->get_name() + " = " + _init->print();
+std::string GlobalVariable::print() const {
+    return this->get_type()->print() + " " + this->get_name() + " = " +
+           _init->print();
 }

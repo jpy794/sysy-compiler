@@ -3,10 +3,10 @@
 #include <memory>
 #include <string>
 
+#include "function.hh"
+#include "global_variable.hh"
 #include "ilist.hh"
 #include "type.hh"
-#include "global_variable.hh"
-#include "function.hh"
 namespace ir {
 
 class Module {
