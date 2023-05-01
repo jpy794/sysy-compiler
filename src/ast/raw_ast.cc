@@ -153,6 +153,7 @@ any RawASTBuilder::visitFuncCall(sysyParser::FuncCallContext *ctx) {
         node->args.push_back(as_ptr<Expr>(visit(pexp)));
     }
 
+    ret = node;
     return ret;
 }
 
