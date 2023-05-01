@@ -49,11 +49,19 @@ int main() {
         std::cout << inst.inst_str << '\n';
     }
 
-    // test const version
+    /* test const version */
+    // traverse
     const auto &cilist = inst_list;
     for (auto &inst : cilist) {
         std::cout << inst.inst_str << '\n';
     }
     std::cout << "first element: " << cilist.front().inst_str << '\n';
     std::cout << "last element: " << cilist.back().inst_str << '\n';
+
+    // safety
+    /* inst_list.front().inst_str = "hhh"; // ok
+     * cilist.front().inst_str = "hhh";    // fail */
+
+    /* inst_list.begin()->inst_str = "hhh"; // ok
+     * cilist.begin()->inst_str = "hhh";    // fail */
 }

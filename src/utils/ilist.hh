@@ -26,6 +26,40 @@ template <typename T> class ilist {
         node &operator=(const node &) = delete;
     };
 
+    class const_iterator {
+        friend class ilist<T>;
+
+      public:
+        using value_type = T;
+        using pointer = const value_type *;
+        using reference = const value_type &;
+
+        const_iterator(pointer ptr) : _ptr(ptr) {}
+
+        reference operator*() const { return *_ptr; }
+        pointer operator->() const { return _ptr; }
+
+        bool operator==(const const_iterator &rhs) const {
+            return _ptr == rhs._ptr;
+        }
+        bool operator!=(const const_iterator &rhs) const {
+            return _ptr != rhs._ptr;
+        }
+
+        // --it & ++it
+        const_iterator &operator--() {
+            _ptr = _ptr->_prev;
+            return *this;
+        }
+        const_iterator &operator++() {
+            _ptr = _ptr->_next;
+            return *this;
+        }
+
+      private:
+        pointer _ptr{nullptr};
+    };
+
     class iterator {
         friend class ilist<T>;
 
@@ -91,8 +125,8 @@ template <typename T> class ilist {
         delete _tail;
     }
 
-    const iterator begin() const { return iterator{_head->_next}; }
-    const iterator end() const { return iterator{_tail}; }
+    const_iterator begin() const { return const_iterator{_head->_next}; }
+    const_iterator end() const { return const_iterator{_tail}; }
     iterator begin() { return iterator{_head->_next}; }
     iterator end() { return iterator{_tail}; }
 
