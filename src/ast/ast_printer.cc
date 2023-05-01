@@ -100,7 +100,7 @@ std::any ASTPrinter::visit(const VarDefStmt &node) {
         if (ini.has_value())
             init_vals += any_string(ini->get()->accept(*this)) + ",";
         else 
-            init_vals += "default,";
+            init_vals += "\"default\",";
     }
     init_vals = no_trailing(init_vals);
     body += kvpair("init_vals", init_vals, STP::Array);
