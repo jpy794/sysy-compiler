@@ -91,6 +91,8 @@ template <typename T> class ilist {
         delete _tail;
     }
 
+    const iterator begin() const { return iterator{_head->_next}; }
+    const iterator end() const { return iterator{_tail}; }
     iterator begin() { return iterator{_head->_next}; }
     iterator end() { return iterator{_tail}; }
 
@@ -185,6 +187,8 @@ template <typename T> class ilist {
         return insert(it, new T{args...});
     }
 
+    const T &front() const { return *(_head->_next); }
+    const T &back() const { return *(_tail->_prev); }
     T &front() { return *(_head->_next); }
     T &back() { return *(_tail->_prev); }
 };

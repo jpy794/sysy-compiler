@@ -48,4 +48,12 @@ int main() {
     for (auto &&inst : inst_list) {
         std::cout << inst.inst_str << '\n';
     }
+
+    // test const version
+    const auto &cilist = inst_list;
+    for (auto &inst : cilist) {
+        std::cout << inst.inst_str << '\n';
+    }
+    std::cout << "first element: " << cilist.front().inst_str << '\n';
+    std::cout << "last element: " << cilist.back().inst_str << '\n';
 }
