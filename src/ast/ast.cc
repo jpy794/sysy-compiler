@@ -398,8 +398,10 @@ any ASTBuilder::visit(const BlockStmt &node) {
     // adjust scope
     _const_table.push();
     auto &n = const_cast<BlockStmt &>(node);
-    for (auto it = node.stmts.begin(); it != node.stmts.end();) {
+    for (auto it = n.stmts.begin(); it != n.stmts.end();) {
         if (not is<RawVarDefStmt>(it->get())) {
+            // check for while / if / block
+            visit(**it);
             ++it;
             continue;
         }
@@ -430,7 +432,7 @@ Ptr<Stmt> pack_vardefs_block(PtrList<VarDefStmt> &vardefs) {
 any ASTBuilder::visit(const WhileStmt &node) {
     auto &n = const_cast<WhileStmt &>(node);
     if (not is<RawVarDefStmt>(n.body.get())) {
-        // check for more vardef stmt
+        // check for while / if / block
         visit(*n.body);
         return {};
     }
@@ -451,7 +453,7 @@ any ASTBuilder::visit(const IfStmt &node) {
         auto block = pack_vardefs_block(vardefs);
         n.then_body.swap(block);
     } else {
-        // check for more vardef stmt
+        // check for more vardef / while / if stmt
         visit(*n.then_body);
     }
     if (n.else_body.has_value() &&
@@ -462,7 +464,7 @@ any ASTBuilder::visit(const IfStmt &node) {
         auto block = pack_vardefs_block(vardefs);
         n.else_body.value().swap(block);
     } else if (n.else_body.has_value()) {
-        // check for more vardef stmt
+        // check for while / if / block
         visit(*n.else_body.value());
     }
     return {};
