@@ -14,7 +14,7 @@ class GlobalVariable : public Value, public ilist<GlobalVariable>::node {
     static GlobalVariable *get(Type *type, Constant *init, std::string &name,
                                Module *parent);
     Constant *get_init() const { return _init; };
-
+    std::string print() const override;
   private:
     GlobalVariable(Type *type, Constant *init, std::string &name,
                    Module *parent);

@@ -1,12 +1,14 @@
 #pragma once
 
+#include <list>
+
 #include "instruction.hh"
 #include "module.hh"
 
 namespace ir {
 
 class Function;
-class BasicBlock : public Value, ilist<BasicBlock>::node {
+class BasicBlock : public Value, public ilist<BasicBlock>::node {
   public:
     static BasicBlock *create(Function *parent);
 
@@ -14,9 +16,9 @@ class BasicBlock : public Value, ilist<BasicBlock>::node {
     Function *get_function() const { return _parent; }
 
     // BasicBlock
-    const ilist<BasicBlock> &get_pre_basic_blocks() { return _pre_bbs; }
+    const std::list<BasicBlock*> &get_pre_basic_blocks() const { return _pre_bbs; }
 
-    const ilist<BasicBlock> &get_suc_basic_blocks() { return _suc_bbs; }
+    const std::list<BasicBlock*> &get_suc_basic_blocks() const { return _suc_bbs; }
 
     void add_pre_basic_block(BasicBlock *bb) { _pre_bbs.push_back(bb); }
 
@@ -30,10 +32,12 @@ class BasicBlock : public Value, ilist<BasicBlock>::node {
 
     unsigned get_num_of_instr() const { return _instr_list.size(); }
 
+    // print
+    std::string print() const override;
   private:
     BasicBlock(Function *parent);
-    ilist<BasicBlock> _pre_bbs;
-    ilist<BasicBlock> _suc_bbs;
+    std::list<BasicBlock*> _pre_bbs;
+    std::list<BasicBlock*> _suc_bbs;
     ilist<Instruction> _instr_list;
     Function *_parent;
 };
