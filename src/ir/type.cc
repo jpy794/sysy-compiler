@@ -1,6 +1,10 @@
-#include "Type.hh"
+#include "type.hh"
+
 #include <string>
+
+using namespace ir;
 using std::string;
+
 /* ==============FuncType==============*/
 string FuncType::print() const {
     string ret;
@@ -24,7 +28,7 @@ bool FuncType::is_valid_argument_type(Type *type) {
 string ArrayType::print() const {
     string ret;
     ret = _elementTp->print();
-    
+
     ret = "[" + std::to_string(_length) + "]" + ret;
 
     return ret;

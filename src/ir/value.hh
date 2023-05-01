@@ -1,20 +1,20 @@
 #pragma once
-#include<string>
+
+#include <string>
+
+namespace ir {
+
 class Type;
-class Value{
-    public:
-        Value()=default;
 
-        Value(Type* type, const std::string &name);
+class Value {
+  public:
+    Value(Type *type, const std::string &name);
+    const Type *type() const { return _type; };
+    const std::string &name() const { return _name; }
 
-        ~Value()=default;
-
-        Type* get_type() const { return _type; };
-
-        const std::string& get_name() const { return _name; }
-        
-        void set_name(const std::string &name);
-    private:
-        Type* _type;
-        std::string _name;
+  private:
+    const Type *const _type;
+    const std::string _name;
 };
+
+} // namespace ir

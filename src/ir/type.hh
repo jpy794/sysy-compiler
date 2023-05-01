@@ -1,12 +1,13 @@
 #pragma once
 
-#include "module.hh"
-
 #include <cassert>
 #include <string>
 #include <vector>
 
+namespace ir {
+
 class Module;
+
 /* Design Rule:
  * - maintain enough class members to express the semantics
  * - use api to access the class members
@@ -126,7 +127,7 @@ class ArrayType : public Type {
         : Type(ArrayTypeID, m), _elementTp(elem_type), _length(length) {}
 
     Type *get_element_type() const { return _elementTp; }
-    
+
     unsigned get_length() const { return _length; }
 
     // unsigned get_dim(unsigned i) const { return _dims.at(i); }
@@ -135,3 +136,5 @@ class ArrayType : public Type {
 
     std::string print() const;
 };
+
+} // namespace ir
