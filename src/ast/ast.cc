@@ -371,8 +371,9 @@ any ASTBuilder::visit(const Root &node) {
                 fundef->params.push_back(param);
             }
             it = n.globals.erase(it);
-            n.globals.emplace(it, fundef);
-
+            // iterator after the insert point is invalidated
+            it = n.globals.emplace(it, fundef);
+            it += 1;
             // check for more vardef stmt
             visit(*fundef->body);
         } else if (is<RawVarDefGlobal>(it->get())) {
@@ -383,10 +384,11 @@ any ASTBuilder::visit(const Root &node) {
             for (auto &def : vardefs) {
                 auto global = new VarDefGlobal;
                 global->vardef_stmt.swap(def);
-                n.globals.emplace(it, global);
+                it = n.globals.emplace(it, global);
+                it += 1;
             }
         } else {
-            ++it;
+            throw unreachable_error{};
         }
     }
     return {};
@@ -406,7 +408,8 @@ any ASTBuilder::visit(const BlockStmt &node) {
         it = n.stmts.erase(it);
         for (auto &def : vardefs) {
             auto new_stmt = static_cast<Stmt *>(def.release());
-            n.stmts.insert(it, Ptr<Stmt>{new_stmt});
+            it = n.stmts.insert(it, Ptr<Stmt>{new_stmt});
+            it += 1;
         }
     }
     _const_table.pop();
