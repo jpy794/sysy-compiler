@@ -1,5 +1,7 @@
 #pragma once
 
+#include "err.h"
+#include "err.hh"
 #include <cassert>
 #include <string>
 #include <vector>
@@ -26,8 +28,8 @@ class Type {
         PointerTypeID,
         ArrayTypeID
     };
-    explicit Type(TypeID tid);
-    // ~Type() = default;
+    explicit Type(TypeID tid) : _tid(tid) {}
+    virtual ~Type(){};
 
     bool is_int_type() const { return _tid == IntTypeID; }
     bool is_float_type() const { return _tid == FloatTypeID; }
@@ -37,7 +39,7 @@ class Type {
     bool is_pointer_type() const { return _tid == PointerTypeID; }
     bool is_array_type() const { return _tid == ArrayTypeID; }
 
-    virtual std::string print() const;
+    virtual std::string print() const { throw unreachable_error{}; }
 
   private:
     TypeID _tid;

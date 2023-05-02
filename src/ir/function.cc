@@ -21,7 +21,7 @@ Function::Function(FuncType *type, std::string &&name, Module *parent)
 }
 
 Function *Function::create(FuncType *type, std::string &&name, Module *parent) {
-    return new Function(type, name, parent);
+    return new Function(type, static_cast<std::string &&>(name), parent);
 }
 
 Type *Function::get_return_type() const {
