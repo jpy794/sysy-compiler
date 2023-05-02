@@ -24,8 +24,8 @@ class Module {
     void add_function(Function *func);
     // - symbol table: maybe unnecassary
     // - Types: give each type a unique address, for convenience of equal-judge
-    Type *get_bool_type() const { return _bool_ty.get(); }
-    Type *get_int_type() const { return _int_ty.get(); }
+    Type *get_int1_type() const { return _int1_ty.get(); }
+    Type *get_int32_type() const { return _int32_ty.get(); }
     Type *get_float_type() const { return _float_ty.get(); }
     Type *get_label_type() const { return _label_ty.get(); }
     Type *get_void_type() const { return _void_ty.get(); }
@@ -39,8 +39,8 @@ class Module {
 
   private:
     std::string _name;
-    std::unique_ptr<IntType> _bool_ty;
-    std::unique_ptr<IntType> _int_ty;
+    std::unique_ptr<IntType> _int1_ty;
+    std::unique_ptr<IntType> _int32_ty;
     std::unique_ptr<FloatType> _float_ty;
     std::unique_ptr<LabelType> _label_ty;
     std::unique_ptr<VoidType> _void_ty;

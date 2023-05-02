@@ -8,8 +8,8 @@ using namespace ir;
 using namespace std;
 
 Module::Module(string &name) : _name(name) {
-    _bool_ty = make_unique<IntType>(1);
-    _int_ty = make_unique<IntType>(32);
+    _int1_ty = make_unique<IntType>(1);
+    _int32_ty = make_unique<IntType>(32);
     _float_ty = make_unique<FloatType>();
     _void_ty = make_unique<VoidType>();
     _label_ty = make_unique<LabelType>();
@@ -57,7 +57,7 @@ ConstantInt *Module::be_cached(bool val) {
         return _cached_bool[val].get();
     else {
         return (_cached_bool[val] = std::unique_ptr<ConstantInt>(
-                    new ConstantInt(this->get_bool_type(), val)))
+                    new ConstantInt(this->get_int1_type(), val)))
             .get();
     }
 }
@@ -66,7 +66,7 @@ ConstantInt *Module::be_cached(int val) {
         return _cached_int[val].get();
     else {
         return (_cached_int[val] = std::unique_ptr<ConstantInt>(
-                    new ConstantInt(this->get_int_type(), val)))
+                    new ConstantInt(this->get_int32_type(), val)))
             .get();
     }
 }
