@@ -15,7 +15,7 @@ Function::Function(FuncType *type, std::string &&name, Module *parent)
     : Value(parent, type, std::move(name)), _args(), _bbs(), _parent(parent),
       _seq_cnt(0) {
     parent->add_function(this);
-    for (unsigned i = 0; i < type->get_num_params();) {
+    for (unsigned i = 0; i < type->get_num_params(); ++i) {
         add_arg(new Argument(type->get_param_type(i), this));
     }
 }

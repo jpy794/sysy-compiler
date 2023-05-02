@@ -7,7 +7,8 @@ using namespace ir;
 
 GlobalVariable::GlobalVariable(Type *type, Constant *init, std::string &&name,
                                Module *parent)
-    : Value(parent, type, std::move(name)), _init(init), _parent(parent){};
+    : Value(parent, parent->get_pointer_type(type), std::move(name)),
+      _init(init), _parent(parent){};
 GlobalVariable *GlobalVariable::get(Type *type, Constant *init,
                                     std::string &&name, Module *m) {
     GlobalVariable *global_v =

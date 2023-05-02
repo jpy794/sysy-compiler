@@ -129,8 +129,8 @@ int main() {
     builder->set_insertion(entry);
     retAlloca = builder->create_alloc(i32type);
 
-    auto xGEP = builder->create_gep(x, {CONST_INT(0), CONST_INT(0)});
-    auto yGEP = builder->create_gep(y, {CONST_INT(0), CONST_INT(0)});
+    auto xGEP = builder->create_gep(x, {CONST_INT(0)});
+    auto yGEP = builder->create_gep(y, {CONST_INT(0)});
     builder->create_store(CONST_INT(90), xGEP);
     builder->create_store(CONST_INT(18), yGEP);
 

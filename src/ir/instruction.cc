@@ -45,8 +45,8 @@ BrInst::BrInst(BasicBlock *bb, std::vector<Value *> &&operands)
             bb);
     } else if (this->operands().size() == 3) {
         auto int_type = dynamic_cast<IntType *>(get_operand(0)->get_type());
-        auto TBB = get_operand(0);
-        auto FBB = get_operand(1);
+        auto TBB = get_operand(1);
+        auto FBB = get_operand(2);
         assert(int_type and int_type->get_num_bits() == 1);
         assert(TBB->get_type()->is_label_type());
         assert(FBB->get_type()->is_label_type());
