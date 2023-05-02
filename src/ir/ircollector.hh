@@ -57,7 +57,7 @@ class IRCollector {
         return ret;
     }
     BrInst *create_cond_br(Value *cond, BasicBlock *TBB, BasicBlock *FBB,
-                          InsertMode im = Back) {
+                           InsertMode im = Back) {
         auto ret = create_br_({cond, TBB, FBB});
         insert(ret, im);
         return ret;
@@ -190,11 +190,10 @@ class IRCollector {
         return ret;
     }
 
-    CallInst *create_call(Function *func, std::vector<Value *> &args,
+    CallInst *create_call(Function *func, std::vector<Value *> args,
                           InsertMode im = Back) {
-        std::vector<Value *> ops{args};
-        ops.insert(ops.begin(), func);
-        auto ret = new CallInst(_cur_bb, static_cast<decltype(ops) &&>(ops));
+        args.insert(args.begin(), func);
+        auto ret = new CallInst(_cur_bb, static_cast<decltype(args) &&>(args));
         insert(ret, im);
         return ret;
     }

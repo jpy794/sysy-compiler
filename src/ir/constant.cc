@@ -6,11 +6,11 @@
 
 using namespace ir;
 
-ConstantInt *ConstantInt::get(int val, Module *m) { return m->be_cached(val); }
+ConstantInt *ConstantInt::get(int val, Module *m) { return m->get_const_int(val); }
 std::string ConstantInt::print() const { return this->get_name(); }
-ConstantInt *ConstantInt::get(bool val, Module *m) { return m->be_cached(val); }
+ConstantInt *ConstantInt::get(bool val, Module *m) { return m->get_const_bool(val); }
 ConstantFloat *ConstantFloat::get(float val, Module *m) {
-    return m->be_cached(val);
+    return m->get_const_float(val);
 }
 std::string ConstantFloat::print() const { return this->get_name(); }
 
