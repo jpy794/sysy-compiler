@@ -36,8 +36,8 @@ ConstantArray *ConstantArray::get(std::vector<float> &array, Module *m) {
 std::string ConstantArray::print() const {
     std::string elems;
     for (auto &elem : this->_array) {
-        elems += elem->print() + ",";
+        elems += elem->get_type()->print() + " " + elem->print() + ", ";
     }
-    elems[elems.size() - 1] = '}';
-    return "{" + elems;
+    elems.erase(elems.length() - 2, 2);
+    return "[" + elems + "]";
 }
