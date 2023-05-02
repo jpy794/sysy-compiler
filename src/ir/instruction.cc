@@ -21,10 +21,29 @@ Instruction::Instruction(BasicBlock *bb, Type *type, OpID id,
 
 RetInst::RetInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_void_type(), ret, std::move(operands)) {
+    if (bb->get_function()->get_return_type()->is_void_type())
+        assert(operands.size() == 0);
+    else {
+        assert(operands.size() == 1);
+        assert(operands[0]->get_type() ==
+               bb->get_function()->get_return_type());
+    }
 }
 
 BrInst::BrInst(BasicBlock *bb, std::vector<Value *> &&operands)
-    : Instruction(bb, bb->module()->get_void_type(), br, std::move(operands)) {}
+    : Instruction(bb, bb->module()->get_void_type(), br, std::move(operands)) {
+    assert(operands.size() == 1 or operands.size() == 3);
+    if (operands.size() == 1) {
+        // basic_block
+        assert(operands[0]->get_type()->is_label_type());
+    } else if (operands.size() == 3) {
+        auto int_type = dynamic_cast<IntType *>(operands[0]->get_type());
+        assert(int_type and int_type->get_num_bits() == 1);
+        assert(operands[1]->get_type()->is_label_type());
+        assert(operands[2]->get_type()->is_label_type());
+    } else
+        throw unreachable_error{"branch has only 1 or 3 operands"};
+}
 
 Type *BinaryInst::_deduce_type(BasicBlock *bb, BinOp op) {
     Type *type{nullptr};
@@ -42,14 +61,19 @@ Type *BinaryInst::_deduce_type(BasicBlock *bb, BinOp op) {
 BinaryInst::BinaryInst(BasicBlock *bb, std::vector<Value *> &&operands,
                        BinOp op)
     : Instruction(bb, _deduce_type(bb, op), _op_map[op], std::move(operands)) {
-    // TODO: impl strict type check for the operands (both number of ops and
-    // type of them), same for other instructions below.
+    assert(operands.size() == 2);
+    // self type is deduced from opid
+    assert(get_type() == operands[0]->get_type());
+    assert(get_type() == operands[1]->get_type());
 }
 
 AllocaInst::AllocaInst(BasicBlock *bb, std::vector<Value *> &&operands,
                        Type *elem_type)
     : Instruction(bb, bb->module()->get_pointer_type(elem_type), br,
-                  std::move(operands)) {}
+                  std::move(operands)) {
+    // alloca is a ptr type itself, and its op(type) can be deduced from that
+    assert(operands.size() == 0);
+}
 
 Type *LoadInst::_deduce_type(BasicBlock *bb,
                              const std::vector<Value *> &operands) {
@@ -66,14 +90,12 @@ Type *LoadInst::_deduce_type(BasicBlock *bb,
         inst_type = bb->module()->get_int32_type();
     } else if (element_type->is_float_type()) {
         inst_type = bb->module()->get_float_type();
-    } else if (element_type->is_array_type()) {
-        auto elem_arr_type = dynamic_cast<ArrayType *>(element_type);
-        if (not elem_arr_type) {
-            throw logic_error{"elem has array id but is not an array type"};
+    } else if (element_type->is_pointer_type()) {
+        auto elem_ptr_type = dynamic_cast<PointerType *>(element_type);
+        if (not elem_ptr_type) {
+            throw logic_error{"elem has pointer id but is not an pointer type"};
         }
-        // FIXME: don't known if get_dims should be called here
-        inst_type = bb->module()->get_array_type(
-            elem_arr_type->get_element_type(), elem_arr_type->get_dims());
+        inst_type = elem_ptr_type;
     } else {
         throw logic_error("The load target is wrong!");
     }
@@ -81,11 +103,18 @@ Type *LoadInst::_deduce_type(BasicBlock *bb,
 }
 
 LoadInst::LoadInst(BasicBlock *bb, std::vector<Value *> &&operands)
-    : Instruction(bb, _deduce_type(bb, operands), load, std::move(operands)) {}
+    : Instruction(bb, _deduce_type(bb, operands), load, std::move(operands)) {
+    assert(operands.size() == 1);
+}
 
 StoreInst::StoreInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_void_type(), store,
-                  std::move(operands)) {}
+                  std::move(operands)) {
+    assert(operands.size() == 2);
+    auto ptr_type = dynamic_cast<PointerType *>(operands[1]->get_type());
+    assert(ptr_type and
+           ptr_type->get_element_type() == operands[0]->get_type());
+}
 
 Instruction::OpID CmpInst::_deduce_id(CmpOp cmp_op) {
     OpID id;
@@ -102,7 +131,19 @@ Instruction::OpID CmpInst::_deduce_id(CmpOp cmp_op) {
 
 CmpInst::CmpInst(BasicBlock *bb, std::vector<Value *> &&operands, CmpOp cmp_op)
     : Instruction(bb, bb->module()->get_int1_type(), _deduce_id(cmp_op),
-                  std::move(operands)) {}
+                  std::move(operands)) {
+    assert(operands.size() == 2);
+    if (_id == cmp) {
+        assert(operands[0]->get_type()->is_int_type());
+        assert(operands[1]->get_type()->is_int_type());
+        // TODO: check it's i32 type
+        // (lxq:leave it)
+    } else if (_id == fcmp) {
+        assert(operands[0]->get_type()->is_float_type());
+        assert(operands[0]->get_type()->is_float_type());
+    } else
+        throw unreachable_error{};
+}
 
 Type *CallInst::_deduce_type(BasicBlock *bb,
                              const std::vector<Value *> &operands) {
@@ -121,15 +162,28 @@ Type *CallInst::_deduce_type(BasicBlock *bb,
 }
 
 CallInst::CallInst(BasicBlock *bb, vector<Value *> &&operands)
-    : Instruction(bb, _deduce_type(bb, operands), call, std::move(operands)) {}
+    : Instruction(bb, _deduce_type(bb, operands), call, std::move(operands)) {
+    assert(operands.size() >= 1);
+    // _deduce_type has already checked the type
+    auto functype = static_cast<FuncType *>(operands[0]->get_type());
+    assert(1 + functype->get_num_params() == operands.size());
+    for (int i = 0; i < functype->get_num_params(); ++i)
+        assert(functype->get_param_type(i) == operands[i + 1]->get_type());
+}
 
 Fp2siInst::Fp2siInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_int32_type(), fptosi,
-                  std::move(operands)) {}
+                  std::move(operands)) {
+    assert(operands.size() == 1);
+    assert(operands[0]->get_type()->is_int_type());
+}
 
 Si2fpInst::Si2fpInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_float_type(), sitofp,
-                  std::move(operands)) {}
+                  std::move(operands)) {
+    assert(operands.size() == 1);
+    assert(operands[0]->get_type()->is_float_type());
+}
 
 /* ===== print ir ===== */
 
