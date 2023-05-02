@@ -94,8 +94,8 @@ template <typename T> class ilist {
         while (_size > 0) {
             pop_back();
         }
-        delete _head;
-        delete _tail;
+        ::operator delete(_head);
+        ::operator delete(_tail);
     }
 
     iterator begin() { return iterator{_head->_next}; }
