@@ -168,7 +168,7 @@ CallInst::CallInst(BasicBlock *bb, vector<Value *> &&operands)
     // _deduce_type has already checked the type
     auto functype = static_cast<FuncType *>(operands[0]->get_type());
     assert(1 + functype->get_num_params() == operands.size());
-    for (int i = 0; i < functype->get_num_params(); ++i)
+    for (unsigned i = 0; i < functype->get_num_params(); ++i)
         assert(functype->get_param_type(i) == operands[i + 1]->get_type());
 }
 
