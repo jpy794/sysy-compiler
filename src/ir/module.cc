@@ -7,7 +7,7 @@
 using namespace ir;
 using namespace std;
 
-Module::Module(string &name) : _name(name) {
+Module::Module(string &&name) : _name(name) {
     _int1_ty = make_unique<IntType>(1);
     _int32_ty = make_unique<IntType>(32);
     _float_ty = make_unique<FloatType>();

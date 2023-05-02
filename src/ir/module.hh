@@ -16,7 +16,7 @@ namespace ir {
 
 class Module {
   public:
-    explicit Module(std::string &name);
+    explicit Module(std::string &&name);
     // TODO
     // - global variables
     void add_global_variable(GlobalVariable *gv);
