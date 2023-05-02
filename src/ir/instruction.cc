@@ -24,40 +24,36 @@ Instruction::Instruction(BasicBlock *bb, Type *type, OpID id,
 RetInst::RetInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_void_type(), ret, std::move(operands)) {
     if (bb->get_function()->get_return_type()->is_void_type())
-        assert(operands.size() == 0);
+        assert(this->operands().size() == 0);
     else {
-        assert(operands.size() == 1);
-        assert(operands[0]->get_type() ==
+        assert(this->operands().size() == 1);
+        assert(get_operand(0)->get_type() ==
                bb->get_function()->get_return_type());
     }
 }
 
 BrInst::BrInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_void_type(), br, std::move(operands)) {
-    assert(operands.size() == 1 or operands.size() == 3);
-    if (operands.size() == 1) {
+    assert(this->operands().size() == 1 or this->operands().size() == 3);
+    if (this->operands().size() == 1) {
         // basic_block
-        assert(operands[0]->get_type()->is_label_type());
+        auto nextbb = get_operand(0);
+        assert(nextbb->get_type()->is_label_type());
         bb->get_suc_basic_blocks().push_back(
-            dynamic_cast<BasicBlock *>(operands[0]));
-        dynamic_cast<BasicBlock *>(operands[0])
-            ->get_pre_basic_blocks()
-            .push_back(bb);
-    } else if (operands.size() == 3) {
-        auto int_type = dynamic_cast<IntType *>(operands[0]->get_type());
+            dynamic_cast<BasicBlock *>(nextbb));
+        dynamic_cast<BasicBlock *>(nextbb)->get_pre_basic_blocks().push_back(
+            bb);
+    } else if (this->operands().size() == 3) {
+        auto int_type = dynamic_cast<IntType *>(get_operand(0)->get_type());
+        auto TBB = get_operand(0);
+        auto FBB = get_operand(1);
         assert(int_type and int_type->get_num_bits() == 1);
-        assert(operands[1]->get_type()->is_label_type());
-        assert(operands[2]->get_type()->is_label_type());
-        bb->get_suc_basic_blocks().push_back(
-            dynamic_cast<BasicBlock *>(operands[1]));
-        bb->get_suc_basic_blocks().push_back(
-            dynamic_cast<BasicBlock *>(operands[2]));
-        dynamic_cast<BasicBlock *>(operands[1])
-            ->get_pre_basic_blocks()
-            .push_back(bb);
-        dynamic_cast<BasicBlock *>(operands[2])
-            ->get_pre_basic_blocks()
-            .push_back(bb);
+        assert(TBB->get_type()->is_label_type());
+        assert(FBB->get_type()->is_label_type());
+        bb->get_suc_basic_blocks().push_back(dynamic_cast<BasicBlock *>(TBB));
+        bb->get_suc_basic_blocks().push_back(dynamic_cast<BasicBlock *>(FBB));
+        dynamic_cast<BasicBlock *>(TBB)->get_pre_basic_blocks().push_back(bb);
+        dynamic_cast<BasicBlock *>(FBB)->get_pre_basic_blocks().push_back(bb);
     } else
         throw unreachable_error{"branch has only 1 or 3 operands"};
 }
@@ -78,10 +74,10 @@ Type *BinaryInst::_deduce_type(BasicBlock *bb, BinOp op) {
 BinaryInst::BinaryInst(BasicBlock *bb, std::vector<Value *> &&operands,
                        BinOp op)
     : Instruction(bb, _deduce_type(bb, op), _op_map[op], std::move(operands)) {
-    assert(operands.size() == 2);
+    assert(this->operands().size() == 2);
     // self type is deduced from opid
-    assert(get_type() == operands[0]->get_type());
-    assert(get_type() == operands[1]->get_type());
+    assert(get_type() == get_operand(0)->get_type());
+    assert(get_type() == get_operand(1)->get_type());
 }
 
 AllocaInst::AllocaInst(BasicBlock *bb, std::vector<Value *> &&operands,
@@ -89,7 +85,7 @@ AllocaInst::AllocaInst(BasicBlock *bb, std::vector<Value *> &&operands,
     : Instruction(bb, bb->module()->get_pointer_type(elem_type), br,
                   std::move(operands)) {
     // alloca is a ptr type itself, and its op(type) can be deduced from that
-    assert(operands.size() == 0);
+    assert(this->operands().size() == 0);
 }
 
 Type *LoadInst::_deduce_type(BasicBlock *bb,
@@ -121,16 +117,16 @@ Type *LoadInst::_deduce_type(BasicBlock *bb,
 
 LoadInst::LoadInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, _deduce_type(bb, operands), load, std::move(operands)) {
-    assert(operands.size() == 1);
+    assert(this->operands().size() == 1);
 }
 
 StoreInst::StoreInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_void_type(), store,
                   std::move(operands)) {
-    assert(operands.size() == 2);
-    auto ptr_type = dynamic_cast<PointerType *>(operands[1]->get_type());
+    assert(this->operands().size() == 2);
+    auto ptr_type = dynamic_cast<PointerType *>(get_operand(1)->get_type());
     assert(ptr_type and
-           ptr_type->get_element_type() == operands[0]->get_type());
+           ptr_type->get_element_type() == get_operand(0)->get_type());
 }
 
 Instruction::OpID CmpInst::_deduce_id(CmpOp cmp_op) {
@@ -149,24 +145,28 @@ Instruction::OpID CmpInst::_deduce_id(CmpOp cmp_op) {
 CmpInst::CmpInst(BasicBlock *bb, std::vector<Value *> &&operands, CmpOp cmp_op)
     : Instruction(bb, bb->module()->get_int1_type(), _deduce_id(cmp_op),
                   std::move(operands)) {
-    assert(operands.size() == 2);
+    assert(this->operands().size() == 2);
+    auto lhs = get_operand(0);
+    auto rhs = get_operand(1);
     if (_id == cmp) {
-        assert(operands[0]->get_type()->is_int_type());
-        assert(operands[1]->get_type()->is_int_type());
+        assert(lhs->get_type()->is_int_type());
+        assert(rhs->get_type()->is_int_type());
         // should check it's i32 type
         // (lxq:leave it)
     } else if (_id == fcmp) {
-        assert(operands[0]->get_type()->is_float_type());
-        assert(operands[1]->get_type()->is_float_type());
+        assert(lhs->get_type()->is_float_type());
+        assert(rhs->get_type()->is_float_type());
     } else
         throw unreachable_error{};
 }
 
 PhiInst::PhiInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, operands[0]->get_type(), phi, std::move(operands)) {
-    assert(operands.size() == 4); // assume operands.size = 4, but may be 2
-    assert(dynamic_cast<BasicBlock *>(operands[1]));
-    assert(dynamic_cast<BasicBlock *>(operands[3]));
+    // assume operands.size = 4, but may be 2
+    assert(this->operands().size() == 4);
+    assert(dynamic_cast<BasicBlock *>(get_operand(1)));
+    assert(dynamic_cast<BasicBlock *>(get_operand(3)));
+    assert(get_operand(0)->get_type() == get_operand(1)->get_type());
 }
 
 Type *CallInst::_deduce_type(BasicBlock *bb,
@@ -187,26 +187,26 @@ Type *CallInst::_deduce_type(BasicBlock *bb,
 
 CallInst::CallInst(BasicBlock *bb, vector<Value *> &&operands)
     : Instruction(bb, _deduce_type(bb, operands), call, std::move(operands)) {
-    assert(operands.size() >= 1);
+    assert(this->operands().size() >= 1);
     // _deduce_type has already checked the type
-    auto functype = static_cast<FuncType *>(operands[0]->get_type());
-    assert(1 + functype->get_num_params() == operands.size());
+    auto functype = static_cast<FuncType *>(get_operand(0)->get_type());
+    assert(1 + functype->get_num_params() == this->operands().size());
     for (unsigned i = 0; i < functype->get_num_params(); ++i)
-        assert(functype->get_param_type(i) == operands[i + 1]->get_type());
+        assert(functype->get_param_type(i) == get_operand(i + 1)->get_type());
 }
 
 Fp2siInst::Fp2siInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_int32_type(), fptosi,
                   std::move(operands)) {
-    assert(operands.size() == 1);
-    assert(operands[0]->get_type()->is_int_type());
+    assert(this->operands().size() == 1);
+    assert(get_operand(0)->get_type()->is_int_type());
 }
 
 Si2fpInst::Si2fpInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_float_type(), sitofp,
                   std::move(operands)) {
-    assert(operands.size() == 1);
-    assert(operands[0]->get_type()->is_float_type());
+    assert(this->operands().size() == 1);
+    assert(get_operand(0)->get_type()->is_float_type());
 }
 
 Type *GetElementPtrInst::_deduce_type(BasicBlock *bb,
@@ -224,17 +224,23 @@ Type *GetElementPtrInst::_deduce_type(BasicBlock *bb,
 
 GetElementPtrInst::GetElementPtrInst(BasicBlock *bb,
                                      std::vector<Value *> &&operands)
-    : Instruction(bb, bb->module()->get_float_type(), getelementptr,
+    : Instruction(bb, _deduce_type(bb, operands), getelementptr,
                   std::move(operands)) {
-
-    // TODO
+    assert(get_operand(0)->get_type()->is_pointer_type());
+    auto elem_type = static_cast<PointerType *>(get_operand(0)->get_type())
+                         ->get_element_type();
+    if (elem_type->is_array_type()) {
+        auto arr_type = static_cast<ArrayType *>(elem_type);
+        assert(1 + arr_type->get_dims().size() == this->operands().size() - 1);
+    } else if (elem_type->is_int_type() or elem_type->is_float_type())
+        assert(this->operands().size() == 2);
 }
 
 ZextInst::ZextInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_int32_type(), zext,
                   std::move(operands)) {
-    assert(operands.size() == 1);
-    auto type = operands[0]->get_type();
+    assert(this->operands().size() == 1);
+    auto type = get_operand(0)->get_type();
     assert(type->is_int_type());
     assert(static_cast<IntType *>(type)->get_num_bits() == 1);
 }
