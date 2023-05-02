@@ -11,7 +11,8 @@ namespace ir {
 class Module;
 class Constant : public Value {
   public:
-    Constant(Type *type, const std::string &name) : Value(type, name){};
+    // FIXME: set to correct module
+    Constant(Type *type, std::string &&name) : Value(nullptr, type, std::move(name)){};
     ~Constant() = default;
     // virtual operator<(const Constant& lhs, const Constant& rhs);
 };

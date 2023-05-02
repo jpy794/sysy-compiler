@@ -1,42 +1,144 @@
 #include "instruction.hh"
 #include "basic_block.hh"
-#include "function.hh"
+#include "err.hh"
 #include "module.hh"
 #include "type.hh"
+
+#include <algorithm>
 #include <cassert>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
-#define assertm(exp, msg) assert(((void)msg, exp))
 using namespace ir;
-using std::string;
-using std::vector;
+using namespace std;
 
-Instruction::Instruction(Type *type, const string &name, OpID id,
-                         unsigned num_ops, vector<Value *> &operands,
-                         BasicBlock *parent)
-    : User(type, name, operands), _id(id), _num_ops(num_ops), _parent(parent) {}
+Instruction::Instruction(BasicBlock *bb, Type *type, OpID id,
+                         vector<Value *> &&operands)
+    : User(bb->module(), type, "%op" + to_string(bb->get_function()->get_seq()),
+           std::move(operands)),
+      _id(id) {}
 
-RetInst::RetInst(Type *type, OpID id, vector<Value *> &operands,
-                 BasicBlock *parent)
-    : Instruction(type, "RetInst", id, 1, operands, parent) {}
-Instruction *RetInst::create(OpID id, std::vector<Value *> &&operands,
-                             BasicBlock *parent) {
-    return new RetInst(parent->get_function()->get_module()->get_void_type(),
-                       id, operands, parent);
+RetInst::RetInst(BasicBlock *bb, std::vector<Value *> &&operands)
+    : Instruction(bb, bb->module()->get_void_type(), ret, std::move(operands)) {
 }
+
+BrInst::BrInst(BasicBlock *bb, std::vector<Value *> &&operands)
+    : Instruction(bb, bb->module()->get_void_type(), br, std::move(operands)) {}
+
+Type *BinaryInst::_deduce_type(BasicBlock *bb, BinOp op) {
+    Type *type{nullptr};
+    if (find(_int_op.begin(), _int_op.end(), op) != _int_op.end()) {
+        type = bb->module()->get_int32_type();
+    } else if (find(_float_op.begin(), _float_op.end(), op) !=
+               _float_op.end()) {
+        type = bb->module()->get_float_type();
+    } else {
+        throw unreachable_error{};
+    }
+    return type;
+}
+
+BinaryInst::BinaryInst(BasicBlock *bb, std::vector<Value *> &&operands,
+                       BinOp op)
+    : Instruction(bb, _deduce_type(bb, op), _op_map[op], std::move(operands)) {
+    // TODO: impl strict type check for the operands (both number of ops and
+    // type of them), same for other instructions below.
+}
+
+AllocaInst::AllocaInst(BasicBlock *bb, std::vector<Value *> &&operands,
+                       Type *elem_type)
+    : Instruction(bb, bb->module()->get_pointer_type(elem_type), br,
+                  std::move(operands)) {}
+
+Type *LoadInst::_deduce_type(BasicBlock *bb,
+                             const std::vector<Value *> &operands) {
+    if (operands.size() < 1) {
+        throw logic_error{"expect op0 exisits"};
+    }
+    auto op0_type = dynamic_cast<PointerType *>(operands[0]->get_type());
+    if (not op0_type) {
+        throw logic_error{"op0 of load is not a pointer"};
+    }
+    Type *element_type = op0_type->get_element_type();
+    Type *inst_type{nullptr};
+    if (element_type->is_int_type()) {
+        inst_type = bb->module()->get_int32_type();
+    } else if (element_type->is_float_type()) {
+        inst_type = bb->module()->get_float_type();
+    } else if (element_type->is_array_type()) {
+        auto elem_arr_type = dynamic_cast<ArrayType *>(element_type);
+        if (not elem_arr_type) {
+            throw logic_error{"elem has array id but is not an array type"};
+        }
+        // FIXME: don't known if get_dims should be called here
+        inst_type = bb->module()->get_array_type(
+            elem_arr_type->get_element_type(), elem_arr_type->get_dims());
+    } else {
+        throw logic_error("The load target is wrong!");
+    }
+    return inst_type;
+}
+
+LoadInst::LoadInst(BasicBlock *bb, std::vector<Value *> &&operands)
+    : Instruction(bb, _deduce_type(bb, operands), load, std::move(operands)) {}
+
+StoreInst::StoreInst(BasicBlock *bb, std::vector<Value *> &&operands)
+    : Instruction(bb, bb->module()->get_void_type(), store,
+                  std::move(operands)) {}
+
+Instruction::OpID CmpInst::_deduce_id(CmpOp cmp_op) {
+    OpID id;
+    if (find(_int_op.begin(), _int_op.end(), cmp_op) != _int_op.end()) {
+        id = cmp;
+    } else if (find(_float_op.begin(), _float_op.end(), cmp_op) !=
+               _float_op.end()) {
+        id = fcmp;
+    } else {
+        throw unreachable_error{};
+    }
+    return id;
+}
+
+CmpInst::CmpInst(BasicBlock *bb, std::vector<Value *> &&operands, CmpOp cmp_op)
+    : Instruction(bb, bb->module()->get_int1_type(), _deduce_id(cmp_op),
+                  std::move(operands)) {}
+
+Type *CallInst::_deduce_type(BasicBlock *bb,
+                             const std::vector<Value *> &operands) {
+    if (operands.size() < 1) {
+        throw logic_error{"expect op0 exisits"};
+    }
+    auto op0_type = operands[0]->get_type();
+    if (not op0_type->is_function_type()) {
+        throw logic_error{"expect op0 to be function"};
+    }
+    auto func_type = dynamic_cast<FuncType *>(op0_type);
+    if (not func_type) {
+        throw logic_error{"is_function_type but not functype"};
+    }
+    return func_type->get_result_type();
+}
+
+CallInst::CallInst(BasicBlock *bb, vector<Value *> &&operands)
+    : Instruction(bb, _deduce_type(bb, operands), call, std::move(operands)) {}
+
+Fp2siInst::Fp2siInst(BasicBlock *bb, std::vector<Value *> &&operands)
+    : Instruction(bb, bb->module()->get_int32_type(), fptosi,
+                  std::move(operands)) {}
+
+Si2fpInst::Si2fpInst(BasicBlock *bb, std::vector<Value *> &&operands)
+    : Instruction(bb, bb->module()->get_float_type(), sitofp,
+                  std::move(operands)) {}
+
+/* ===== print ir ===== */
+
+// TODO: print llvm compatible ir
+
 string RetInst::print() const {
     return "return " + this->operands()[0]->get_name();
 }
 
-BrInst::BrInst(Type *type, OpID id, vector<Value *> &operands,
-               BasicBlock *parent)
-    : Instruction(type, "BrInst", id, operands.size(), operands, parent) {}
-Instruction *BrInst::create(OpID id, std::vector<Value *> &&operands,
-                            BasicBlock *parent) {
-    return new BrInst(parent->get_function()->get_module()->get_void_type(), id,
-                      operands, parent);
-}
 string BrInst::print() const {
     if (this->operands().size() == 1)
         return "goto " + this->operands()[0]->get_name();
@@ -46,24 +148,6 @@ string BrInst::print() const {
                this->operands()[2]->get_name();
 }
 
-BinaryInst::BinaryInst(Type *type, OpID id, vector<Value *> &operands,
-                       BasicBlock *parent)
-    : Instruction(type,
-                  "op" + std::to_string(parent->get_function()->get_seq()), id,
-                  2, operands, parent) {}
-Instruction *BinaryInst::create(OpID id, std::vector<Value *> &&operands,
-                                BasicBlock *parent) {
-    if (is_int_bina(id))
-        return new BinaryInst(
-            parent->get_function()->get_module()->get_int32_type(), id,
-            operands, parent);
-    else if (is_float_bina(id))
-        return new BinaryInst(
-            parent->get_function()->get_module()->get_float_type(), id,
-            operands, parent);
-    else
-        assertm(false, "You have passed the wrong OpID!");
-}
 string BinaryInst::print() const {
     string OpName;
     switch (_id) {
@@ -93,23 +177,13 @@ string BinaryInst::print() const {
         OpName = "/.";
         break;
     default:
-        assertm(false, "The op of BinaryInst is wrong!");
+        throw logic_error{"The op of BinaryInst is wrong!"};
         break;
     }
     return this->get_name() + " = " + this->operands()[0]->get_name() + OpName +
            this->operands()[1]->get_name();
 }
 
-AllocaInst::AllocaInst(Type *type, OpID id, vector<Value *> &&operands,
-                       BasicBlock *parent)
-    : Instruction(type,
-                  "op" + std::to_string(parent->get_function()->get_seq()), id,
-                  0, operands, parent) {}
-Instruction *AllocaInst::create(Type *element_ty, OpID id, BasicBlock *parent) {
-    return new AllocaInst(
-        parent->get_function()->get_module()->get_pointer_type(element_ty), id,
-        {}, parent);
-}
 string AllocaInst::print() const {
     return this->get_name() + " = Alloca " +
            static_cast<const PointerType *>(this->get_type())
@@ -117,60 +191,18 @@ string AllocaInst::print() const {
                ->print();
 }
 
-LoadInst::LoadInst(Type *type, OpID id, vector<Value *> &operands,
-                   BasicBlock *parent)
-    : Instruction(type,
-                  "op" + std::to_string(parent->get_function()->get_seq()), id,
-                  1, operands, parent) {}
-Instruction *LoadInst::create(OpID id, std::vector<Value *> &&operands,
-                              BasicBlock *parent) {
-    Type *element_type =
-        dynamic_cast<const PointerType *>(operands[0]->get_type())
-            ->get_element_type();
-    Type *inst_type;
-    if (element_type->is_int_type())
-        inst_type = parent->get_function()->get_module()->get_int32_type();
-    else if (element_type->is_float_type())
-        inst_type = parent->get_function()->get_module()->get_float_type();
-    else if (element_type->is_array_type())
-        inst_type = parent->get_function()->get_module()->get_array_type(
-            dynamic_cast<ArrayType *>(element_type)->get_element_type(),
-            dynamic_cast<ArrayType *>(element_type)->get_length());
-    else
-        assertm(false, "The load target is wrong!");
-    return new LoadInst(inst_type, id, operands, parent);
-}
 string LoadInst::print() const {
     return this->get_name() + " = Load " + this->operands()[0]->get_name();
 }
 
-StoreInst::StoreInst(Type *type, OpID id, vector<Value *> &operands,
-                     BasicBlock *parent)
-    : Instruction(type, "Store", id, 2, operands, parent) {}
-Instruction *StoreInst::create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent) {
-    return new StoreInst(parent->get_function()->get_module()->get_void_type(),
-                         id, operands, parent);
-}
 string StoreInst::print() const {
     return "Store " + this->operands()[0]->get_name() + " into " +
            this->operands()[1]->get_name();
 }
 
-CmpInst::CmpInst(Type *type, CmpOp id, vector<Value *> &operands,
-                 BasicBlock *parent)
-    : Instruction(type,
-                  "op" + std::to_string(parent->get_function()->get_seq()),
-                  OpID::cmp, 2, operands, parent),
-      _id(id) {}
-Instruction *CmpInst::create(CmpOp id, std::vector<Value *> &&operands,
-                             BasicBlock *parent) {
-    return new CmpInst(parent->get_function()->get_module()->get_int1_type(),
-                       id, operands, parent);
-}
 string CmpInst::print() const {
     string CmpName;
-    switch (_id) {
+    switch (_cmp_op) {
     case EQ:
         CmpName = "==";
         break;
@@ -189,59 +221,13 @@ string CmpInst::print() const {
     case LE:
         CmpName = "<=";
         break;
+    default:
+        break;
     }
     return this->get_name() + " = " + this->operands()[0]->get_name() +
            CmpName + this->operands()[1]->get_name();
 }
 
-FCmpInst::FCmpInst(Type *type, FCmpOp id, vector<Value *> &operands,
-                   BasicBlock *parent)
-    : Instruction(type,
-                  "op" + std::to_string(parent->get_function()->get_seq()),
-                  OpID::fcmp, 2, operands, parent),
-      _id(id) {}
-Instruction *FCmpInst::create(FCmpOp id, std::vector<Value *> &&operands,
-                              BasicBlock *parent) {
-    return new FCmpInst(parent->get_function()->get_module()->get_int1_type(),
-                        id, operands, parent);
-}
-string FCmpInst::print() const {
-    string FCmpName;
-    switch (_id) {
-    case EQ:
-        FCmpName = "==.";
-        break;
-    case NE:
-        FCmpName = "!=.";
-        break;
-    case GT:
-        FCmpName = ">.";
-        break;
-    case GE:
-        FCmpName = ">=.";
-        break;
-    case LT:
-        FCmpName = "<.";
-        break;
-    case LE:
-        FCmpName = "<=.";
-        break;
-    }
-    return this->get_name() + " = " + this->operands()[0]->get_name() +
-           FCmpName + this->operands()[1]->get_name();
-}
-
-CallInst::CallInst(Type *type, OpID id, vector<Value *> &operands,
-                   BasicBlock *parent)
-    : Instruction(type,
-                  "op" + std::to_string(parent->get_function()->get_seq()), id,
-                  operands.size(), operands, parent) {}
-Instruction *CallInst::create(OpID id, std::vector<Value *> &&operands,
-                              BasicBlock *parent) {
-    return new CallInst(dynamic_cast<const FuncType *>(operands[0]->get_type())
-                            ->get_result_type(),
-                        id, operands, parent);
-}
 string CallInst::print() const {
     string head;
     string args;
@@ -255,30 +241,10 @@ string CallInst::print() const {
            this->operands()[0]->get_name() + " (" + args + ")";
 }
 
-Fp2siInst::Fp2siInst(Type *type, OpID id, vector<Value *> &operands,
-                     BasicBlock *parent)
-    : Instruction(type,
-                  "op" + std::to_string(parent->get_function()->get_seq()), id,
-                  1, operands, parent) {}
-Instruction *Fp2siInst::create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent) {
-    return new Fp2siInst(parent->get_function()->get_module()->get_int32_type(),
-                         id, operands, parent);
-}
 string Fp2siInst::print() const {
     return this->get_name() + " = (int)" + this->operands()[0]->get_name();
 }
 
-Si2fpInst::Si2fpInst(Type *type, OpID id, vector<Value *> &operands,
-                     BasicBlock *parent)
-    : Instruction(type,
-                  "op" + std::to_string(parent->get_function()->get_seq()), id,
-                  1, operands, parent) {}
-Instruction *Si2fpInst::create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent) {
-    return new Si2fpInst(parent->get_function()->get_module()->get_float_type(),
-                         id, operands, parent);
-}
 string Si2fpInst::print() const {
     return this->get_name() + " = (float)" + this->operands()[0]->get_name();
 }

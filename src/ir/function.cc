@@ -11,15 +11,15 @@ Function::~Function() {
     }
 }
 
-Function::Function(FuncType *type, std::string &name, Module *parent)
-    : Value(type, name), _args(), _bbs(), _parent(parent), _seq_cnt(0) {
+Function::Function(FuncType *type, std::string &&name, Module *parent)
+    : Value(parent, type, std::move(name)), _args(), _bbs(), _parent(parent), _seq_cnt(0) {
     parent->add_function(this);
     for (unsigned i = 0; i < type->get_num_params();) {
         add_arg(new Argument(type->get_param_type(i), this));
     }
 }
 
-Function *Function::create(FuncType *type, std::string &name, Module *parent) {
+Function *Function::create(FuncType *type, std::string &&name, Module *parent) {
     return new Function(type, name, parent);
 }
 

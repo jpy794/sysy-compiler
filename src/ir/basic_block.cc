@@ -5,7 +5,7 @@
 using namespace ir;
 
 BasicBlock::BasicBlock(Function *parent)
-    : Value(parent->get_module()->get_label_type(),
+    : Value(parent->module(), parent->module()->get_label_type(),
             "label" + std::to_string(parent->get_seq())),
       _parent(parent) {
     parent->add_basic_block(this);

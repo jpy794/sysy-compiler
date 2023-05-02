@@ -3,10 +3,12 @@
 #include "ilist.hh"
 #include "user.hh"
 
+#include <array>
+
 namespace ir {
 
 class BasicBlock;
-class Module;
+
 class Instruction : public User, public ilist<Instruction>::node {
   public:
     enum OpID {
@@ -36,8 +38,10 @@ class Instruction : public User, public ilist<Instruction>::node {
         fptosi,
         sitofp
     };
-    Instruction(Type *type, const std::string &name, OpID id, unsigned num_ops,
-                std::vector<Value *> &operands, BasicBlock *parent);
+
+    Instruction(BasicBlock *bb, Type *type, OpID id,
+                std::vector<Value *> &&operands);
+
     bool is_ret() const { return _id == ret; }
     bool is_br() const { return _id == br; }
     bool is_add() const { return _id == add; }
@@ -61,182 +65,104 @@ class Instruction : public User, public ilist<Instruction>::node {
 
   protected:
     OpID _id;
-
-  private:
-    unsigned _num_ops;
-    BasicBlock *_parent;
 };
 
 class RetInst : public Instruction {
   public:
-    RetInst(Type *type, OpID id, std::vector<Value *> &operands,
-            BasicBlock *parent);
-    ~RetInst() = default;
-    static Instruction *create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
-
-  private:
+    RetInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    std::string print() const final;
 };
+
 class BrInst : public Instruction {
   public:
-    BrInst(Type *type, OpID id, std::vector<Value *> &operands,
-           BasicBlock *parent);
-    ~BrInst() = default;
-    static Instruction *create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
-
-  private:
+    BrInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    std::string print() const final;
 };
+
 class BinaryInst : public Instruction {
   public:
-    BinaryInst(Type *type, OpID id, std::vector<Value *> &operands,
-               BasicBlock *parent);
-    ~BinaryInst() = default;
-    static Instruction *create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
-    static bool is_int_bina(OpID id) {
-        return id == add or id == sub or id == mul or id == sdiv;
-    }
+    enum BinOp { ADD = 0, SUB, MUL, SDIV, FADD, FSUB, FMUL, FDIV };
 
-    static bool is_float_bina(OpID id) {
-        return id == fadd or id == fsub or id == fmul or id == fdiv;
-    }
+    BinaryInst(BasicBlock *bb, std::vector<Value *> &&operands, BinOp op);
+
+    std::string print() const final;
 
   private:
+    static constexpr std::array<OpID, 8> _op_map = {add,  sub,  mul,  sdiv,
+                                                    fadd, fsub, fmul, fdiv};
+    static constexpr std::array<BinOp, 4> _int_op = {ADD, SUB, MUL, SDIV};
+    static constexpr std::array<BinOp, 4> _float_op = {FADD, FSUB, FMUL, FDIV};
+    static Type *_deduce_type(BasicBlock *bb, BinOp op);
 };
+
 class AllocaInst : public Instruction {
   public:
-    AllocaInst(Type *type, OpID id, std::vector<Value *> &&operands,
-               BasicBlock *parent);
-    ~AllocaInst() = default;
-    static Instruction *create(Type *element_ty, OpID id, BasicBlock *parent);
-    std::string print() const override;
-
-  private:
+    AllocaInst(BasicBlock *bb, std::vector<Value *> &&operands,
+               Type *elem_type);
+    std::string print() const final;
 };
+
 class LoadInst : public Instruction {
   public:
-    LoadInst(Type *type, OpID id, std::vector<Value *> &operands,
-             BasicBlock *parent);
-    ~LoadInst() = default;
-    static Instruction *create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
+    LoadInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    std::string print() const final;
 
   private:
+    static Type *_deduce_type(BasicBlock *bb,
+                              const std::vector<Value *> &operands);
 };
+
 class StoreInst : public Instruction {
   public:
-    StoreInst(Type *type, OpID id, std::vector<Value *> &operands,
-              BasicBlock *parent);
-    ~StoreInst() = default;
-    static Instruction *create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
-
-  private:
+    StoreInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    std::string print() const final;
 };
+
 class CmpInst : public Instruction {
   public:
-    enum CmpOp {
-        EQ, // ==
-        NE, // !=
-        GT, // >
-        GE, // >=
-        LT, // <
-        LE  // <=
-    };
-    CmpInst(Type *type, CmpOp id, std::vector<Value *> &operands,
-            BasicBlock *parent);
-    ~CmpInst() = default;
-    static Instruction *create(CmpOp id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
+    enum CmpOp { EQ, NE, GT, GE, LT, LE, FEQ, FNE, FGT, FGE, FLT, FLE };
+    CmpInst(BasicBlock *bb, std::vector<Value *> &&operands, CmpOp cmp_op);
+    std::string print() const final;
 
   private:
-    CmpOp _id;
+    CmpOp _cmp_op;
+    static constexpr std::array<CmpOp, 6> _int_op = {EQ, NE, GT, GE, LT, LE};
+    static constexpr std::array<CmpOp, 6> _float_op = {FEQ, FNE, FGT,
+                                                       FGE, FLT, FLE};
+    static OpID _deduce_id(CmpOp cmp_op);
 };
-class FCmpInst : public Instruction {
-  public:
-    enum FCmpOp {
-        EQ, // ==
-        NE, // !=
-        GT, // >
-        GE, // >=
-        LT, // <
-        LE  // <=
-    };
-    FCmpInst(Type *type, FCmpOp id, std::vector<Value *> &operands,
-             BasicBlock *parent);
-    ~FCmpInst() = default;
-    static Instruction *create(FCmpOp id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
 
-  private:
-    FCmpOp _id;
-};
 class PhiInst : public Instruction {
   public:
-    PhiInst(Type *type, OpID id, std::vector<Value *> &operands,
-            BasicBlock *parent);
-    ~PhiInst() = default;
-    static Instruction *create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
-
-  private:
+    PhiInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    std::string print() const final;
 };
+
 class CallInst : public Instruction {
   public:
-    CallInst(Type *type, OpID id, std::vector<Value *> &operands,
-             BasicBlock *parent);
-    ~CallInst() = default;
-    static Instruction *create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
+    CallInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    std::string print() const final;
 
-  private:
-  private:
+private:
+    static Type *_deduce_type(BasicBlock *bb, const std::vector<Value *> &operands);
 };
 
-class GeteInst : public Instruction {
+class GepInst : public Instruction {
   public:
-    GeteInst(Type *type, OpID id, std::vector<Value *> &operands,
-             BasicBlock *parent);
-    ~GeteInst() = default;
-    static Instruction *create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
-
-  private:
+    GepInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    std::string print() const final;
 };
 
 class Fp2siInst : public Instruction {
   public:
-    Fp2siInst(Type *type, OpID id, std::vector<Value *> &operands,
-              BasicBlock *parent);
-    ~Fp2siInst() = default;
-    static Instruction *create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
-
-  private:
+    Fp2siInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    std::string print() const final;
 };
 
 class Si2fpInst : public Instruction {
   public:
-    Si2fpInst(Type *type, OpID id, std::vector<Value *> &operands,
-              BasicBlock *parent);
-    ~Si2fpInst() = default;
-    static Instruction *create(OpID id, std::vector<Value *> &&operands,
-                               BasicBlock *parent);
-    std::string print() const override;
-
-  private:
+    Si2fpInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    std::string print() const final;
 };
 
 } // namespace ir

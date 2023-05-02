@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <string>
 #include <vector>
 
@@ -9,14 +10,27 @@ namespace ir {
 
 class User : public Value {
   public:
-    User(Type *type, const std::string &name, std::vector<Value *> &operands)
-        : Value(type, name), _operands(operands) {}
+    User(Module *module, Type *type, std::string &&name,
+         std::vector<Value *> &&operands)
+        : Value(module, type, std::move(name)), _operands(operands),
+          _op_num(operands.size()) {}
 
+    void set_operand(size_t index, Value *value) {
+        assert(index < _op_num);
+        _operands[index] = value;
+    }
+
+    // const method
     const std::vector<Value *> &operands() const { return _operands; }
-    std::vector<Value *> &operands() { return _operands; }
+
+    Value *get_operand(size_t index) const {
+        assert(index < _op_num);
+        return _operands[index];
+    }
 
   private:
     std::vector<Value *> _operands;
+    const size_t _op_num;
 };
 
 } // namespace ir

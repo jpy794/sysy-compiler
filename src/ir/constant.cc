@@ -19,6 +19,7 @@ ConstantArray *ConstantArray::get(std::vector<int> &array, Module *m) {
     array_.reserve(array.size());
     for (auto val : array)
         array_.push_back(ConstantInt::get(val, m));
+    // FIXME: bad param for get_array_type
     return new ConstantArray(
         m->get_array_type(m->get_int32_type(), (unsigned)array.size()), array_);
 }
@@ -28,6 +29,7 @@ ConstantArray *ConstantArray::get(std::vector<float> &array, Module *m) {
     array_.reserve(array.size());
     for (auto val : array)
         array_.push_back(ConstantFloat::get(val, m));
+    // FIXME: bad param for get_array_type
     return new ConstantArray(
         m->get_array_type(m->get_float_type(), (unsigned)array.size()), array_);
 }
