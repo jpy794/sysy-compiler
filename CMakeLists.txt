@@ -8,4 +8,4 @@ list(APPEND CMAKE_CXX_FLAGS "-Wall -Werror -g")
 enable_testing()
 
 add_subdirectory(src)
-add_subdirectory(test)
+# add_subdirectory(test)

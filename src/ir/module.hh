@@ -29,9 +29,9 @@ class Module {
     Type *get_float_type() const { return _float_ty.get(); }
     Type *get_label_type() const { return _label_ty.get(); }
     Type *get_void_type() const { return _void_ty.get(); }
-    Type *get_array_type(Type *container, const std::vector<unsigned> &dims);
+    Type *get_array_type(Type *container, const std::vector<unsigned> &&dims);
     Type *get_pointer_type(Type *element);
-    Type *get_function_type(Type *ret, const std::vector<Type *> &params);
+    Type *get_function_type(Type *ret, const std::vector<Type *> &&params);
     // - and so on
     ConstantInt *be_cached(int val);
     ConstantInt *be_cached(bool val);

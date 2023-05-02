@@ -20,11 +20,16 @@ class Instruction : public User, public ilist<Instruction>::node {
         sub,
         mul,
         sdiv,
+        srem,
+        // Logic binary operatorsTODO:
+        _and,
+        _or,
         // float binary operators
         fadd,
         fsub,
         fmul,
         fdiv,
+        frem,
         // Memory operators
         alloca,
         load,
@@ -36,7 +41,8 @@ class Instruction : public User, public ilist<Instruction>::node {
         call,
         getelementptr,
         fptosi,
-        sitofp
+        sitofp,
+        zext
     };
 
     Instruction(BasicBlock *bb, Type *type, OpID id,
@@ -143,14 +149,9 @@ class CallInst : public Instruction {
     CallInst(BasicBlock *bb, std::vector<Value *> &&operands);
     std::string print() const final;
 
-private:
-    static Type *_deduce_type(BasicBlock *bb, const std::vector<Value *> &operands);
-};
-
-class GepInst : public Instruction {
-  public:
-    GepInst(BasicBlock *bb, std::vector<Value *> &&operands);
-    std::string print() const final;
+  private:
+    static Type *_deduce_type(BasicBlock *bb,
+                              const std::vector<Value *> &operands);
 };
 
 class Fp2siInst : public Instruction {
@@ -162,6 +163,21 @@ class Fp2siInst : public Instruction {
 class Si2fpInst : public Instruction {
   public:
     Si2fpInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    std::string print() const final;
+};
+
+class GetElementPtrInst : public Instruction {
+  public:
+    GetElementPtrInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    std::string print() const final;
+
+  private:
+    static Type *_deduce_type(BasicBlock *bb,
+                              const std::vector<Value *> &operands);
+};
+class ZextInst : public Instruction {
+  public:
+    ZextInst(BasicBlock *bb, std::vector<Value *> &&operands);
     std::string print() const final;
 };
 

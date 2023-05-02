@@ -31,6 +31,8 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
 
     // Instruction
 
+    void add_instr(Instruction *instr) { _instr_list.push_back(instr); }
+
     const ilist<Instruction> &get_instructions() const { return _instr_list; }
 
     ilist<Instruction> &get_instructions() { return _instr_list; }

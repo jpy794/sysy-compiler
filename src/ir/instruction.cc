@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -185,120 +186,203 @@ Si2fpInst::Si2fpInst(BasicBlock *bb, std::vector<Value *> &&operands)
     assert(operands[0]->get_type()->is_float_type());
 }
 
+Type *GetElementPtrInst::_deduce_type(BasicBlock *bb,
+                                      const std::vector<Value *> &operands) {
+    Type *type = operands[0]->get_type();
+    for (unsigned i = 1; i < operands.size(); i++)
+        if (dynamic_cast<PointerType *>(type))
+            type = dynamic_cast<PointerType *>(type)->get_element_type();
+        else if (dynamic_cast<ArrayType *>(type))
+            type = dynamic_cast<ArrayType *>(type)->get_element_type();
+        else
+            throw logic_error{"expected less index of array"};
+    return type;
+}
+
+GetElementPtrInst::GetElementPtrInst(BasicBlock *bb,
+                                     std::vector<Value *> &&operands)
+    : Instruction(bb, bb->module()->get_float_type(), getelementptr,
+                  std::move(operands)) {}
+
+ZextInst::ZextInst(BasicBlock *bb, std::vector<Value *> &&operands)
+    : Instruction(bb, bb->module()->get_int32_type(), zext,
+                  std::move(operands)) {}
 /* ===== print ir ===== */
 
-// TODO: print llvm compatible ir
-
 string RetInst::print() const {
-    return "return " + this->operands()[0]->get_name();
+    if (this->operands().size() != 0) // ret <type> <value>
+        return "ret " + this->operands()[0]->get_type()->print() + " " +
+               print_op(this->operands()[0]);
+    else // ret void
+        return "ret void";
 }
 
 string BrInst::print() const {
     if (this->operands().size() == 1)
-        return "goto " + this->operands()[0]->get_name();
+        return "br label " + print_op(this->operands()[0]);
     else
-        return "if " + this->operands()[0]->get_name() + " goto" +
-               this->operands()[1]->get_name() + " else goto" +
-               this->operands()[2]->get_name();
+        return "br i1 " + print_op(this->operands()[0]);
+    +", label " + print_op(this->operands()[1]) + ", label " +
+        print_op(this->operands()[2]);
 }
 
 string BinaryInst::print() const {
     string OpName;
     switch (_id) {
     case add:
-        OpName = "+";
+        OpName = "add";
         break;
     case sub:
-        OpName = "-";
+        OpName = "sub";
         break;
     case mul:
-        OpName = "*";
+        OpName = "mul";
         break;
     case sdiv:
-        OpName = "/";
+        OpName = "sdiv";
+        break;
+    case srem:
+        OpName = "srem";
         break;
     case fadd:
-        OpName = "+.";
-        break; // The dot next to the operator sign indicates a floating point
-               // operation
+        OpName = "fadd";
+        break;
     case fsub:
-        OpName = "-.";
+        OpName = "fsub";
         break;
     case fmul:
-        OpName = "*.";
+        OpName = "fmul";
         break;
     case fdiv:
-        OpName = "/.";
+        OpName = "fdiv";
+        break;
+    case frem:
+        OpName = "frem";
         break;
     default:
         throw logic_error{"The op of BinaryInst is wrong!"};
         break;
     }
-    return this->get_name() + " = " + this->operands()[0]->get_name() + OpName +
-           this->operands()[1]->get_name();
+    return print_op(this) + " = " + OpName + this->get_type()->print() +
+           print_op(this->operands()[0]) + ", " + print_op(this->operands()[1]);
 }
 
 string AllocaInst::print() const {
-    return this->get_name() + " = Alloca " +
+    return print_op(this) + " = alloca " +
            static_cast<const PointerType *>(this->get_type())
                ->get_element_type()
                ->print();
 }
 
 string LoadInst::print() const {
-    return this->get_name() + " = Load " + this->operands()[0]->get_name();
+    return this->get_name() + " = load " + this->get_type()->print() + ", " +
+           print_op(this->operands()[0]);
 }
 
 string StoreInst::print() const {
-    return "Store " + this->operands()[0]->get_name() + " into " +
-           this->operands()[1]->get_name();
+    return "store " + this->operands()[0]->get_type()->print() +
+           print_op(this->operands()[0]) + " ," +
+           this->operands()[1]->get_type()->print() +
+           print_op(this->operands()[1]);
 }
 
 string CmpInst::print() const {
     string CmpName;
+    string cmp;
     switch (_cmp_op) {
     case EQ:
-        CmpName = "==";
+        CmpName = "eq";
+        cmp = "icmp";
         break;
     case NE:
-        CmpName = "!=";
+        CmpName = "ne";
+        cmp = "icmp";
         break;
     case GT:
-        CmpName = ">";
+        CmpName = "sgt";
+        cmp = "icmp";
         break;
     case GE:
-        CmpName = ">=";
+        CmpName = "sge";
+        cmp = "icmp";
         break;
     case LT:
-        CmpName = "<";
+        CmpName = "slt";
+        cmp = "icmp";
         break;
     case LE:
-        CmpName = "<=";
+        CmpName = "sle";
+        cmp = "icmp";
+        break;
+    case FEQ:
+        CmpName = "oeq";
+        cmp = "fcmp";
+        break;
+    case FNE:
+        CmpName = "oge";
+        cmp = "fcmp";
+        break;
+    case FGT:
+        CmpName = "ogt";
+        cmp = "fcmp";
+        break;
+    case FGE:
+        CmpName = "oge";
+        cmp = "fcmp";
+        break;
+    case FLT:
+        CmpName = "olt";
+        cmp = "fcmp";
+        break;
+    case FLE:
+        CmpName = "ole";
+        cmp = "fcmp";
         break;
     default:
         break;
     }
-    return this->get_name() + " = " + this->operands()[0]->get_name() +
-           CmpName + this->operands()[1]->get_name();
+
+    return print_op(this) + " = " + cmp + " " + CmpName + " " +
+           this->operands()[0]->get_type()->print() + " " +
+           print_op(this->operands()[0]) + ", " + print_op(this->operands()[1]);
 }
 
 string CallInst::print() const {
     string head;
     string args;
     if (this->get_type()->is_void_type())
-        head = "Call ";
+        head = "call ";
     else
-        head = this->get_name() + " = Call ";
+        head = this->get_name() + " = call ";
     for (const auto &oper : this->operands())
-        args += " " + oper->get_type()->print() + ":" + oper->get_name() + " ";
+        args += oper->get_type()->print() + " " + print_op(oper) + ", ";
+    args.erase(args.length() - 2, 2);
     return head + this->get_type()->print() + " " +
-           this->operands()[0]->get_name() + " (" + args + ")";
+           print_op(this->operands()[0]) + " (" + args + ")";
 }
 
 string Fp2siInst::print() const {
-    return this->get_name() + " = (int)" + this->operands()[0]->get_name();
+    return print_op(this) + " = fptosi float " + print_op(this->operands()[0]) +
+           " to " + this->operands()[1]->print();
 }
 
 string Si2fpInst::print() const {
-    return this->get_name() + " = (float)" + this->operands()[0]->get_name();
+    return print_op(this) + " = sitofp " + this->get_type()->print() + " " +
+           print_op(this->operands()[0]) + " to float";
+}
+
+string GetElementPtrInst::print() const {
+    string index;
+    for (const auto &op : this->operands())
+        index += ", " + op->get_type()->print() + " " + print_op(op);
+    return print_op(this) + " = getelementptr " +
+           static_cast<const PointerType *>(this->operands()[0]->get_type())
+               ->get_element_type()
+               ->print() +
+           index;
+}
+
+string ZextInst::print() const {
+    return print_op(this) + " = zext i1" + print_op(this->operands()[0]) +
+           " to i32";
 }

@@ -21,7 +21,7 @@ std::string BasicBlock::print() const {
         pre_bbs += pre_bb->get_name() + " ";
     }
     if (pre_bbs.size() != 0)
-        bb_ir = this->get_name() + ":\t\t\t" + "pre_bbs=" + pre_bbs + "\n";
+        bb_ir = this->get_name() + ":\t\t\t" + ";pre_bbs=" + pre_bbs + "\n";
     else
         bb_ir = this->get_name() + ":\n";
     for (auto &inst : this->get_instructions()) {

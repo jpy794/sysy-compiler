@@ -12,7 +12,8 @@ Function::~Function() {
 }
 
 Function::Function(FuncType *type, std::string &&name, Module *parent)
-    : Value(parent, type, std::move(name)), _args(), _bbs(), _parent(parent), _seq_cnt(0) {
+    : Value(parent, type, std::move(name)), _args(), _bbs(), _parent(parent),
+      _seq_cnt(0) {
     parent->add_function(this);
     for (unsigned i = 0; i < type->get_num_params();) {
         add_arg(new Argument(type->get_param_type(i), this));
@@ -29,15 +30,17 @@ Type *Function::get_return_type() const {
 
 std::string Function::print() const {
     std::string func_ir;
-    func_ir = "define " + this->get_type()->print() + " " + this->get_name();
+    func_ir = "define " + this->get_type()->print() + " " + print_op(this);
     func_ir += "(";
     for (auto &arg : this->_args) {
-        func_ir += arg->get_type()->print() + ":" + arg->print() + ",";
+        func_ir += arg->get_type()->print() + " " + arg->print() + ", ";
     }
-    func_ir[func_ir.size() - 1] = ')';
-    func_ir += "}";
+    func_ir.erase(func_ir.length() - 2, 2);
+    func_ir += ")";
+    func_ir += "{\n";
     for (auto &bb : this->_bbs) {
         func_ir += bb.print();
+        func_ir += "\n";
     }
     func_ir += "}";
     return func_ir;
