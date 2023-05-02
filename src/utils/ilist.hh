@@ -26,64 +26,34 @@ template <typename T> class ilist {
         node &operator=(const node &) = delete;
     };
 
-    class const_iterator {
-        friend class ilist<T>;
-
-      public:
-        using value_type = T;
-        using pointer = const value_type *;
-        using reference = const value_type &;
-
-        const_iterator(pointer ptr) : _ptr(ptr) {}
-
-        reference operator*() const { return *_ptr; }
-        pointer operator->() const { return _ptr; }
-
-        bool operator==(const const_iterator &rhs) const {
-            return _ptr == rhs._ptr;
-        }
-        bool operator!=(const const_iterator &rhs) const {
-            return _ptr != rhs._ptr;
-        }
-
-        // --it & ++it
-        const_iterator &operator--() {
-            _ptr = _ptr->_prev;
-            return *this;
-        }
-        const_iterator &operator++() {
-            _ptr = _ptr->_next;
-            return *this;
-        }
-
-      private:
-        pointer _ptr{nullptr};
-    };
-
-    class iterator {
+    template <typename elem> class raw_iterator {
         friend class ilist<T>;
 
       public:
         using iterator_category = std::bidirectional_iterator_tag;
         using difference_type = std::ptrdiff_t;
-        using value_type = T;
+        using value_type = elem;
         using pointer = value_type *;
         using reference = value_type &;
 
-        iterator(pointer ptr) : _ptr(ptr) {}
+        raw_iterator(pointer ptr) : _ptr(ptr) {}
 
         reference operator*() const { return *_ptr; }
         pointer operator->() const { return _ptr; }
 
-        bool operator==(const iterator &rhs) const { return _ptr == rhs._ptr; }
-        bool operator!=(const iterator &rhs) const { return _ptr != rhs._ptr; }
+        bool operator==(const raw_iterator &rhs) const {
+            return _ptr == rhs._ptr;
+        }
+        bool operator!=(const raw_iterator &rhs) const {
+            return _ptr != rhs._ptr;
+        }
 
         // --it & ++it
-        iterator &operator--() {
+        raw_iterator &operator--() {
             _ptr = _ptr->_prev;
             return *this;
         }
-        iterator &operator++() {
+        raw_iterator &operator++() {
             _ptr = _ptr->_next;
             return *this;
         }
@@ -91,6 +61,9 @@ template <typename T> class ilist {
       private:
         pointer _ptr{nullptr};
     };
+
+    using iterator = raw_iterator<T>;
+    using const_iterator = raw_iterator<const T>;
 
   private:
     T *_head{nullptr}, *_tail{nullptr};
@@ -125,8 +98,6 @@ template <typename T> class ilist {
         delete _tail;
     }
 
-    const_iterator begin() const { return const_iterator{_head->_next}; }
-    const_iterator end() const { return const_iterator{_tail}; }
     iterator begin() { return iterator{_head->_next}; }
     iterator end() { return iterator{_tail}; }
 
@@ -221,8 +192,16 @@ template <typename T> class ilist {
         return insert(it, new T{args...});
     }
 
-    const T &front() const { return *(_head->_next); }
-    const T &back() const { return *(_tail->_prev); }
     T &front() { return *(_head->_next); }
     T &back() { return *(_tail->_prev); }
+
+    // const method
+    const_iterator cbegin() const { return const_iterator{_head->_next}; }
+    const_iterator cend() const { return const_iterator{_tail}; }
+
+    const_iterator begin() const { return cbegin(); }
+    const_iterator end() const { return cend(); }
+
+    const T &front() const { return front(); }
+    const T &back() const { return end(); }
 };
