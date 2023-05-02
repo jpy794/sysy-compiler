@@ -137,63 +137,63 @@ class IRCollector {
         return ret;
     }
 
-    CmpInst *create_eq(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_cmp_eq(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_cmp(CmpInst::EQ, lhs, rhs);
         insert(ret, im);
         return ret;
     }
-    CmpInst *create_ne(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_cmp_ne(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_cmp(CmpInst::NE, lhs, rhs);
         insert(ret, im);
         return ret;
     }
-    CmpInst *create_gt(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_cmp_gt(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_cmp(CmpInst::GT, lhs, rhs);
         insert(ret, im);
         return ret;
     }
-    CmpInst *create_ge(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_cmp_ge(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_cmp(CmpInst::GE, lhs, rhs);
         insert(ret, im);
         return ret;
     }
-    CmpInst *create_lt(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_cmp_lt(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_cmp(CmpInst::LT, lhs, rhs);
         insert(ret, im);
         return ret;
     }
-    CmpInst *create_le(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_cmp_le(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_cmp(CmpInst::LE, lhs, rhs);
         insert(ret, im);
         return ret;
     }
 
-    CmpInst *create_feq(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_fcmp_feq(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_fcmp(CmpInst::FEQ, lhs, rhs);
         insert(ret, im);
         return ret;
     }
-    CmpInst *create_fne(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_fcmp_fne(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_fcmp(CmpInst::FNE, lhs, rhs);
         insert(ret, im);
         return ret;
     }
-    CmpInst *create_fgt(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_fcmp_fgt(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_fcmp(CmpInst::FGT, lhs, rhs);
         insert(ret, im);
         return ret;
     }
-    CmpInst *create_fge(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_fcmp_fge(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_fcmp(CmpInst::FGE, lhs, rhs);
         insert(ret, im);
         return ret;
     }
-    CmpInst *create_flt(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_fcmp_flt(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_fcmp(CmpInst::FLT, lhs, rhs);
         insert(ret, im);
         return ret;
     }
-    CmpInst *create_fle(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_fcmp_fle(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_fcmp(CmpInst::FLE, lhs, rhs);
         insert(ret, im);
         return ret;
@@ -207,7 +207,7 @@ class IRCollector {
         return ret;
     }
 
-    CallInst *create_call(Function *func, std::vector<Value *> &args,
+    CallInst *create_call(Function *func, std::vector<Value *> args,
                           InsertMode im = Back) {
         args.insert(args.begin(), func);
         auto ret = new CallInst(
@@ -218,11 +218,21 @@ class IRCollector {
 
     GetElementPtrInst *create_gep(Value *ptr, std::vector<Value *> idx,
                                   InsertMode im = Back) {
-        if (!dynamic_cast<Argument *>(idx[0]))
-            idx.insert(idx.cbegin(), _m->get_const_int(0));
-        if (dynamic_cast<ArrayType *>(ptr->get_type())->get_dims().size() !=
-            idx.size() - 1)
-            idx.push_back(_m->get_const_int(0));
+        assert(ptr->get_type()->is_pointer_type());
+        if (!dynamic_cast<Argument *>(ptr))
+            idx.insert(idx.begin(), _m->get_const_int(0));
+        auto ptr_elem_type =
+            static_cast<PointerType *>(ptr->get_type())->get_element_type();
+        if (ptr_elem_type->is_array_type()) {
+            if (static_cast<ArrayType *>(ptr_elem_type)->get_dims().size() !=
+                idx.size() - 1)
+                idx.push_back(_m->get_const_int(0));
+        } else {
+            assert(idx.size() == 1);
+        }
+
+        // now idx contains not only idx
+        idx.insert(idx.begin(), ptr);
         return new GetElementPtrInst(_cur_bb, std::move(idx));
     }
 
@@ -241,7 +251,6 @@ class IRCollector {
     }
 
     ZextInst *create_zext(Value *value, InsertMode im = Back) {
-        assert(dynamic_cast<IntType *>(value->get_type())->get_num_bits() == 1);
         auto ret = new ZextInst(_cur_bb, {value});
         insert(ret, im);
         return ret;

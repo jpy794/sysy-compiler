@@ -153,7 +153,7 @@ CmpInst::CmpInst(BasicBlock *bb, std::vector<Value *> &&operands, CmpOp cmp_op)
     if (_id == cmp) {
         assert(operands[0]->get_type()->is_int_type());
         assert(operands[1]->get_type()->is_int_type());
-        // TODO: check it's i32 type
+        // should check it's i32 type
         // (lxq:leave it)
     } else if (_id == fcmp) {
         assert(operands[0]->get_type()->is_float_type());
@@ -225,11 +225,19 @@ Type *GetElementPtrInst::_deduce_type(BasicBlock *bb,
 GetElementPtrInst::GetElementPtrInst(BasicBlock *bb,
                                      std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_float_type(), getelementptr,
-                  std::move(operands)) {}
+                  std::move(operands)) {
+
+    // TODO
+}
 
 ZextInst::ZextInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_int32_type(), zext,
-                  std::move(operands)) {}
+                  std::move(operands)) {
+    assert(operands.size() == 1);
+    auto type = operands[0]->get_type();
+    assert(type->is_int_type());
+    assert(static_cast<IntType *>(type)->get_num_bits() == 1);
+}
 /* ===== print ir ===== */
 
 string RetInst::print() const {
