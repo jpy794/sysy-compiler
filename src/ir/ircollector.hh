@@ -113,9 +113,7 @@ class IRCollector {
     }
 
     // user should be clear what type he wants from LoadInst
-    LoadInst *create_load(Type *type, Value *ptr, InsertMode im = Back) {
-        auto ptr_type = dynamic_cast<const PointerType *>(ptr->get_type());
-        assert(ptr_type && ptr_type->get_element_type() == type);
+    LoadInst *create_load(Value *ptr, InsertMode im = Back) {
         auto ret = new LoadInst(_cur_bb, {ptr});
         insert(ret, im);
         return ret;
