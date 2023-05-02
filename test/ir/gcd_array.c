@@ -1,12 +1,14 @@
 int x[1];
 int y[1];
 
-int gcd (int u, int v) { 
-    if (v == 0) return u;
-    else return gcd(v, u - u / v * v); 
+int gcd(int u, int v) {
+    if (v == 0)
+        return u;
+    else
+        return gcd(v, u - u / v * v);
 }
 
-int funArray (int u[], int v[]) { 
+int funArray(int u[], int v[]) {
     int a;
     int b;
     int temp;
