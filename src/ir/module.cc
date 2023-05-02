@@ -53,7 +53,7 @@ FuncType *Module::get_function_type(Type *ret, const vector<Type *> &&params) {
     } else
         return iter->second.get();
 }
-ConstantInt *Module::be_cached(bool val) {
+ConstantInt *Module::get_const_bool(bool val) {
     if (this->_cached_bool.find(val) != _cached_bool.end())
         return _cached_bool[val].get();
     else {
@@ -62,7 +62,7 @@ ConstantInt *Module::be_cached(bool val) {
             .get();
     }
 }
-ConstantInt *Module::be_cached(int val) {
+ConstantInt *Module::get_const_int(int val) {
     if (this->_cached_int.find(val) != _cached_int.end())
         return _cached_int[val].get();
     else {
@@ -71,7 +71,7 @@ ConstantInt *Module::be_cached(int val) {
             .get();
     }
 }
-ConstantFloat *Module::be_cached(float val) {
+ConstantFloat *Module::get_const_float(float val) {
     if (this->_cached_float.find(val) != _cached_float.end())
         return _cached_float[val].get();
     else {

@@ -34,9 +34,9 @@ class Module {
     PointerType *get_pointer_type(Type *element);
     FuncType *get_function_type(Type *ret, const std::vector<Type *> &&params);
     // - and so on
-    ConstantInt *be_cached(int val);
-    ConstantInt *be_cached(bool val);
-    ConstantFloat *be_cached(float val);
+    ConstantInt *get_const_int(int val);
+    ConstantInt *get_const_bool(bool val);
+    ConstantFloat *get_const_float(float val);
 
   private:
     std::string _name;
