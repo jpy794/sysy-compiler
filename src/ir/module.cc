@@ -2,15 +2,17 @@
 #include "constant.hh"
 #include "type.hh"
 #include <memory>
+#include <utility>
 
 using namespace ir;
+using namespace std;
 
-Module::Module(std::string &name) : _name(name) {
-    _int1_ty = std::make_unique<IntType>(this, 1);
-    _int32_ty = std::make_unique<IntType>(this, 32);
-    _float_ty = std::make_unique<FloatType>(this);
-    _void_ty = std::make_unique<VoidType>(this);
-    _label_ty = std::make_unique<LabelType>(this);
+Module::Module(string &name) : _name(name) {
+    _bool_ty = make_unique<IntType>(1);
+    _int_ty = make_unique<IntType>(32);
+    _float_ty = make_unique<FloatType>();
+    _void_ty = make_unique<VoidType>();
+    _label_ty = make_unique<LabelType>();
 }
 
 void Module::add_global_variable(GlobalVariable *gv) {
@@ -19,27 +21,43 @@ void Module::add_global_variable(GlobalVariable *gv) {
 
 void Module::add_function(Function *func) { _funcs.push_back(func); }
 
-// Type* Module::get_array_type(Type* container, std::vector<unsigned>&& dims){
-//     return new ArrayType(this, container, dims);
-// }
-
-Type *Module::get_array_type(Type *container, unsigned length) {
-    return new ArrayType(this, container, length);
+Type *Module::get_array_type(Type *container, const vector<unsigned> &dims) {
+    auto key = make_pair(container, dims);
+    auto iter = _arr_ty_map.find(key);
+    if (iter == _arr_ty_map.end()) {
+        auto new_ty = new ArrayType(container, dims);
+        _arr_ty_map[key] = make_unique<ArrayType>(container, dims);
+        return new_ty;
+    } else
+        return iter->second.get();
 }
 
 Type *Module::get_pointer_type(Type *elementTp) {
-    return new PointerType(this, elementTp);
+    auto iter = _ptr_ty_map.find(elementTp);
+    if (iter == _ptr_ty_map.end()) {
+        auto new_ty = new PointerType(elementTp);
+        _ptr_ty_map[elementTp] = make_unique<PointerType>(elementTp);
+        return new_ty;
+    } else
+        return iter->second.get();
 }
 
-Type *Module::get_function_type(Type *ret, const std::vector<Type *> &params) {
-    return new FuncType(this, ret, params);
+Type *Module::get_function_type(Type *ret, const vector<Type *> &params) {
+    auto key = make_pair(ret, params);
+    auto iter = _func_ty_map.find(key);
+    if (iter == _func_ty_map.end()) {
+        auto new_ty = new FuncType(ret, params);
+        _func_ty_map[key] = make_unique<FuncType>(ret, params);
+        return new_ty;
+    } else
+        return iter->second.get();
 }
 ConstantInt *Module::be_cached(bool val) {
     if (this->_cached_bool.find(val) != _cached_bool.end())
         return _cached_bool[val].get();
     else {
         return (_cached_bool[val] = std::unique_ptr<ConstantInt>(
-                    new ConstantInt(this->get_int1_type(), val)))
+                    new ConstantInt(this->get_bool_type(), val)))
             .get();
     }
 }
@@ -48,7 +66,7 @@ ConstantInt *Module::be_cached(int val) {
         return _cached_int[val].get();
     else {
         return (_cached_int[val] = std::unique_ptr<ConstantInt>(
-                    new ConstantInt(this->get_int32_type(), val)))
+                    new ConstantInt(this->get_int_type(), val)))
             .get();
     }
 }

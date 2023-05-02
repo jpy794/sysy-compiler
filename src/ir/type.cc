@@ -29,16 +29,8 @@ string ArrayType::print() const {
     string ret;
     ret = _elementTp->print();
 
-    ret = "[" + std::to_string(_length) + "]" + ret;
+    for (auto iter = _dims.rbegin(); iter != _dims.rend(); ++iter)
+        ret = "[" + std::to_string(*iter) + " x " + ret + "]";
 
     return ret;
 }
-// string ArrayType::print() const {
-//     string ret;
-//     ret = _elementTp->print();
-
-//     for (auto iter = _dims.rbegin(); iter != _dims.rend(); ++iter)
-//         ret = "[" + std::to_string(*iter) + " x " + ret + "]";
-
-//     return ret;
-// }

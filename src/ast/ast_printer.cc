@@ -99,7 +99,7 @@ std::any ASTPrinter::visit(const VarDefStmt &node) {
     for (auto &ini : node.init_vals) {
         if (ini.has_value())
             init_vals += any_string(ini->get()->accept(*this)) + ",";
-        else 
+        else
             init_vals += "\"default\",";
     }
     init_vals = no_trailing(init_vals);
