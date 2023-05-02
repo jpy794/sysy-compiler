@@ -37,6 +37,8 @@ class Module {
     ConstantInt *get_const_int(int val);
     ConstantInt *get_const_bool(bool val);
     ConstantFloat *get_const_float(float val);
+    // print
+    std::string print() const;
 
   private:
     std::string _name;
