@@ -233,7 +233,9 @@ class IRCollector {
 
         // now idx contains not only idx
         idx.insert(idx.begin(), ptr);
-        return new GetElementPtrInst(_cur_bb, std::move(idx));
+        auto ret = new GetElementPtrInst(_cur_bb, std::move(idx));
+        insert(ret, im);
+        return ret;
     }
 
     Fp2siInst *create_fp2si(Value *value, InsertMode im = Back) {

@@ -17,7 +17,7 @@ using namespace std;
 
 Instruction::Instruction(BasicBlock *bb, Type *type, OpID id,
                          vector<Value *> &&operands)
-    : User(bb->module(), type, "%op" + to_string(bb->get_function()->get_seq()),
+    : User(bb->module(), type, "op" + to_string(bb->get_function()->get_seq()),
            std::move(operands)),
       _id(id), _parent(bb) {}
 
@@ -258,9 +258,9 @@ string BrInst::print() const {
     if (this->operands().size() == 1)
         return "br label " + print_op(this->operands()[0]);
     else
-        return "br i1 " + print_op(this->operands()[0]);
-    +", label " + print_op(this->operands()[1]) + ", label " +
-        print_op(this->operands()[2]);
+        return "br i1 " + print_op(this->operands()[0]) + ", label " +
+               print_op(this->operands()[1]) + ", label " +
+               print_op(this->operands()[2]);
 }
 
 string BinaryInst::print() const {
@@ -300,8 +300,9 @@ string BinaryInst::print() const {
         throw logic_error{"The op of BinaryInst is wrong!"};
         break;
     }
-    return print_op(this) + " = " + OpName + this->get_type()->print() +
-           print_op(this->operands()[0]) + ", " + print_op(this->operands()[1]);
+    return print_op(this) + " = " + OpName + " " + this->get_type()->print() +
+           " " + print_op(this->operands()[0]) + ", " +
+           print_op(this->operands()[1]);
 }
 
 string AllocaInst::print() const {
@@ -312,14 +313,15 @@ string AllocaInst::print() const {
 }
 
 string LoadInst::print() const {
-    return this->get_name() + " = load " + this->get_type()->print() + ", " +
+    return print_op(this) + " = load " + this->get_type()->print() + ", " +
+           this->operands()[0]->get_type()->print() + " " +
            print_op(this->operands()[0]);
 }
 
 string StoreInst::print() const {
-    return "store " + this->operands()[0]->get_type()->print() +
-           print_op(this->operands()[0]) + " ," +
-           this->operands()[1]->get_type()->print() +
+    return "store " + this->operands()[0]->get_type()->print() + " " +
+           print_op(this->operands()[0]) + ", " +
+           this->operands()[1]->get_type()->print() + " " +
            print_op(this->operands()[1]);
 }
 
@@ -398,12 +400,16 @@ string CallInst::print() const {
     if (this->get_type()->is_void_type())
         head = "call ";
     else
-        head = this->get_name() + " = call ";
-    for (const auto &oper : this->operands())
-        args += oper->get_type()->print() + " " + print_op(oper) + ", ";
+        head = print_op(this) + " = call ";
+    head += dynamic_cast<FuncType *>(this->operands()[0]->get_type())
+                ->get_result_type()
+                ->print() +
+            " " + print_op(this->operands()[0]);
+    for (unsigned i = 1; i < this->operands().size(); i++)
+        args += this->operands()[i]->get_type()->print() + " " +
+                print_op(this->operands()[i]) + ", ";
     args.erase(args.length() - 2, 2);
-    return head + this->get_type()->print() + " " +
-           print_op(this->operands()[0]) + " (" + args + ")";
+    return head + " (" + args + ")";
 }
 
 string Fp2siInst::print() const {

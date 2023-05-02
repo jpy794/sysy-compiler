@@ -19,7 +19,7 @@ GlobalVariable *GlobalVariable::get(Type *type, Constant *init,
 std::string GlobalVariable::print() const {
     std::string init_ir;
     if (_init)
-        init_ir = _init->print();
+        init_ir = " " + _init->print();
     else
         init_ir = "";
     return print_op(this) + " = global " +
