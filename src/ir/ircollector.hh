@@ -56,7 +56,7 @@ class IRCollector {
         insert(ret, im);
         return ret;
     }
-    BrInst *create_con_br(Value *cond, BasicBlock *TBB, BasicBlock *FBB,
+    BrInst *create_cond_br(Value *cond, BasicBlock *TBB, BasicBlock *FBB,
                           InsertMode im = Back) {
         auto ret = create_br_({cond, TBB, FBB});
         insert(ret, im);
