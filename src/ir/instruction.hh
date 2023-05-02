@@ -21,15 +21,15 @@ class Instruction : public User, public ilist<Instruction>::node {
         mul,
         sdiv,
         srem,
-        // Logic binary operatorsTODO:
-        _and,
-        _or,
         // float binary operators
         fadd,
         fsub,
         fmul,
         fdiv,
         frem,
+        // Logic binary operatorsTODO:
+        logic_and,
+        logic_or,
         // Memory operators
         alloca,
         load,
@@ -54,10 +54,12 @@ class Instruction : public User, public ilist<Instruction>::node {
     bool is_sub() const { return _id == sub; }
     bool is_mul() const { return _id == mul; }
     bool is_sdiv() const { return _id == sdiv; }
+    bool is_srem() const { return _id == srem; }
     bool is_fadd() const { return _id == fadd; }
     bool is_fsub() const { return _id == fsub; }
     bool is_fmul() const { return _id == fmul; }
     bool is_fdiv() const { return _id == fdiv; }
+    bool is_frem() const { return _id == frem; }
     bool is_alloca() const { return _id == alloca; }
     bool is_load() const { return _id == load; }
     bool is_store() const { return _id == store; }
@@ -69,8 +71,13 @@ class Instruction : public User, public ilist<Instruction>::node {
     bool is_fptosi() const { return _id == fptosi; }
     bool is_sitofp() const { return _id == sitofp; }
 
+    BasicBlock *get_parent() { return _parent; }
+
   protected:
     OpID _id;
+
+  private:
+    BasicBlock *_parent;
 };
 
 class RetInst : public Instruction {
@@ -87,17 +94,18 @@ class BrInst : public Instruction {
 
 class BinaryInst : public Instruction {
   public:
-    enum BinOp { ADD = 0, SUB, MUL, SDIV, FADD, FSUB, FMUL, FDIV };
+    enum BinOp { ADD = 0, SUB, MUL, SDIV, SREM, FADD, FSUB, FMUL, FDIV, FREM };
 
     BinaryInst(BasicBlock *bb, std::vector<Value *> &&operands, BinOp op);
 
     std::string print() const final;
 
   private:
-    static constexpr std::array<OpID, 8> _op_map = {add,  sub,  mul,  sdiv,
-                                                    fadd, fsub, fmul, fdiv};
-    static constexpr std::array<BinOp, 4> _int_op = {ADD, SUB, MUL, SDIV};
-    static constexpr std::array<BinOp, 4> _float_op = {FADD, FSUB, FMUL, FDIV};
+    static constexpr std::array<OpID, 10> _op_map = {
+        add, sub, mul, sdiv, srem, fadd, fsub, fmul, fdiv, frem};
+    static constexpr std::array<BinOp, 5> _int_op = {ADD, SUB, MUL, SDIV, SREM};
+    static constexpr std::array<BinOp, 5> _float_op = {FADD, FSUB, FMUL, FDIV,
+                                                       FREM};
     static Type *_deduce_type(BasicBlock *bb, BinOp op);
 };
 

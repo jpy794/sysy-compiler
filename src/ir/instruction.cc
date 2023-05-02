@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace ir;
@@ -18,7 +19,7 @@ Instruction::Instruction(BasicBlock *bb, Type *type, OpID id,
                          vector<Value *> &&operands)
     : User(bb->module(), type, "%op" + to_string(bb->get_function()->get_seq()),
            std::move(operands)),
-      _id(id) {}
+      _id(id), _parent(bb) {}
 
 RetInst::RetInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_void_type(), ret, std::move(operands)) {
@@ -37,11 +38,26 @@ BrInst::BrInst(BasicBlock *bb, std::vector<Value *> &&operands)
     if (operands.size() == 1) {
         // basic_block
         assert(operands[0]->get_type()->is_label_type());
+        bb->get_suc_basic_blocks().push_back(
+            dynamic_cast<BasicBlock *>(operands[0]));
+        dynamic_cast<BasicBlock *>(operands[0])
+            ->get_pre_basic_blocks()
+            .push_back(bb);
     } else if (operands.size() == 3) {
         auto int_type = dynamic_cast<IntType *>(operands[0]->get_type());
         assert(int_type and int_type->get_num_bits() == 1);
         assert(operands[1]->get_type()->is_label_type());
         assert(operands[2]->get_type()->is_label_type());
+        bb->get_suc_basic_blocks().push_back(
+            dynamic_cast<BasicBlock *>(operands[1]));
+        bb->get_suc_basic_blocks().push_back(
+            dynamic_cast<BasicBlock *>(operands[2]));
+        dynamic_cast<BasicBlock *>(operands[1])
+            ->get_pre_basic_blocks()
+            .push_back(bb);
+        dynamic_cast<BasicBlock *>(operands[2])
+            ->get_pre_basic_blocks()
+            .push_back(bb);
     } else
         throw unreachable_error{"branch has only 1 or 3 operands"};
 }
@@ -141,9 +157,16 @@ CmpInst::CmpInst(BasicBlock *bb, std::vector<Value *> &&operands, CmpOp cmp_op)
         // (lxq:leave it)
     } else if (_id == fcmp) {
         assert(operands[0]->get_type()->is_float_type());
-        assert(operands[0]->get_type()->is_float_type());
+        assert(operands[1]->get_type()->is_float_type());
     } else
         throw unreachable_error{};
+}
+
+PhiInst::PhiInst(BasicBlock *bb, std::vector<Value *> &&operands)
+    : Instruction(bb, operands[0]->get_type(), phi, std::move(operands)) {
+    assert(operands.size() == 4); // assume operands.size = 4, but may be 2
+    assert(dynamic_cast<BasicBlock *>(operands[1]));
+    assert(dynamic_cast<BasicBlock *>(operands[3]));
 }
 
 Type *CallInst::_deduce_type(BasicBlock *bb,
@@ -196,7 +219,7 @@ Type *GetElementPtrInst::_deduce_type(BasicBlock *bb,
             type = dynamic_cast<ArrayType *>(type)->get_element_type();
         else
             throw logic_error{"expected less index of array"};
-    return type;
+    return bb->module()->get_pointer_type(type);
 }
 
 GetElementPtrInst::GetElementPtrInst(BasicBlock *bb,
@@ -347,6 +370,14 @@ string CmpInst::print() const {
            print_op(this->operands()[0]) + ", " + print_op(this->operands()[1]);
 }
 
+string PhiInst::print() const {
+    return print_op(this) + " = phi " + this->get_type()->print() + "[" +
+           print_op(this->operands()[0]) + ", " +
+           print_op(this->operands()[1]) + "]" + "[" +
+           print_op(this->operands()[3]) + ", " +
+           print_op(this->operands()[4]) + "]";
+}
+
 string CallInst::print() const {
     string head;
     string args;
@@ -363,7 +394,7 @@ string CallInst::print() const {
 
 string Fp2siInst::print() const {
     return print_op(this) + " = fptosi float " + print_op(this->operands()[0]) +
-           " to " + this->operands()[1]->print();
+           " to i32";
 }
 
 string Si2fpInst::print() const {

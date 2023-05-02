@@ -1,4 +1,5 @@
 #include "basic_block.hh"
+#include "constant.hh"
 #include "err.hh"
 #include "function.hh"
 #include "instruction.hh"
@@ -8,6 +9,7 @@
 
 #include <cassert>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace ir {
@@ -22,9 +24,7 @@ namespace ir {
 // TODO:
 // - add instruction:
 //   - logic binary
-//   - zext
 //   - unary
-//
 class IRCollector {
     enum InsertMode { Back, Front, DIY };
 
@@ -49,7 +49,6 @@ class IRCollector {
         return ret;
     }
 
-    // TODO: maintain _pre_bbs and _suc_bbs
     BrInst *create_br(BasicBlock *nextbb, InsertMode im = Back) {
         std::vector<Value *> ops;
         auto ret = create_br_({nextbb});
@@ -83,6 +82,11 @@ class IRCollector {
         insert(ret, im);
         return ret;
     }
+    BinaryInst *create_srem(Value *lhs, Value *rhs, InsertMode im = Back) {
+        auto ret = create_binary(i32_type(), BinaryInst::SREM, lhs, rhs);
+        insert(ret, im);
+        return ret;
+    }
     BinaryInst *create_fadd(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_binary(float_type(), BinaryInst::FADD, lhs, rhs);
         insert(ret, im);
@@ -100,6 +104,11 @@ class IRCollector {
     }
     BinaryInst *create_fdiv(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_binary(float_type(), BinaryInst::FDIV, lhs, rhs);
+        insert(ret, im);
+        return ret;
+    }
+    BinaryInst *create_frem(Value *lhs, Value *rhs, InsertMode im = Back) {
+        auto ret = create_binary(float_type(), BinaryInst::FREM, lhs, rhs);
         insert(ret, im);
         return ret;
     }
@@ -181,13 +190,21 @@ class IRCollector {
         insert(ret, im);
         return ret;
     }
-    CmpInst *create_fLT(Value *lhs, Value *rhs, InsertMode im = Back) {
+    CmpInst *create_flt(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_fcmp(CmpInst::FLT, lhs, rhs);
         insert(ret, im);
         return ret;
     }
     CmpInst *create_fle(Value *lhs, Value *rhs, InsertMode im = Back) {
         auto ret = create_fcmp(CmpInst::FLE, lhs, rhs);
+        insert(ret, im);
+        return ret;
+    }
+
+    PhiInst *create_phi(Value *lhs, Value *rhs, InsertMode im = Back) {
+        auto ret = new PhiInst(
+            _cur_bb, {lhs, dynamic_cast<Instruction *>(lhs)->get_parent(), rhs,
+                      dynamic_cast<Instruction *>(rhs)->get_parent()});
         insert(ret, im);
         return ret;
     }
@@ -201,6 +218,16 @@ class IRCollector {
         return ret;
     }
 
+    GetElementPtrInst *create_gep(Value *ptr, std::vector<Value *> idx,
+                                  InsertMode im = Back) {
+        if (!dynamic_cast<Argument *>(idx[0]))
+            idx.insert(idx.cbegin(), _m->be_cached(0));
+        if (dynamic_cast<ArrayType *>(ptr->get_type())->get_dims().size() !=
+            idx.size() - 1)
+            idx.push_back(_m->be_cached(0));
+        return new GetElementPtrInst(_cur_bb, std::move(idx));
+    }
+
     Fp2siInst *create_fp2si(Value *value, InsertMode im = Back) {
         assert(value->get_type()->is_int_type());
         auto ret = new Fp2siInst(_cur_bb, {value});
@@ -211,6 +238,13 @@ class IRCollector {
     Si2fpInst *create_si2fp(Value *value, InsertMode im = Back) {
         assert(value->get_type()->is_float_type());
         auto ret = new Si2fpInst(_cur_bb, {value});
+        insert(ret, im);
+        return ret;
+    }
+
+    ZextInst *create_zext(Value *value, InsertMode im = Back) {
+        assert(dynamic_cast<IntType *>(value->get_type())->get_num_bits() == 1);
+        auto ret = new ZextInst(_cur_bb, {value});
         insert(ret, im);
         return ret;
     }
