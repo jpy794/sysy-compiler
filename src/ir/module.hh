@@ -24,14 +24,15 @@ class Module {
     void add_function(Function *func);
     // - symbol table: maybe unnecassary
     // - Types: give each type a unique address, for convenience of equal-judge
-    Type *get_int1_type() const { return _int1_ty.get(); }
-    Type *get_int32_type() const { return _int32_ty.get(); }
-    Type *get_float_type() const { return _float_ty.get(); }
-    Type *get_label_type() const { return _label_ty.get(); }
-    Type *get_void_type() const { return _void_ty.get(); }
-    Type *get_array_type(Type *container, const std::vector<unsigned> &&dims);
-    Type *get_pointer_type(Type *element);
-    Type *get_function_type(Type *ret, const std::vector<Type *> &&params);
+    IntType *get_int1_type() const { return _int1_ty.get(); }
+    IntType *get_int32_type() const { return _int32_ty.get(); }
+    FloatType *get_float_type() const { return _float_ty.get(); }
+    LabelType *get_label_type() const { return _label_ty.get(); }
+    VoidType *get_void_type() const { return _void_ty.get(); }
+    ArrayType *get_array_type(Type *container,
+                              const std::vector<unsigned> &&dims);
+    PointerType *get_pointer_type(Type *element);
+    FuncType *get_function_type(Type *ret, const std::vector<Type *> &&params);
     // - and so on
     ConstantInt *be_cached(int val);
     ConstantInt *be_cached(bool val);

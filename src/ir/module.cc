@@ -21,7 +21,8 @@ void Module::add_global_variable(GlobalVariable *gv) {
 
 void Module::add_function(Function *func) { _funcs.push_back(func); }
 
-Type *Module::get_array_type(Type *container, const vector<unsigned> &&dims) {
+ArrayType *Module::get_array_type(Type *container,
+                                  const vector<unsigned> &&dims) {
     auto key = make_pair(container, dims);
     auto iter = _arr_ty_map.find(key);
     if (iter == _arr_ty_map.end()) {
@@ -32,7 +33,7 @@ Type *Module::get_array_type(Type *container, const vector<unsigned> &&dims) {
         return iter->second.get();
 }
 
-Type *Module::get_pointer_type(Type *elementTp) {
+PointerType *Module::get_pointer_type(Type *elementTp) {
     auto iter = _ptr_ty_map.find(elementTp);
     if (iter == _ptr_ty_map.end()) {
         auto new_ty = new PointerType(elementTp);
@@ -42,7 +43,7 @@ Type *Module::get_pointer_type(Type *elementTp) {
         return iter->second.get();
 }
 
-Type *Module::get_function_type(Type *ret, const vector<Type *> &&params) {
+FuncType *Module::get_function_type(Type *ret, const vector<Type *> &&params) {
     auto key = make_pair(ret, params);
     auto iter = _func_ty_map.find(key);
     if (iter == _func_ty_map.end()) {
