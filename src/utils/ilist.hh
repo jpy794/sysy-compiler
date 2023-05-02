@@ -202,6 +202,6 @@ template <typename T> class ilist {
     const_iterator begin() const { return cbegin(); }
     const_iterator end() const { return cend(); }
 
-    const T &front() const { return front(); }
-    const T &back() const { return end(); }
+    const T &front() const { return *(_head->_next); }
+    const T &back() const { return *(_tail->_prev); }
 };
