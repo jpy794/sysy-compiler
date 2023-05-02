@@ -6,9 +6,13 @@
 
 using namespace ir;
 
-ConstantInt *ConstantInt::get(int val, Module *m) { return m->get_const_int(val); }
+ConstantInt *ConstantInt::get(int val, Module *m) {
+    return m->get_const_int(val);
+}
 std::string ConstantInt::print() const { return this->get_name(); }
-ConstantInt *ConstantInt::get(bool val, Module *m) { return m->get_const_bool(val); }
+ConstantInt *ConstantInt::get(bool val, Module *m) {
+    return m->get_const_bool(val);
+}
 ConstantFloat *ConstantFloat::get(float val, Module *m) {
     return m->get_const_float(val);
 }

@@ -53,7 +53,8 @@ class Function : public Value, public ilist<Function>::node {
 class Argument : public Value, public ilist<Argument>::node {
   public:
     Argument(Type *type, Function *parent)
-        : Value(parent->module(), type, "arg" + std::to_string(parent->get_seq())),
+        : Value(parent->module(), type,
+                "arg" + std::to_string(parent->get_seq())),
           _parent(parent) {}
     ~Argument() = default;
     Function *get_function() const { return _parent; }
