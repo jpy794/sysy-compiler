@@ -33,9 +33,10 @@ int main() {
     vector<int> zero_vec{0};
     auto *arrayType = mod->get_array_type(i32type, {1});
     auto initializer = ConstantArray::get(zero_vec, mod);
-    auto x = GlobalVariable::get(arrayType, initializer, "x", mod);
-    auto y = GlobalVariable::get(arrayType, initializer, "y", mod);
+    auto x = mod->create_global_var(arrayType, initializer, "x");
+    auto y = mod->create_global_var(arrayType, initializer, "y");
 
+    //
     // gcd函数
     // 函数参数类型的vector
     vector<Type *> param_type(2, i32type);
@@ -43,10 +44,10 @@ int main() {
     auto gcdFunTy = mod->get_function_type(
         i32type, static_cast<decltype(param_type) &&>(param_type));
     // 由函数类型得到函数
-    auto gcdFun = Function::create(gcdFunTy, "gcd", mod);
+    auto gcdFun = mod->create_func(gcdFunTy, "gcd");
 
-    // 创建函数
-    auto entry = BasicBlock::create(gcdFun);
+    // 创建基本块
+    auto entry = gcdFun->create_bb();
     builder->set_insertion(entry);
 
     // 为ret分配内存
@@ -56,9 +57,9 @@ int main() {
     auto v = gcdFun->get_args()[1];
 
     auto icmp = builder->create_cmp_eq(v, CONST_INT(0));
-    auto TBB = BasicBlock::create(gcdFun); // true分支
-    auto FBB = BasicBlock::create(gcdFun); // false分支
-    auto retBB = BasicBlock::create(gcdFun);
+    auto TBB = gcdFun->create_bb();
+    auto FBB = gcdFun->create_bb();
+    auto retBB = gcdFun->create_bb();
     builder->create_cond_br(icmp, TBB, FBB);
 
     // if true; 分支的开始需要SetInsertPoint设置
@@ -85,8 +86,8 @@ int main() {
     auto i32ptrtype = mod->get_pointer_type(i32type);
     auto funArrayFunType =
         mod->get_function_type(i32type, {i32ptrtype, i32ptrtype});
-    auto funArrayFun = Function::create(funArrayFunType, "funArray", mod);
-    entry = BasicBlock::create(funArrayFun);
+    auto funArrayFun = mod->create_func(funArrayFunType, "funcArray");
+    entry = funArrayFun->create_bb();
     builder->set_insertion(entry);
     auto aAlloca = builder->create_alloc(i32type);
     auto bAlloca = builder->create_alloc(i32type);
@@ -105,8 +106,8 @@ int main() {
     auto aLoad = builder->create_load(aAlloca);
     auto bLoad = builder->create_load(bAlloca);
     icmp = builder->create_cmp_lt(aLoad, bLoad);
-    TBB = BasicBlock::create(funArrayFun);
-    FBB = BasicBlock::create(funArrayFun);
+    TBB = funArrayFun->create_bb();
+    FBB = funArrayFun->create_bb();
     builder->create_cond_br(icmp, TBB, FBB);
 
     builder->set_insertion(TBB);
@@ -124,8 +125,8 @@ int main() {
 
     // main函数
     auto mainFun =
-        Function::create(mod->get_function_type(i32type, {}), "main", mod);
-    entry = BasicBlock::create(mainFun);
+        mod->create_func(mod->get_function_type(i32type, {}), "main");
+    entry = mainFun->create_bb();
     builder->set_insertion(entry);
     retAlloca = builder->create_alloc(i32type);
 
