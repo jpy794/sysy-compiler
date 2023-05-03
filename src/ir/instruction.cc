@@ -81,7 +81,7 @@ BinaryInst::BinaryInst(BasicBlock *bb, std::vector<Value *> &&operands,
 
 AllocaInst::AllocaInst(BasicBlock *bb, std::vector<Value *> &&operands,
                        Type *elem_type)
-    : Instruction(bb, bb->module()->get_pointer_type(elem_type), br,
+    : Instruction(bb, bb->module()->get_pointer_type(elem_type), alloca,
                   std::move(operands)) {
     // alloca is a ptr type itself, and its op(type) can be deduced from that
     assert(this->operands().size() == 0);
@@ -143,7 +143,8 @@ Instruction::OpID CmpInst::_deduce_id(CmpOp cmp_op) {
 
 CmpInst::CmpInst(BasicBlock *bb, std::vector<Value *> &&operands, CmpOp cmp_op)
     : Instruction(bb, bb->module()->get_int1_type(), _deduce_id(cmp_op),
-                  std::move(operands)) {
+                  std::move(operands)),
+      _cmp_op(cmp_op) {
     assert(this->operands().size() == 2);
     auto lhs = get_operand(0);
     auto rhs = get_operand(1);
