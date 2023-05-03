@@ -4,15 +4,10 @@
 #include <string>
 using namespace ir;
 
-BasicBlock::BasicBlock(Function *parent)
-    : Value(parent->module(), parent->module()->get_label_type(),
-            "label" + std::to_string(parent->get_seq())),
-      _parent(parent) {
-    parent->add_basic_block(this);
-}
-BasicBlock *BasicBlock::create(Function *parent) {
-    return new BasicBlock(parent);
-}
+BasicBlock::BasicBlock(Function *func)
+    : Value(func->module(), func->module()->get_label_type(),
+            "label" + std::to_string(func->get_inst_seq())),
+      _func(func) {}
 
 std::string BasicBlock::print() const {
     std::string bb_ir = "";

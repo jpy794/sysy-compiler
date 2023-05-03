@@ -2,30 +2,21 @@
 #include "basic_block.hh"
 #include "module.hh"
 #include "type.hh"
-#include <string>
+
 using namespace ir;
+using namespace std;
+
+Function::Function(Module *module, FuncType *type, std::string &&name)
+    : Value(module, type, std::move(name)), _inst_seq(0) {
+    for (size_t i = 0; i < type->get_num_params(); ++i) {
+        _args.push_back(new Argument(this, type->get_param_type(i)));
+    }
+}
 
 Function::~Function() {
     for (auto arg : _args) {
         delete arg;
     }
-}
-
-Function::Function(FuncType *type, std::string &&name, Module *parent)
-    : Value(parent, type, std::move(name)), _args(), _bbs(), _parent(parent),
-      _seq_cnt(0) {
-    parent->add_function(this);
-    for (unsigned i = 0; i < type->get_num_params(); ++i) {
-        add_arg(new Argument(type->get_param_type(i), this));
-    }
-}
-
-Function *Function::create(FuncType *type, std::string &&name, Module *parent) {
-    return new Function(type, static_cast<std::string &&>(name), parent);
-}
-
-Type *Function::get_return_type() const {
-    return static_cast<const FuncType *>(this->get_type())->get_result_type();
 }
 
 std::string Function::print() const {
@@ -49,7 +40,4 @@ std::string Function::print() const {
     return func_ir;
 }
 
-const std::vector<Argument *> &Function::get_args() { return _args; }
-void Function::add_arg(Argument *arg) { _args.push_back(arg); }
-void Function::add_basic_block(BasicBlock *bb) { _bbs.push_back(bb); }
 std::string Argument::print() const { return this->get_name(); }

@@ -17,18 +17,17 @@ using namespace std;
 
 Instruction::Instruction(BasicBlock *bb, Type *type, OpID id,
                          vector<Value *> &&operands)
-    : User(bb->module(), type, "op" + to_string(bb->get_function()->get_seq()),
+    : User(bb->module(), type, "op" + to_string(bb->get_func()->get_inst_seq()),
            std::move(operands)),
       _id(id), _parent(bb) {}
 
 RetInst::RetInst(BasicBlock *bb, std::vector<Value *> &&operands)
     : Instruction(bb, bb->module()->get_void_type(), ret, std::move(operands)) {
-    if (bb->get_function()->get_return_type()->is_void_type())
+    if (bb->get_func()->get_return_type()->is_void_type())
         assert(this->operands().size() == 0);
     else {
         assert(this->operands().size() == 1);
-        assert(get_operand(0)->get_type() ==
-               bb->get_function()->get_return_type());
+        assert(get_operand(0)->get_type() == bb->get_func()->get_return_type());
     }
 }
 

@@ -17,11 +17,19 @@ namespace ir {
 class Module {
   public:
     explicit Module(std::string &&name);
-    // TODO
-    // - global variables
-    void add_global_variable(GlobalVariable *gv);
-    // - Functions: declaration, defination
-    void add_function(Function *func);
+
+    // creaters
+    template <typename... Args>
+    GlobalVariable *create_global_var(Args &&...args) {
+        _global_vars.emplace_back(this, args...);
+        return &_global_vars.back();
+    }
+
+    template <typename... Args> Function *create_func(Args &&...args) {
+        _funcs.emplace_back(this, args...);
+        return &_funcs.back();
+    }
+
     // - symbol table: maybe unnecassary
     // - Types: give each type a unique address, for convenience of equal-judge
     IntType *get_int1_type() const { return _int1_ty.get(); }
@@ -55,7 +63,7 @@ class Module {
         _arr_ty_map;
     std::map<Type *, std::unique_ptr<PointerType>> _ptr_ty_map;
 
-    ilist<GlobalVariable> _global_var;
+    ilist<GlobalVariable> _global_vars;
     ilist<Function> _funcs;
     std::unordered_map<int, std::unique_ptr<ConstantInt>> _cached_int;
     std::unordered_map<bool, std::unique_ptr<ConstantInt>> _cached_bool;

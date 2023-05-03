@@ -15,12 +15,6 @@ Module::Module(string &&name) : _name(name) {
     _label_ty = make_unique<LabelType>();
 }
 
-void Module::add_global_variable(GlobalVariable *gv) {
-    _global_var.push_back(gv);
-}
-
-void Module::add_function(Function *func) { _funcs.push_back(func); }
-
 ArrayType *Module::get_array_type(Type *container,
                                   const vector<unsigned> &&dims) {
     auto key = make_pair(container, dims);
@@ -82,7 +76,7 @@ ConstantFloat *Module::get_const_float(float val) {
 }
 std::string Module::print() const {
     std::string m_ir;
-    for (const auto &gv : _global_var)
+    for (const auto &gv : _global_vars)
         m_ir += gv.print() + "\n";
     for (const auto &func : _funcs)
         m_ir += func.print() + "\n";

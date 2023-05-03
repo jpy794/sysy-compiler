@@ -11,10 +11,10 @@ class Module;
 class Function;
 class BasicBlock : public Value, public ilist<BasicBlock>::node {
   public:
-    static BasicBlock *create(Function *parent);
+    BasicBlock(Function *func);
 
     // Function
-    Function *get_function() const { return _parent; }
+    Function *get_func() const { return _func; }
 
     // BasicBlock
     const std::vector<BasicBlock *> &get_pre_basic_blocks() const {
@@ -40,11 +40,10 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
     std::string print() const override;
 
   private:
-    BasicBlock(Function *parent);
     std::vector<BasicBlock *> _pre_bbs;
     std::vector<BasicBlock *> _suc_bbs;
     ilist<Instruction> _instr_list;
-    Function *_parent;
+    Function *_func;
 };
 
 } // namespace ir
