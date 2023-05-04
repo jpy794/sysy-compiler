@@ -52,7 +52,7 @@ ConstantInt *Module::get_const_bool(bool val) {
         return _cached_bool[val].get();
     else {
         return (_cached_bool[val] = std::unique_ptr<ConstantInt>(
-                    new ConstantInt(this->get_int1_type(), val)))
+                    new ConstantInt(this, this->get_int1_type(), val)))
             .get();
     }
 }
@@ -61,7 +61,7 @@ ConstantInt *Module::get_const_int(int val) {
         return _cached_int[val].get();
     else {
         return (_cached_int[val] = std::unique_ptr<ConstantInt>(
-                    new ConstantInt(this->get_int32_type(), val)))
+                    new ConstantInt(this, this->get_int32_type(), val)))
             .get();
     }
 }
@@ -70,7 +70,7 @@ ConstantFloat *Module::get_const_float(float val) {
         return _cached_float[val].get();
     else {
         return (_cached_float[val] = std::unique_ptr<ConstantFloat>(
-                    new ConstantFloat(this->get_float_type(), val)))
+                    new ConstantFloat(this, this->get_float_type(), val)))
             .get();
     }
 }
