@@ -17,7 +17,8 @@ using namespace std;
 
 Instruction::Instruction(BasicBlock *bb, Type *type, OpID id,
                          vector<Value *> &&operands)
-    : User(bb->module(), type, "op" + to_string(bb->get_func()->get_inst_seq()),
+    : User(bb->module(), type,
+           "%op" + to_string(bb->get_func()->get_inst_seq()),
            std::move(operands)),
       _id(id), _parent(bb) {}
 
@@ -249,18 +250,18 @@ ZextInst::ZextInst(BasicBlock *bb, std::vector<Value *> &&operands)
 string RetInst::print() const {
     if (this->operands().size() != 0) // ret <type> <value>
         return "ret " + this->operands()[0]->get_type()->print() + " " +
-               print_op(this->operands()[0]);
+               this->operands()[0]->get_name();
     else // ret void
         return "ret void";
 }
 
 string BrInst::print() const {
     if (this->operands().size() == 1)
-        return "br label " + print_op(this->operands()[0]);
+        return "br label %" + this->operands()[0]->get_name();
     else
-        return "br i1 " + print_op(this->operands()[0]) + ", label " +
-               print_op(this->operands()[1]) + ", label " +
-               print_op(this->operands()[2]);
+        return "br i1 " + this->operands()[0]->get_name() + ", label %" +
+               this->operands()[1]->get_name() + ", label %" +
+               this->operands()[2]->get_name();
 }
 
 string BinaryInst::print() const {
@@ -300,29 +301,29 @@ string BinaryInst::print() const {
         throw logic_error{"The op of BinaryInst is wrong!"};
         break;
     }
-    return print_op(this) + " = " + OpName + " " + this->get_type()->print() +
-           " " + print_op(this->operands()[0]) + ", " +
-           print_op(this->operands()[1]);
+    return this->get_name() + " = " + OpName + " " + this->get_type()->print() +
+           " " + this->operands()[0]->get_name() + ", " +
+           this->operands()[1]->get_name();
 }
 
 string AllocaInst::print() const {
-    return print_op(this) + " = alloca " +
+    return this->get_name() + " = alloca " +
            static_cast<const PointerType *>(this->get_type())
                ->get_element_type()
                ->print();
 }
 
 string LoadInst::print() const {
-    return print_op(this) + " = load " + this->get_type()->print() + ", " +
+    return this->get_name() + " = load " + this->get_type()->print() + ", " +
            this->operands()[0]->get_type()->print() + " " +
-           print_op(this->operands()[0]);
+           this->operands()[0]->get_name();
 }
 
 string StoreInst::print() const {
     return "store " + this->operands()[0]->get_type()->print() + " " +
-           print_op(this->operands()[0]) + ", " +
+           this->operands()[0]->get_name() + ", " +
            this->operands()[1]->get_type()->print() + " " +
-           print_op(this->operands()[1]);
+           this->operands()[1]->get_name();
 }
 
 string CmpInst::print() const {
@@ -381,17 +382,18 @@ string CmpInst::print() const {
         break;
     }
 
-    return print_op(this) + " = " + cmp + " " + CmpName + " " +
+    return this->get_name() + " = " + cmp + " " + CmpName + " " +
            this->operands()[0]->get_type()->print() + " " +
-           print_op(this->operands()[0]) + ", " + print_op(this->operands()[1]);
+           this->operands()[0]->get_name() + ", " +
+           this->operands()[1]->get_name();
 }
 
 string PhiInst::print() const {
-    return print_op(this) + " = phi " + this->get_type()->print() + "[" +
-           print_op(this->operands()[0]) + ", " +
-           print_op(this->operands()[1]) + "]" + "[" +
-           print_op(this->operands()[3]) + ", " +
-           print_op(this->operands()[4]) + "]";
+    return this->get_name() + " = phi " + this->get_type()->print() + "[" +
+           this->operands()[0]->get_name() + ", " +
+           this->operands()[1]->get_name() + "]" + "[" +
+           this->operands()[3]->get_name() + ", " +
+           this->operands()[4]->get_name() + "]";
 }
 
 string CallInst::print() const {
@@ -400,33 +402,33 @@ string CallInst::print() const {
     if (this->get_type()->is_void_type())
         head = "call ";
     else
-        head = print_op(this) + " = call ";
+        head = this->get_name() + " = call ";
     head += dynamic_cast<FuncType *>(this->operands()[0]->get_type())
                 ->get_result_type()
                 ->print() +
-            " " + print_op(this->operands()[0]);
+            " " + this->operands()[0]->get_name();
     for (unsigned i = 1; i < this->operands().size(); i++)
         args += this->operands()[i]->get_type()->print() + " " +
-                print_op(this->operands()[i]) + ", ";
+                this->operands()[i]->get_name() + ", ";
     args.erase(args.length() - 2, 2);
     return head + " (" + args + ")";
 }
 
 string Fp2siInst::print() const {
-    return print_op(this) + " = fptosi float " + print_op(this->operands()[0]) +
-           " to i32";
+    return this->get_name() + " = fptosi float " +
+           this->operands()[0]->get_name() + " to i32";
 }
 
 string Si2fpInst::print() const {
-    return print_op(this) + " = sitofp " + this->get_type()->print() + " " +
-           print_op(this->operands()[0]) + " to float";
+    return this->get_name() + " = sitofp " + this->get_type()->print() + " " +
+           this->operands()[0]->get_name() + " to float";
 }
 
 string GetElementPtrInst::print() const {
     string index;
     for (const auto &op : this->operands())
-        index += ", " + op->get_type()->print() + " " + print_op(op);
-    return print_op(this) + " = getelementptr " +
+        index += ", " + op->get_type()->print() + " " + op->get_name();
+    return this->get_name() + " = getelementptr " +
            static_cast<const PointerType *>(this->operands()[0]->get_type())
                ->get_element_type()
                ->print() +
@@ -434,6 +436,6 @@ string GetElementPtrInst::print() const {
 }
 
 string ZextInst::print() const {
-    return print_op(this) + " = zext i1" + print_op(this->operands()[0]) +
+    return this->get_name() + " = zext i1" + this->operands()[0]->get_name() +
            " to i32";
 }

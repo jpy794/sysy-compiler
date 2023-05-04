@@ -51,7 +51,7 @@ class Argument : public Value, public ilist<Argument>::node {
   public:
     Argument(Function *func, Type *type)
         : Value(func->module(), type,
-                "arg" + std::to_string(func->get_inst_seq())),
+                "%arg" + std::to_string(func->get_inst_seq())),
           _func(func) {}
     Function *get_function() const { return _func; }
     std::string print() const final;
