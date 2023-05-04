@@ -17,7 +17,6 @@ class Value {
     const std::string &get_name() const { return _name; }
 
     virtual ~Value() = default;
-    std::string print_op(const ir::Value *op) const;
     virtual std::string print() const = 0;
 
     // remove copy constructor

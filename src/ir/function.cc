@@ -7,7 +7,7 @@ using namespace ir;
 using namespace std;
 
 Function::Function(Module *module, FuncType *type, std::string &&name)
-    : Value(module, type, std::move(name)), _inst_seq(0) {
+    : Value(module, type, "@" + name), _inst_seq(0) {
     for (size_t i = 0; i < type->get_num_params(); ++i) {
         _args.push_back(new Argument(this, type->get_param_type(i)));
     }
@@ -24,10 +24,10 @@ std::string Function::print() const {
     func_ir =
         "define " +
         dynamic_cast<FuncType *>(this->get_type())->get_result_type()->print() +
-        " " + print_op(this);
+        " " + this->get_name();
     func_ir += "(";
     for (auto &arg : this->_args) {
-        func_ir += arg->get_type()->print() + " " + print_op(arg) + ", ";
+        func_ir += arg->get_type()->print() + " " + arg->get_name() + ", ";
     }
     if (this->_args.size() > 0)
         func_ir.erase(func_ir.length() - 2, 2);
