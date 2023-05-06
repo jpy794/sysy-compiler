@@ -6,9 +6,9 @@
 using namespace ir;
 using namespace std;
 
-Function::Function(Module *module, FuncType *type, std::string &&name)
-    : Value(module, type, "@" + name), _inst_seq(0) {
-    for (size_t i = 0; i < type->get_num_params(); ++i) {
+Function::Function(FuncType *type, std::string &&name)
+    : Value(type, "@" + name), _inst_seq(0) {
+    for (size_t i = 0; i < type->get_param_types().size(); ++i) {
         _args.push_back(new Argument(this, type->get_param_type(i)));
     }
 }

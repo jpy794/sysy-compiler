@@ -15,7 +15,7 @@ class Module;
 
 class Function : public Value, public ilist<Function>::node {
   public:
-    Function(Module *module, FuncType *type, std::string &&name);
+    Function(FuncType *type, std::string &&name);
     ~Function();
 
     // creaters
@@ -50,14 +50,13 @@ class Function : public Value, public ilist<Function>::node {
 class Argument : public Value, public ilist<Argument>::node {
   public:
     Argument(Function *func, Type *type)
-        : Value(func->module(), type,
-                "%arg" + std::to_string(func->get_inst_seq())),
+        : Value(type, "%arg" + std::to_string(func->get_inst_seq())),
           _func(func) {}
     Function *get_function() const { return _func; }
     std::string print() const final;
 
   private:
-    Function *_func;
+    Function *const _func;
 };
 
 } // namespace ir

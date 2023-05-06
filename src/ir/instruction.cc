@@ -22,8 +22,8 @@ Instruction::Instruction(BasicBlock *bb, Type *type, OpID id,
            std::move(operands)),
       _id(id), _parent(bb) {}
 
-RetInst::RetInst(BasicBlock *bb, std::vector<Value *> &&operands)
-    : Instruction(bb, bb->module()->get_void_type(), ret, std::move(operands)) {
+RetInst::RetInst(BasicBlock *bb, std::optional<Value *> ret_val)
+    : Instruction(bb, bb->module()->get_void_type(), ret, vector<Value *>{}) {
     if (bb->get_func()->get_return_type()->is_void_type())
         assert(this->operands().size() == 0);
     else {

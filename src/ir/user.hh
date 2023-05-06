@@ -10,9 +10,8 @@ namespace ir {
 
 class User : public Value {
   public:
-    User(Module *module, Type *type, std::string &&name,
-         std::vector<Value *> &&operands)
-        : Value(module, type, std::move(name)), _operands(operands),
+    User(Type *type, std::string &&name, std::vector<Value *> &&operands)
+        : Value(type, std::move(name)), _operands(operands),
           _op_num(operands.size()) {}
 
     void set_operand(size_t index, Value *value) {

@@ -1,49 +1,39 @@
 #pragma once
 
-#include <list>
-
 #include "ilist.hh"
 #include "instruction.hh"
 #include "type.hh"
 
 namespace ir {
-class Module;
+
 class Function;
+
 class BasicBlock : public Value, public ilist<BasicBlock>::node {
   public:
     BasicBlock(Function *func);
 
-    // Function
+    template <typename Inst, typename... Args>
+    Inst *create_inst(Args &&...args) {
+        _insts.push_back(new Inst{this, std::forward<Args>(args)...});
+        return dynamic_cast<Inst *>(&_insts.back());
+    }
+
+    std::vector<BasicBlock *> &pre_bbs() { return _pre_bbs; }
+    std::vector<BasicBlock *> &suc_bbs() { return _suc_bbs; }
+    ilist<Instruction> &insts() { return _insts; }
+
     Function *get_func() const { return _func; }
+    const std::vector<BasicBlock *> &get_pre_bbs() const { return _pre_bbs; }
+    const std::vector<BasicBlock *> &get_suc_bbs() const { return _pre_bbs; }
+    const ilist<Instruction> &get_insts() const { return _insts; }
 
-    // BasicBlock
-    const std::vector<BasicBlock *> &get_pre_basic_blocks() const {
-        return _pre_bbs;
-    }
-
-    const std::vector<BasicBlock *> &get_suc_basic_blocks() const {
-        return _suc_bbs;
-    }
-
-    std::vector<BasicBlock *> &get_pre_basic_blocks() { return _pre_bbs; }
-
-    std::vector<BasicBlock *> &get_suc_basic_blocks() { return _suc_bbs; }
-
-    // Instruction
-
-    void add_instr(Instruction *instr) { _instr_list.push_back(instr); }
-
-    const ilist<Instruction> &get_instructions() const { return _instr_list; }
-
-    ilist<Instruction> &get_instructions() { return _instr_list; }
-    // print
-    std::string print() const override;
+    std::string print() const final;
 
   private:
     std::vector<BasicBlock *> _pre_bbs;
     std::vector<BasicBlock *> _suc_bbs;
-    ilist<Instruction> _instr_list;
-    Function *_func;
+    ilist<Instruction> _insts;
+    Function *const _func;
 };
 
 } // namespace ir

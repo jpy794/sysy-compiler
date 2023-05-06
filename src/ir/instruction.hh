@@ -4,6 +4,7 @@
 #include "user.hh"
 
 #include <array>
+#include <optional>
 
 namespace ir {
 
@@ -48,6 +49,9 @@ class Instruction : public User, public ilist<Instruction>::node {
     Instruction(BasicBlock *bb, Type *type, OpID id,
                 std::vector<Value *> &&operands);
 
+    Instruction(const Instruction &) = delete;
+    Instruction &operator=(const Instruction &) = delete;
+
     bool is_ret() const { return _id == ret; }
     bool is_br() const { return _id == br; }
     bool is_add() const { return _id == add; }
@@ -73,6 +77,8 @@ class Instruction : public User, public ilist<Instruction>::node {
 
     BasicBlock *get_parent() { return _parent; }
 
+    std::string print() const override { return {}; };
+
   protected:
     OpID _id;
 
@@ -82,7 +88,9 @@ class Instruction : public User, public ilist<Instruction>::node {
 
 class RetInst : public Instruction {
   public:
-    RetInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    RetInst(BasicBlock *bb, std::optional<Value *> ret_val)
+        : Instruction(bb, nullptr, ret, std::vector<Value *>{}) {}
+
     std::string print() const final;
 };
 

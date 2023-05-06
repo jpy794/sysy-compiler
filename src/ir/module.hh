@@ -1,73 +1,43 @@
 #pragma once
 
-#include <map>
-#include <memory>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
-#include "constant.hh"
 #include "function.hh"
 #include "global_variable.hh"
 #include "ilist.hh"
 #include "type.hh"
-#include "unordered_map"
+
+// TODO:
+// singleton for type -- done
+// delete the types in case memory leak
+// no need to cache constant, but simply use operator== won't work?
+// should we use value ptr for constant ? live interval of module type const ?
+
 namespace ir {
 
 class Module {
   public:
-    explicit Module(std::string &&name);
+    explicit Module(std::string &&name) : _name(name) {}
 
     // creaters
     template <typename... Args>
     GlobalVariable *create_global_var(Args &&...args) {
-        _global_vars.emplace_back(this, args...);
+        _global_vars.emplace_back(this, std::forward<Args>(args)...);
         return &_global_vars.back();
     }
 
     template <typename... Args> Function *create_func(Args &&...args) {
-        _funcs.emplace_back(this, args...);
+        _funcs.emplace_back(this, std::forward<Args>(args)...);
         return &_funcs.back();
     }
 
-    // - symbol table: maybe unnecassary
-    // - Types: give each type a unique address, for convenience of equal-judge
-    IntType *get_int1_type() const { return _int1_ty.get(); }
-    IntType *get_int32_type() const { return _int32_ty.get(); }
-    FloatType *get_float_type() const { return _float_ty.get(); }
-    LabelType *get_label_type() const { return _label_ty.get(); }
-    VoidType *get_void_type() const { return _void_ty.get(); }
-    ArrayType *get_array_type(Type *container,
-                              const std::vector<unsigned> &&dims);
-    PointerType *get_pointer_type(Type *element);
-    FuncType *get_function_type(Type *ret, const std::vector<Type *> &&params);
-    // - and so on
-    ConstantInt *get_const_int(int val);
-    ConstantInt *get_const_bool(bool val);
-    ConstantFloat *get_const_float(float val);
-    // print
     std::string print() const;
 
   private:
     std::string _name;
-    std::unique_ptr<IntType> _int1_ty;
-    std::unique_ptr<IntType> _int32_ty;
-    std::unique_ptr<FloatType> _float_ty;
-    std::unique_ptr<LabelType> _label_ty;
-    std::unique_ptr<VoidType> _void_ty;
-
-    std::map<std::pair<Type *, std::vector<Type *>>, std::unique_ptr<FuncType>>
-        _func_ty_map;
-    std::map<std::pair<Type *, std::vector<unsigned>>,
-             std::unique_ptr<ArrayType>>
-        _arr_ty_map;
-    std::map<Type *, std::unique_ptr<PointerType>> _ptr_ty_map;
 
     ilist<GlobalVariable> _global_vars;
     ilist<Function> _funcs;
-    std::unordered_map<int, std::unique_ptr<ConstantInt>> _cached_int;
-    std::unordered_map<bool, std::unique_ptr<ConstantInt>> _cached_bool;
-    std::unordered_map<float, std::unique_ptr<ConstantFloat>> _cached_float;
 };
 
 } // namespace ir

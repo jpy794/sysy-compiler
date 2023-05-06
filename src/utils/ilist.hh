@@ -18,6 +18,7 @@ template <typename T> class ilist {
 
       public:
         node() = default;
+        virtual ~node() = 0;
 
         /* we have to delete copy constructor in the base class
            so that there's no default copy constructor
@@ -112,8 +113,8 @@ template <typename T> class ilist {
         _mark_node(p);
     }
 
-    template <typename... Args> void emplace_back(Args... args) {
-        push_back(new T{args...});
+    template <typename... Args> void emplace_back(Args &&...args) {
+        push_back(new T(std::forward<Args>(args)...));
     }
 
     void push_front(T *p) {

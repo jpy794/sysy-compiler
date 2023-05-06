@@ -9,10 +9,8 @@ class Module;
 
 class Value {
   public:
-    Value(Module *module, Type *type, std::string &&name)
-        : _module(module), _type(type), _name(name) {}
+    Value(Type *type, std::string &&name) : _type(type), _name(name) {}
 
-    Module *module() const { return _module; }
     Type *get_type() const { return _type; }
     const std::string &get_name() const { return _name; }
 
@@ -24,7 +22,6 @@ class Value {
     Value &operator=(const Value &) = delete;
 
   private:
-    Module *const _module;
     Type *const _type;
     const std::string _name;
 };

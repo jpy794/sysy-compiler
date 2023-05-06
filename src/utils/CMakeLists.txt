@@ -2,6 +2,8 @@ add_library(
     utils
     err.hh
     ilist.hh
+    utils.hh
+    hash.hh
 )
 
 # currently there's no source file in utils

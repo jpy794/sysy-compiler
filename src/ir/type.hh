@@ -1,9 +1,13 @@
 #pragma once
 
-#include "err.h"
 #include "err.hh"
+#include "hash.hh"
+#include "utils.hh"
+
 #include <cassert>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace ir {
@@ -19,113 +23,172 @@ namespace ir {
 
 class Type {
   public:
-    enum TypeID {
-        IntTypeID,
-        FloatTypeID,
-        VoidTypeID,
-        LabelTypeID,
-        FunctionTypeID,
-        PointerTypeID,
-        ArrayTypeID
-    };
-    explicit Type(TypeID tid) : _tid(tid) {}
-    virtual ~Type(){};
+    virtual ~Type() = 0;
+    virtual std::string print() const = 0;
 
-    bool is_int_type() const { return _tid == IntTypeID; }
-    bool is_float_type() const { return _tid == FloatTypeID; }
-    bool is_void_type() const { return _tid == VoidTypeID; }
-    bool is_label_type() const { return _tid == LabelTypeID; }
-    bool is_function_type() const { return _tid == FunctionTypeID; }
-    bool is_pointer_type() const { return _tid == PointerTypeID; }
-    bool is_array_type() const { return _tid == ArrayTypeID; }
+    template <typename Derived> bool is_a() { return ::is_a<Derived>(this); }
+    template <typename Derived> Derived *as_a() {
+        return ::as_a<Derived>(this);
+    }
 
-    virtual std::string print() const { throw unreachable_error{}; }
-
-  private:
-    TypeID _tid;
+    bool is_reg_type();
+    bool is_legal_ret_type();
+    bool is_legal_param_type();
 };
 
 class FloatType : public Type {
   public:
-    FloatType() : Type(FloatTypeID) {}
-    std::string print() const { return "float"; }
+    std::string print() const final { return "float"; }
 };
 
 class VoidType : public Type {
   public:
-    VoidType() : Type(VoidTypeID) {}
-    std::string print() const { return "void"; }
+    std::string print() const final { return "void"; }
 };
 
-class FuncType : public Type {
-  private:
-    Type *_retTp;
-    std::vector<Type *> _paramsTp;
-
+class BoolType : public Type {
   public:
-    FuncType(Type *ret, const std::vector<Type *> &params)
-        : Type(FunctionTypeID), _retTp(ret), _paramsTp(params) {}
-
-    unsigned get_num_params() const { return _paramsTp.size(); }
-
-    Type *get_result_type() const { return _retTp; }
-    Type *get_param_type(unsigned i) const { return _paramsTp.at(i); }
-
-    const decltype(_paramsTp) &get_params() const { return _paramsTp; }
-
-    static bool is_valid_return_type(Type *);
-    // Is ArrayType able to be passed in?
-    // Answer maybe: An array is passed in by start address
-    static bool is_valid_argument_type(Type *);
-
-    std::string print() const; // Is this useful?
+    std::string print() const final { return "i1"; }
 };
 
 class IntType : public Type {
-  private:
-    unsigned _nbits;
-
   public:
-    IntType(unsigned nbits) : Type(IntTypeID), _nbits(nbits) {
-        assert((_nbits == 1 or _nbits == 32) &&
-               "we don't support other int type");
-    };
-
-    unsigned get_num_bits() const { return _nbits; }
-    std::string print() const { return "i" + std::to_string(_nbits); }
+    std::string print() const final { return "i32"; }
 };
 
 class PointerType : public Type {
   private:
-    Type *_elementTp;
+    Type *const _elementTp;
 
   public:
-    PointerType(Type *elementTp) : Type(PointerTypeID), _elementTp(elementTp) {}
+    PointerType(Type *elementTp) : _elementTp(elementTp) {}
     Type *get_element_type() const { return _elementTp; }
-    std::string print() const { return _elementTp->print() + "*"; }
+    std::string print() const final { return _elementTp->print() + '*'; }
+};
+
+class ArrayType : public Type {
+  private:
+    Type *const _elem_type;
+    const size_t _elem_cnt;
+
+  public:
+    ArrayType(Type *elem_type, size_t elem_cnt)
+        : _elem_type(elem_type), _elem_cnt(elem_cnt) {
+        assert(elem_cnt > 0);
+    }
+
+    Type *get_elem_type() const { return _elem_type; }
+    size_t get_elem_cnt() const { return _elem_cnt; }
+
+    std::string print() const final {
+        return '[' + std::to_string(_elem_cnt) + " x " + _elem_type->print() +
+               ']';
+    }
 };
 
 class LabelType : public Type {
-  public:
-    LabelType() : Type(LabelTypeID) {}
-    std::string print() const { return "SysYlabel"; }
+    std::string print() const final {
+        // we do not need this for now
+        throw unreachable_error{};
+
+        return "label";
+    }
 };
-class ArrayType : public Type {
+
+class FuncType : public Type {
   private:
-    Type *_elementTp;
-    std::vector<unsigned> _dims;
+    Type *const _ret_type;
+    const std::vector<Type *> _param_types;
 
   public:
-    ArrayType(Type *elem_type, std::vector<unsigned> dims)
-        : Type(ArrayTypeID), _elementTp(elem_type), _dims(dims) {}
+    FuncType(Type *ret_type, const std::vector<Type *> &&param_types)
+        : _ret_type(ret_type), _param_types(param_types) {}
 
-    Type *get_element_type() const { return _elementTp; }
+    Type *get_result_type() const { return _ret_type; }
+    Type *get_param_type(unsigned i) const { return _param_types.at(i); }
 
-    unsigned get_dim(unsigned i) const { return _dims.at(i); }
+    const decltype(_param_types) &get_param_types() const {
+        return _param_types;
+    }
 
-    const decltype(_dims) &get_dims() const { return _dims; }
+    std::string print() const final;
+};
 
-    std::string print() const;
+// give each type a unique address, for convenience of equal-judge
+// manage memory for types, each type has to survive longer than its last use
+// here for simplicity, just never delete type
+class Types {
+  private:
+    // singleton
+    Types() = default;
+    ~Types() {
+        for (auto &&[_, type] : _arr_ptr_hash) {
+            delete type;
+        }
+        for (auto &&[_, type] : _func_hash) {
+            delete type;
+        }
+        delete _bool_tp;
+        delete _int_tp;
+        delete _float_tp;
+        delete _void_tp;
+        delete _label_tp;
+    }
+
+    BoolType *_bool_tp{new BoolType};
+    IntType *_int_tp{new IntType};
+    FloatType *_float_tp{new FloatType};
+    VoidType *_void_tp{new VoidType};
+    LabelType *_label_tp{new LabelType};
+
+    // hash map
+    std::unordered_map<std::pair<Type *, size_t>, Type *, PairHash>
+        _arr_ptr_hash;
+    std::unordered_map<std::pair<Type *, std::vector<Type *>>, Type *, PairHash>
+        _func_hash;
+
+    Type *_arr_or_ptr_type(Type *elem_type, size_t elem_cnt) {
+        auto key = std::pair{elem_type, elem_cnt};
+        if (not contains(_arr_ptr_hash, key)) {
+            Type *val{nullptr};
+            if (elem_cnt == 0) {
+                // arr
+                val = new ArrayType{elem_type, elem_cnt};
+            } else {
+                // ptr
+                val = new PointerType{elem_type};
+            }
+            _arr_ptr_hash.insert({key, val});
+        }
+        return _arr_ptr_hash[key];
+    }
+
+  public:
+    static Types &get() {
+        static Types factory;
+        return factory;
+    }
+
+    Type *bool_type() const { return _bool_tp; }
+    Type *int_type() const { return _int_tp; }
+    Type *float_type() const { return _float_tp; }
+    Type *void_type() const { return _void_tp; }
+    Type *label_type() const { return _label_tp; }
+    Type *ptr_type(Type *elem_type) { return _arr_or_ptr_type(elem_type, 0); }
+
+    Type *array_type(Type *elem_type, size_t elem_cnt) {
+        assert(elem_cnt > 0);
+        return _arr_or_ptr_type(elem_type, elem_cnt);
+    }
+
+    Type *func_type(Type *ret_type, std::vector<Type *> &&param_types) {
+        auto key = std::pair{ret_type, param_types};
+        if (not contains(_func_hash, key)) {
+            auto val = new FuncType{ret_type, std::move(param_types)};
+            _func_hash.insert({key, val});
+        }
+        return _func_hash[key];
+    }
 };
 
 } // namespace ir
