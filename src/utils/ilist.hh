@@ -206,3 +206,5 @@ template <typename T> class ilist {
     const T &front() const { return *(_head->_next); }
     const T &back() const { return *(_tail->_prev); }
 };
+
+template <typename T> ilist<T>::node::~node() {}

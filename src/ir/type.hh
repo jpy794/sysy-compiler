@@ -36,6 +36,8 @@ class Type {
     bool is_legal_param_type();
 };
 
+inline Type::~Type() {}
+
 class FloatType : public Type {
   public:
     std::string print() const final { return "float"; }

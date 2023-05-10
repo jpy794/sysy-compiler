@@ -14,8 +14,11 @@ namespace ir {
 class Constant : public Value {
   public:
     Constant(Type *type, std::string &&name) : Value(type, std::move(name)){};
+    virtual ~Constant() = 0;
     std::string print() const final { throw unreachable_error{}; }
 };
+
+inline Constant::~Constant(){};
 
 class ConstInt : public Constant {
   private:

@@ -13,6 +13,7 @@ class User : public Value {
     User(Type *type, std::string &&name, std::vector<Value *> &&operands)
         : Value(type, std::move(name)), _operands(operands),
           _op_num(operands.size()) {}
+    virtual ~User() = 0;
 
     void set_operand(size_t index, Value *value) {
         assert(index < _op_num);
@@ -31,5 +32,7 @@ class User : public Value {
     std::vector<Value *> _operands;
     const size_t _op_num;
 };
+
+inline User::~User() {}
 
 } // namespace ir

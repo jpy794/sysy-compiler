@@ -14,7 +14,7 @@ class Value {
     Type *get_type() const { return _type; }
     const std::string &get_name() const { return _name; }
 
-    virtual ~Value() = default;
+    virtual ~Value() = 0;
     virtual std::string print() const = 0;
 
     // remove copy constructor
@@ -25,5 +25,7 @@ class Value {
     Type *const _type;
     const std::string _name;
 };
+
+inline Value::~Value() {}
 
 } // namespace ir
