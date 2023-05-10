@@ -1,143 +1,144 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "constant.hh"
 #include "function.hh"
 #include "global_variable.hh"
-#include "ircollector.hh"
+#include "instruction.hh"
 #include "module.hh"
 #include "type.hh"
 #include "value.hh"
 
-/* #ifdef DEBUG // 用于调试信息,大家可以在编译过程中通过" -DDEBUG"来开启这一选项
- * #define DEBUG_OUTPUT cout << __LINE__ << endl; //
- * 输出行号的简单示例 #else #define DEBUG_OUTPUT #endif */
-
-#define CONST_INT(num) (mod->get_const_int(num))
-
-// 得到常数值的表示,方便后面多次用到
-#define CONST_FP(num) (mod->get_const_float(num))
-
 using namespace ir;
 using namespace std;
 
+#define CONST_INT(x) (Constants::get().int_const(x))
+#define CONST_FLOAT(x) (Constants.get().float_const(x))
+
+using CmpOp = CmpInst::CmpOp;
+using BinOp = BinaryInst::BinOp;
+
 int main() {
     auto mod = new Module("test ir");
-    auto builder = new IRCollector(mod);
-
-    auto i32type = mod->get_int32_type();
+    auto &types = Types::get();
+    auto &consts = Constants::get();
+    auto inttype = Types::get().int_type();
 
     // 全局数组,x,y
     vector<int> zero_vec{0};
-    auto *arrayType = mod->get_array_type(i32type, {1});
-    auto initializer = ConstantArray::get(zero_vec, mod);
-    auto x = mod->create_global_var(arrayType, initializer, "x");
-    auto y = mod->create_global_var(arrayType, initializer, "y");
+    auto arrayType = types.array_type(inttype, 1);
+    auto initializer = consts.array_const({CONST_INT(0)});
+    auto x = mod->create_global_var(arrayType, initializer,
+                                    std::forward<string>("x"));
+    auto y = mod->create_global_var(arrayType, initializer,
+                                    std::forward<string>("y"));
 
     //
     // gcd函数
     // 函数参数类型的vector
-    vector<Type *> param_type(2, i32type);
+    vector<Type *> param_type(2, inttype);
     // 通过返回值类型与参数类型列表得到函数类型
-    auto gcdFunTy = mod->get_function_type(
-        i32type, static_cast<decltype(param_type) &&>(param_type));
+    auto gcdFunTy = types.func_type(inttype, std::move(param_type));
     // 由函数类型得到函数
-    auto gcdFun = mod->create_func(gcdFunTy, "gcd");
+    auto gcdFun = mod->create_func(gcdFunTy, std::forward<string>("gcd"));
 
     // 创建基本块
     auto entry = gcdFun->create_bb();
-    builder->set_insertion(entry);
+    auto bb = gcdFun->create_bb();
+    entry->create_inst<BrInst>(bb);
 
     // 为ret分配内存
-    auto retAlloca = builder->create_alloc(i32type);
+    auto retAlloca = bb->create_inst<AllocaInst>(inttype);
     // 参数u, v
     auto u = gcdFun->get_args()[0];
     auto v = gcdFun->get_args()[1];
 
-    auto icmp = builder->create_cmp_eq(v, CONST_INT(0));
+    auto icmp = bb->create_inst<CmpInst>(CmpOp::EQ, v, CONST_INT(0));
     auto TBB = gcdFun->create_bb();
     auto FBB = gcdFun->create_bb();
     auto retBB = gcdFun->create_bb();
-    builder->create_cond_br(icmp, TBB, FBB);
+    bb->create_inst<BrInst>(icmp, TBB, FBB);
 
-    // if true; 分支的开始需要SetInsertPoint设置
-    builder->set_insertion(TBB);
-    builder->create_store(u, retAlloca);
+    // if true
+    TBB->create_inst<StoreInst>(u, retAlloca);
     // TODO: 写builder的时候，要检查块的最后一条指令是跳转
-    builder->create_br(retBB);
+    TBB->create_inst<BrInst>(retBB);
 
     // if false
-    builder->set_insertion(FBB);
-    auto div = builder->create_sdiv(u, v);
-    auto mul = builder->create_mul(div, v);
-    auto sub = builder->create_sub(u, mul);
-    auto call = builder->create_call(gcdFun, {v, sub});
+    auto div = FBB->create_inst<BinaryInst>(BinOp::SDIV, u, v);
+    auto mul = FBB->create_inst<BinaryInst>(BinOp::MUL, div, v);
+    auto sub = FBB->create_inst<BinaryInst>(BinOp::SUB, u, mul);
+    auto call = FBB->create_inst<CallInst>(
+        gcdFun, std::forward<vector<Value *>>({v, sub}));
 
-    builder->create_store(call, retAlloca);
-    builder->create_br(retBB); // br retBB
+    FBB->create_inst<StoreInst>(call, retAlloca);
+    FBB->create_inst<BrInst>(retBB);
 
-    builder->set_insertion(retBB); // ret分支
-    auto retLoad = builder->create_load(retAlloca);
-    builder->create_ret(retLoad);
+    // ret BB
+    auto retLoad = retBB->create_inst<LoadInst>(retAlloca);
+    retBB->create_inst<RetInst>(retLoad);
 
     // funArray函数
-    auto i32ptrtype = mod->get_pointer_type(i32type);
-    auto funArrayFunType =
-        mod->get_function_type(i32type, {i32ptrtype, i32ptrtype});
+    auto intptrtype = types.ptr_type(inttype);
+    auto funArrayFunType = types.func_type(inttype, {intptrtype, intptrtype});
     auto funArrayFun = mod->create_func(funArrayFunType, "funcArray");
     entry = funArrayFun->create_bb();
-    builder->set_insertion(entry);
-    auto aAlloca = builder->create_alloc(i32type);
-    auto bAlloca = builder->create_alloc(i32type);
-    auto tempAlloca = builder->create_alloc(i32type);
+    // NOTE: 2 entry style, this is different from gcdFun
+    auto aAlloca = entry->create_inst<AllocaInst>(inttype);
+    auto bAlloca = entry->create_inst<AllocaInst>(inttype);
+    auto tempAlloca = entry->create_inst<AllocaInst>(inttype);
     u = funArrayFun->get_args()[0];
     v = funArrayFun->get_args()[1];
 
-    // TODO: not correct, should use gep here
-    auto uGEP = builder->create_gep(u, {CONST_INT(0)});
-    auto vGEP = builder->create_gep(v, {CONST_INT(0)});
-    auto u0 = builder->create_load(uGEP);
-    auto v0 = builder->create_load(vGEP);
-    builder->create_store(u0, aAlloca);
-    builder->create_store(v0, bAlloca);
+    auto uGEP = entry->create_inst<GetElementPtrInst>(
+        u, std::forward<vector<Value *>>({CONST_INT(0)}));
+    auto vGEP = entry->create_inst<GetElementPtrInst>(
+        v, std::forward<vector<Value *>>({CONST_INT(0)}));
+    auto u0 = entry->create_inst<LoadInst>(uGEP);
+    auto v0 = entry->create_inst<LoadInst>(vGEP);
+    entry->create_inst<StoreInst>(u0, aAlloca);
+    entry->create_inst<StoreInst>(v0, bAlloca);
 
-    auto aLoad = builder->create_load(aAlloca);
-    auto bLoad = builder->create_load(bAlloca);
-    icmp = builder->create_cmp_lt(aLoad, bLoad);
+    auto aLoad = entry->create_inst<LoadInst>(aAlloca);
+    auto bLoad = entry->create_inst<LoadInst>(bAlloca);
+    icmp = entry->create_inst<CmpInst>(CmpOp::LT, aLoad, bLoad);
     TBB = funArrayFun->create_bb();
-    FBB = funArrayFun->create_bb();
-    builder->create_cond_br(icmp, TBB, FBB);
+    retBB = funArrayFun->create_bb();
+    entry->create_inst<BrInst>(icmp, TBB, retBB);
 
-    builder->set_insertion(TBB);
-    builder->create_store(aLoad, tempAlloca);
-    builder->create_store(bLoad, aAlloca);
-    auto tempLoad = builder->create_load(tempAlloca);
-    builder->create_store(tempLoad, bAlloca);
-    builder->create_br(FBB);
-
-    builder->set_insertion(FBB);
-    aLoad = builder->create_load(aAlloca);
-    bLoad = builder->create_load(bAlloca);
-    call = builder->create_call(gcdFun, {aLoad, bLoad});
-    builder->create_ret(call);
+    // if true
+    TBB->create_inst<StoreInst>(aLoad, tempAlloca);
+    TBB->create_inst<StoreInst>(bLoad, aAlloca);
+    auto tempLoad = TBB->create_inst<LoadInst>(tempAlloca);
+    TBB->create_inst<StoreInst>(tempLoad, bAlloca);
+    TBB->create_inst<BrInst>(retBB);
+    // if false, return directly
+    aLoad = retBB->create_inst<LoadInst>(aAlloca);
+    bLoad = retBB->create_inst<LoadInst>(bAlloca);
+    call = retBB->create_inst<CallInst>(
+        gcdFun, std::forward<vector<Value *>>({aLoad, bLoad}));
+    retBB->create_inst<RetInst>(call);
 
     // main函数
-    auto mainFun =
-        mod->create_func(mod->get_function_type(i32type, {}), "main");
-    entry = mainFun->create_bb();
-    builder->set_insertion(entry);
-    retAlloca = builder->create_alloc(i32type);
+    auto mainFunType = types.func_type(inttype, {});
+    auto mainFun = mod->create_func(mainFunType, "main");
+    bb = mainFun->create_bb();
 
-    auto xGEP = builder->create_gep(x, {CONST_INT(0)});
-    auto yGEP = builder->create_gep(y, {CONST_INT(0)});
-    builder->create_store(CONST_INT(90), xGEP);
-    builder->create_store(CONST_INT(18), yGEP);
+    vector<Constant *> off;
+    auto xGEP = bb->create_inst<GetElementPtrInst>(
+        x, std::forward<vector<Value *>>({CONST_INT(0), CONST_INT(0)}));
+    auto yGEP = bb->create_inst<GetElementPtrInst>(
+        y, std::forward<vector<Value *>>({CONST_INT(0), CONST_INT(0)}));
+    bb->create_inst<StoreInst>(CONST_INT(90), xGEP);
+    bb->create_inst<StoreInst>(CONST_INT(18), yGEP);
 
-    call = builder->create_call(funArrayFun, {xGEP, yGEP});
+    call =
+        bb->create_inst<CallInst>(funArrayFun, vector<Value *>({xGEP, yGEP}));
 
-    builder->create_ret(call);
+    bb->create_inst<RetInst>(call);
     cout << mod->print();
     delete mod;
     return 0;
