@@ -15,8 +15,6 @@ std::string GlobalVariable::print() const {
     else
         init_ir = "";
     return get_name() + " = global " +
-           dynamic_cast<PointerType *>(get_type())
-               ->get_elem_type()
-               ->print() +
+           dynamic_cast<PointerType *>(get_type())->get_elem_type()->print() +
            init_ir;
 }
