@@ -31,7 +31,7 @@ class Type {
         return ::as_a<Derived>(this);
     }
 
-    bool is_reg_type();
+    bool is_basic_type();
     bool is_legal_ret_type();
     bool is_legal_param_type();
 };
@@ -62,7 +62,7 @@ class PointerType : public Type {
 
   public:
     PointerType(Type *elementTp) : _elementTp(elementTp) {}
-    Type *get_element_type() const { return _elementTp; }
+    Type *get_elem_type() const { return _elementTp; }
     std::string print() const final { return _elementTp->print() + '*'; }
 };
 
@@ -75,6 +75,7 @@ class ArrayType : public Type {
     ArrayType(Type *elem_type, size_t elem_cnt)
         : _elem_type(elem_type), _elem_cnt(elem_cnt) {
         assert(elem_cnt > 0);
+        assert(_is_legal_array());
     }
 
     Type *get_elem_type() const { return _elem_type; }
@@ -84,6 +85,9 @@ class ArrayType : public Type {
         return '[' + std::to_string(_elem_cnt) + " x " + _elem_type->print() +
                ']';
     }
+
+  private:
+    bool _is_legal_array();
 };
 
 class LabelType : public Type {
@@ -111,7 +115,8 @@ class FuncType : public Type {
         return _param_types;
     }
 
-    std::string print() const final;
+    // we do not need this for now
+    std::string print() const final { throw unreachable_error{}; }
 };
 
 // give each type a unique address, for convenience of equal-judge
