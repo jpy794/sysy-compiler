@@ -1,17 +1,27 @@
 #pragma once
 
 #include "ilist.hh"
+#include "type.hh"
 #include "user.hh"
+#include "utils.hh"
+#include "value.hh"
 
 #include <array>
+#include <cassert>
 #include <optional>
+#include <vector>
 
 namespace ir {
 
+class Function;
 class BasicBlock;
 
+class RetInst;
+
+// NOTE: the Instruction class(and dereived) does not care about inserting back
+// to parent BB's instruction list.
 class Instruction : public User, public ilist<Instruction>::node {
-  public:
+    // TODO: delete opid, we don't need it any more
     enum OpID {
         // Terminator Instructions
         ret,
@@ -28,7 +38,7 @@ class Instruction : public User, public ilist<Instruction>::node {
         fmul,
         fdiv,
         frem,
-        // Logic binary operatorsTODO:
+        // Logic binary operators TODO
         logic_and,
         logic_or,
         // Memory operators
@@ -46,41 +56,29 @@ class Instruction : public User, public ilist<Instruction>::node {
         zext
     };
 
-    Instruction(BasicBlock *bb, Type *type, OpID id,
-                std::vector<Value *> &&operands);
-
+  public:
+    Instruction(BasicBlock *prt, Type *type, std::vector<Value *> &&operands);
     Instruction(const Instruction &) = delete;
     Instruction &operator=(const Instruction &) = delete;
 
-    bool is_ret() const { return _id == ret; }
-    bool is_br() const { return _id == br; }
-    bool is_add() const { return _id == add; }
-    bool is_sub() const { return _id == sub; }
-    bool is_mul() const { return _id == mul; }
-    bool is_sdiv() const { return _id == sdiv; }
-    bool is_srem() const { return _id == srem; }
-    bool is_fadd() const { return _id == fadd; }
-    bool is_fsub() const { return _id == fsub; }
-    bool is_fmul() const { return _id == fmul; }
-    bool is_fdiv() const { return _id == fdiv; }
-    bool is_frem() const { return _id == frem; }
-    bool is_alloca() const { return _id == alloca; }
-    bool is_load() const { return _id == load; }
-    bool is_store() const { return _id == store; }
-    bool is_cmp() const { return _id == cmp; }
-    bool is_fcmp() const { return _id == fcmp; }
-    bool is_phi() const { return _id == phi; }
-    bool is_call() const { return _id == call; }
-    bool is_getelementptr() const { return _id == getelementptr; }
-    bool is_fptosi() const { return _id == fptosi; }
-    bool is_sitofp() const { return _id == sitofp; }
+    virtual ~Instruction() = 0;
 
     BasicBlock *get_parent() { return _parent; }
 
-    std::string print() const override { return {}; };
+    virtual std::string print() const override { return {}; };
 
   protected:
-    OpID _id;
+    static std::vector<Value *> _mix2vec(Value *first,
+                                         const std::vector<Value *> &vec) {
+        std::vector<Value *> ret{first};
+        ret.insert(ret.end(), vec.begin(), vec.end());
+        return ret;
+    }
+    template <typename Array, typename Element>
+    static inline bool arrcontains(Array &array, const Element &elem) {
+        return std::find(std::begin(array), std::end(array), elem) !=
+               std::end(array);
+    }
 
   private:
     BasicBlock *_parent;
@@ -88,15 +86,20 @@ class Instruction : public User, public ilist<Instruction>::node {
 
 class RetInst : public Instruction {
   public:
-    RetInst(BasicBlock *bb, std::optional<Value *> ret_val)
-        : Instruction(bb, nullptr, ret, std::vector<Value *>{}) {}
+    // return a value
+    RetInst(BasicBlock *prt, Value *ret_val);
+    // void return
+    RetInst(BasicBlock *prt) : Instruction(prt, Types::get().void_type(), {}) {}
 
     std::string print() const final;
 };
 
 class BrInst : public Instruction {
   public:
-    BrInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    // unconditional jump
+    BrInst(BasicBlock *prt, BasicBlock *to);
+    // conditional br
+    BrInst(BasicBlock *prt, Value *cond, BasicBlock *TBB, BasicBlock *FBB);
     std::string print() const final;
 };
 
@@ -104,46 +107,42 @@ class BinaryInst : public Instruction {
   public:
     enum BinOp { ADD = 0, SUB, MUL, SDIV, SREM, FADD, FSUB, FMUL, FDIV, FREM };
 
-    BinaryInst(BasicBlock *bb, std::vector<Value *> &&operands, BinOp op);
+    BinaryInst(BasicBlock *prt, BinOp op, Value *lhs, Value *rhs);
 
     std::string print() const final;
 
   private:
-    static constexpr std::array<OpID, 10> _op_map = {
-        add, sub, mul, sdiv, srem, fadd, fsub, fmul, fdiv, frem};
+    BinOp _op;
     static constexpr std::array<BinOp, 5> _int_op = {ADD, SUB, MUL, SDIV, SREM};
     static constexpr std::array<BinOp, 5> _float_op = {FADD, FSUB, FMUL, FDIV,
                                                        FREM};
-    static Type *_deduce_type(BasicBlock *bb, BinOp op);
 };
 
 class AllocaInst : public Instruction {
   public:
-    AllocaInst(BasicBlock *bb, std::vector<Value *> &&operands,
-               Type *elem_type);
+    AllocaInst(BasicBlock *prt, Type *elem_type);
     std::string print() const final;
 };
 
 class LoadInst : public Instruction {
   public:
-    LoadInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    LoadInst(BasicBlock *prt, Value *ptr);
     std::string print() const final;
 
   private:
-    static Type *_deduce_type(BasicBlock *bb,
-                              const std::vector<Value *> &operands);
+    static Type *_deduce_type(Value *ptr);
 };
 
 class StoreInst : public Instruction {
   public:
-    StoreInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    StoreInst(BasicBlock *prt, Value *v, Value *ptr);
     std::string print() const final;
 };
 
 class CmpInst : public Instruction {
   public:
     enum CmpOp { EQ, NE, GT, GE, LT, LE, FEQ, FNE, FGT, FGE, FLT, FLE };
-    CmpInst(BasicBlock *bb, std::vector<Value *> &&operands, CmpOp cmp_op);
+    CmpInst(BasicBlock *prt, CmpOp cmp_op, Value *lhs, Value *rhs);
     std::string print() const final;
 
   private:
@@ -151,49 +150,54 @@ class CmpInst : public Instruction {
     static constexpr std::array<CmpOp, 6> _int_op = {EQ, NE, GT, GE, LT, LE};
     static constexpr std::array<CmpOp, 6> _float_op = {FEQ, FNE, FGT,
                                                        FGE, FLT, FLE};
-    static OpID _deduce_id(CmpOp cmp_op);
 };
 
 class PhiInst : public Instruction {
   public:
-    PhiInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    // @values: the definition list.
+    // No bb passed in here, cause the parent bb of can be deduced
+    PhiInst(BasicBlock *prt, std::vector<Value *> &&values);
     std::string print() const final;
+
+  private:
+    static std::vector<Value *> _get_op(const std::vector<Value *> &values);
 };
 
 class CallInst : public Instruction {
   public:
-    CallInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    CallInst(BasicBlock *prt, Function *func, std::vector<Value *> &&params);
     std::string print() const final;
 
   private:
-    static Type *_deduce_type(BasicBlock *bb,
+    static Type *_deduce_type(BasicBlock *prt,
                               const std::vector<Value *> &operands);
 };
 
 class Fp2siInst : public Instruction {
   public:
-    Fp2siInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    Fp2siInst(BasicBlock *prt, Value *floatv);
     std::string print() const final;
 };
 
 class Si2fpInst : public Instruction {
   public:
-    Si2fpInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    Si2fpInst(BasicBlock *prt, Value *intv);
     std::string print() const final;
 };
 
 class GetElementPtrInst : public Instruction {
   public:
-    GetElementPtrInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    GetElementPtrInst(BasicBlock *prt, Value *baseptr,
+                      std::vector<Value *> &&offs);
     std::string print() const final;
 
   private:
-    static Type *_deduce_type(BasicBlock *bb,
-                              const std::vector<Value *> &operands);
+    static Type *_deduce_type(BasicBlock *prt, Value *baseptr,
+                              const std::vector<Value *> &offs);
 };
 class ZextInst : public Instruction {
   public:
-    ZextInst(BasicBlock *bb, std::vector<Value *> &&operands);
+    ZextInst(BasicBlock *prt, Value *boolv);
     std::string print() const final;
 };
 

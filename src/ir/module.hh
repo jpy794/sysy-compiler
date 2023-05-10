@@ -22,12 +22,12 @@ class Module {
     // creaters
     template <typename... Args>
     GlobalVariable *create_global_var(Args &&...args) {
-        _global_vars.emplace_back(this, std::forward<Args>(args)...);
+        _global_vars.emplace_back(std::forward<Args>(args)...);
         return &_global_vars.back();
     }
 
     template <typename... Args> Function *create_func(Args &&...args) {
-        _funcs.emplace_back(this, std::forward<Args>(args)...);
+        _funcs.emplace_back(std::forward<Args>(args)...);
         return &_funcs.back();
     }
 
