@@ -151,14 +151,15 @@ class Types {
     // hash map
     std::unordered_map<std::pair<Type *, size_t>, Type *, PairHash>
         _arr_ptr_hash;
-    std::unordered_map<std::pair<Type *, std::vector<Type *>>, Type *, PairHash>
+    std::unordered_map<std::pair<Type *, std::vector<Type *>>, FuncType *,
+                       PairHash>
         _func_hash;
 
     Type *_arr_or_ptr_type(Type *elem_type, size_t elem_cnt) {
         auto key = std::pair{elem_type, elem_cnt};
         if (not contains(_arr_ptr_hash, key)) {
             Type *val{nullptr};
-            if (elem_cnt == 0) {
+            if (elem_cnt != 0) {
                 // arr
                 val = new ArrayType{elem_type, elem_cnt};
             } else {
@@ -176,19 +177,21 @@ class Types {
         return factory;
     }
 
-    Type *bool_type() const { return _bool_tp; }
-    Type *int_type() const { return _int_tp; }
-    Type *float_type() const { return _float_tp; }
-    Type *void_type() const { return _void_tp; }
-    Type *label_type() const { return _label_tp; }
-    Type *ptr_type(Type *elem_type) { return _arr_or_ptr_type(elem_type, 0); }
-
-    Type *array_type(Type *elem_type, size_t elem_cnt) {
-        assert(elem_cnt > 0);
-        return _arr_or_ptr_type(elem_type, elem_cnt);
+    BoolType *bool_type() const { return _bool_tp; }
+    IntType *int_type() const { return _int_tp; }
+    FloatType *float_type() const { return _float_tp; }
+    VoidType *void_type() const { return _void_tp; }
+    LabelType *label_type() const { return _label_tp; }
+    PointerType *ptr_type(Type *elem_type) {
+        return as_a<PointerType>(_arr_or_ptr_type(elem_type, 0));
     }
 
-    Type *func_type(Type *ret_type, std::vector<Type *> &&param_types) {
+    ArrayType *array_type(Type *elem_type, size_t elem_cnt) {
+        assert(elem_cnt > 0);
+        return as_a<ArrayType>(_arr_or_ptr_type(elem_type, elem_cnt));
+    }
+
+    FuncType *func_type(Type *ret_type, std::vector<Type *> &&param_types) {
         auto key = std::pair{ret_type, param_types};
         if (not contains(_func_hash, key)) {
             auto val = new FuncType{ret_type, std::move(param_types)};

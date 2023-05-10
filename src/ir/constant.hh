@@ -15,7 +15,7 @@ class Constant : public Value {
   public:
     Constant(Type *type, std::string &&name) : Value(type, std::move(name)){};
     virtual ~Constant() = 0;
-    std::string print() const final { throw unreachable_error{}; }
+    std::string print() const final { return this->get_name(); }
 };
 
 inline Constant::~Constant(){};
@@ -37,8 +37,7 @@ class ConstBool : public Constant {
 
   public:
     ConstBool(bool val)
-        : Constant(Types::get().bool_type(),
-                   std::to_string(static_cast<int>(val))),
+        : Constant(Types::get().bool_type(), val ? "true" : "false"),
           _val(val){};
 
     bool val() const { return _val; }
