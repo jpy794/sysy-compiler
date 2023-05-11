@@ -1,5 +1,7 @@
 #pragma once
 
+#include "utils.hh"
+
 #include <string>
 
 namespace ir {
@@ -13,6 +15,9 @@ class Value {
 
     Type *get_type() const { return _type; }
     const std::string &get_name() const { return _name; }
+
+    template <typename Derived> bool is() { return ::is_a<Derived>(this); }
+    template <typename Derived> Derived *as() { return ::as_a<Derived>(this); }
 
     virtual ~Value() = 0;
     virtual std::string print() const = 0;

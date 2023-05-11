@@ -21,40 +21,6 @@ class RetInst;
 // NOTE: the Instruction class(and dereived) does not care about inserting back
 // to parent BB's instruction list.
 class Instruction : public User, public ilist<Instruction>::node {
-    // TODO: delete opid, we don't need it any more
-    enum OpID {
-        // Terminator Instructions
-        ret,
-        br,
-        // Standard binary operators
-        add,
-        sub,
-        mul,
-        sdiv,
-        srem,
-        // float binary operators
-        fadd,
-        fsub,
-        fmul,
-        fdiv,
-        frem,
-        // Logic binary operators TODO
-        logic_and,
-        logic_or,
-        // Memory operators
-        alloca,
-        load,
-        store,
-        // Other operators
-        cmp,
-        fcmp,
-        phi,
-        call,
-        getelementptr,
-        fptosi,
-        sitofp,
-        zext
-    };
 
   public:
     Instruction(BasicBlock *prt, Type *type, std::vector<Value *> &&operands);
@@ -65,19 +31,12 @@ class Instruction : public User, public ilist<Instruction>::node {
 
     BasicBlock *get_parent() { return _parent; }
 
-    virtual std::string print() const override { return {}; };
-
   protected:
     static std::vector<Value *> _mix2vec(Value *first,
                                          const std::vector<Value *> &vec) {
         std::vector<Value *> ret{first};
         ret.insert(ret.end(), vec.begin(), vec.end());
         return ret;
-    }
-    template <typename Array, typename Element>
-    static inline bool arrcontains(Array &array, const Element &elem) {
-        return std::find(std::begin(array), std::end(array), elem) !=
-               std::end(array);
     }
 
   private:
@@ -103,6 +62,7 @@ class BrInst : public Instruction {
     std::string print() const final;
 };
 
+// FIXME: split this inst into fbinary and binary
 class BinaryInst : public Instruction {
   public:
     enum BinOp { ADD = 0, SUB, MUL, SDIV, SREM, FADD, FSUB, FMUL, FDIV, FREM };
@@ -139,6 +99,7 @@ class StoreInst : public Instruction {
     std::string print() const final;
 };
 
+// FIXME: split this inst into fcmp and cmp
 class CmpInst : public Instruction {
   public:
     enum CmpOp { EQ, NE, GT, GE, LT, LE, FEQ, FNE, FGT, FGE, FLT, FLE };
@@ -157,6 +118,11 @@ class PhiInst : public Instruction {
     // @values: the definition list.
     // No bb passed in here, cause the parent bb of can be deduced
     PhiInst(BasicBlock *prt, std::vector<Value *> &&values);
+
+    template <typename... Args>
+    PhiInst(BasicBlock *bb, Args &&...args)
+        : PhiInst(bb, {static_cast<Value *>(args)...}) {}
+
     std::string print() const final;
 
   private:
@@ -166,6 +132,11 @@ class PhiInst : public Instruction {
 class CallInst : public Instruction {
   public:
     CallInst(BasicBlock *prt, Function *func, std::vector<Value *> &&params);
+
+    template <typename... Args>
+    CallInst(BasicBlock *bb, Function *func, Args &&...args)
+        : CallInst(bb, func, {static_cast<Value *>(args)...}) {}
+
     std::string print() const final;
 
   private:
@@ -189,6 +160,11 @@ class GetElementPtrInst : public Instruction {
   public:
     GetElementPtrInst(BasicBlock *prt, Value *baseptr,
                       std::vector<Value *> &&offs);
+
+    template <typename... Args>
+    GetElementPtrInst(BasicBlock *bb, Value *baseptr, Args &&...args)
+        : GetElementPtrInst(bb, baseptr, {static_cast<Value *>(args)...}) {}
+
     std::string print() const final;
 
   private:

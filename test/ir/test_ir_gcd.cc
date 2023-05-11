@@ -15,8 +15,8 @@
 using namespace ir;
 using namespace std;
 
-#define CONST_INT(x) (Constants::get().int_const(x))
-#define CONST_FLOAT(x) (Constants.get().float_const(x))
+Constant *CONST_INT(int x) { return Constants::get().int_const(x); }
+Constant *CONST_FlOAT(int x) { return Constants::get().float_const(x); }
 
 using CmpOp = CmpInst::CmpOp;
 using BinOp = BinaryInst::BinOp;
@@ -71,8 +71,7 @@ int main() {
     auto div = FBB->create_inst<BinaryInst>(BinOp::SDIV, u, v);
     auto mul = FBB->create_inst<BinaryInst>(BinOp::MUL, div, v);
     auto sub = FBB->create_inst<BinaryInst>(BinOp::SUB, u, mul);
-    auto call = FBB->create_inst<CallInst>(
-        gcdFun, std::forward<vector<Value *>>({v, sub}));
+    auto call = FBB->create_inst<CallInst>(gcdFun, v, sub);
 
     FBB->create_inst<StoreInst>(call, retAlloca);
     FBB->create_inst<BrInst>(retBB);
@@ -93,10 +92,8 @@ int main() {
     u = funArrayFun->get_args()[0];
     v = funArrayFun->get_args()[1];
 
-    auto uGEP = entry->create_inst<GetElementPtrInst>(
-        u, std::forward<vector<Value *>>({CONST_INT(0)}));
-    auto vGEP = entry->create_inst<GetElementPtrInst>(
-        v, std::forward<vector<Value *>>({CONST_INT(0)}));
+    auto uGEP = entry->create_inst<GetElementPtrInst>(u, CONST_INT(0));
+    auto vGEP = entry->create_inst<GetElementPtrInst>(v, CONST_INT(0));
     auto u0 = entry->create_inst<LoadInst>(uGEP);
     auto v0 = entry->create_inst<LoadInst>(vGEP);
     entry->create_inst<StoreInst>(u0, aAlloca);
@@ -118,8 +115,7 @@ int main() {
     // if false, return directly
     aLoad = retBB->create_inst<LoadInst>(aAlloca);
     bLoad = retBB->create_inst<LoadInst>(bAlloca);
-    call = retBB->create_inst<CallInst>(
-        gcdFun, std::forward<vector<Value *>>({aLoad, bLoad}));
+    call = retBB->create_inst<CallInst>(gcdFun, aLoad, bLoad);
     retBB->create_inst<RetInst>(call);
 
     // main函数
@@ -128,15 +124,14 @@ int main() {
     bb = mainFun->create_bb();
 
     vector<Constant *> off;
-    auto xGEP = bb->create_inst<GetElementPtrInst>(
-        x, std::forward<vector<Value *>>({CONST_INT(0), CONST_INT(0)}));
-    auto yGEP = bb->create_inst<GetElementPtrInst>(
-        y, std::forward<vector<Value *>>({CONST_INT(0), CONST_INT(0)}));
+    auto xGEP =
+        bb->create_inst<GetElementPtrInst>(x, CONST_INT(0), CONST_INT(0));
+    auto yGEP =
+        bb->create_inst<GetElementPtrInst>(y, CONST_INT(0), CONST_INT(0));
     bb->create_inst<StoreInst>(CONST_INT(90), xGEP);
     bb->create_inst<StoreInst>(CONST_INT(18), yGEP);
 
-    call =
-        bb->create_inst<CallInst>(funArrayFun, vector<Value *>({xGEP, yGEP}));
+    call = bb->create_inst<CallInst>(funArrayFun, xGEP, yGEP);
 
     bb->create_inst<RetInst>(call);
     cout << mod->print();

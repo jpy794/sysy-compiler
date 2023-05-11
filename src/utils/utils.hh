@@ -1,7 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <stdexcept>
 #include <type_traits>
+#include <unordered_map>
 
 template <typename Derived, typename Base> bool is_a(Base *base) {
     static_assert(std::is_base_of<Base, Derived>::value);
@@ -17,8 +19,13 @@ template <typename Derived, typename Base> Derived *as_a(Base *base) {
     return derived;
 }
 
-template <typename Container, typename Key>
-bool contains(Container &con, const Key &key) {
-    static_assert(std::is_same<typename Container::key_type, Key>::value);
+template <typename Key, typename... Args>
+bool contains(std::unordered_map<Key, Args...> &con, const Key &key) {
     return con.find(key) != con.end();
+}
+
+template <typename Container, typename Elem>
+bool contains(const Container &con, const Elem &elem) {
+    static_assert(std::is_same<typename Container::value_type, Elem>::value);
+    return std::find(con.begin(), con.end(), elem) != con.end();
 }

@@ -26,10 +26,8 @@ class Type {
     virtual ~Type() = 0;
     virtual std::string print() const = 0;
 
-    template <typename Derived> bool is_a() { return ::is_a<Derived>(this); }
-    template <typename Derived> Derived *as_a() {
-        return ::as_a<Derived>(this);
-    }
+    template <typename Derived> bool is() { return is_a<Derived>(this); }
+    template <typename Derived> Derived *as() { return as_a<Derived>(this); }
 
     bool is_basic_type();
     bool is_legal_ret_type();

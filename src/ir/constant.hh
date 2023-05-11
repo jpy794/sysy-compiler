@@ -16,6 +16,9 @@ class Constant : public Value {
     Constant(Type *type, std::string &&name) : Value(type, std::move(name)){};
     virtual ~Constant() = 0;
     std::string print() const final { return this->get_name(); }
+
+    template <typename Derived> bool is() { return ::is_a<Derived>(this); }
+    template <typename Derived> Derived *as() { return ::as_a<Derived>(this); }
 };
 
 inline Constant::~Constant(){};

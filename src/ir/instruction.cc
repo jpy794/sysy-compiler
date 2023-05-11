@@ -49,9 +49,9 @@ BrInst::BrInst(BasicBlock *prt, Value *cond, BasicBlock *TBB, BasicBlock *FBB)
 BinaryInst::BinaryInst(BasicBlock *prt, BinOp op, Value *lhs, Value *rhs)
     : Instruction(prt, lhs->get_type(), {lhs, rhs}), _op(op) {
     assert(lhs->get_type() == rhs->get_type());
-    if (arrcontains(_int_op, op))
+    if (contains(_int_op, op))
         assert(is_a<IntType>(lhs->get_type()));
-    else if (arrcontains(_float_op, op)) {
+    else if (contains(_float_op, op)) {
         assert(is_a<FloatType>(lhs->get_type()));
     } else {
         throw unreachable_error{"binop"};
@@ -86,9 +86,9 @@ StoreInst::StoreInst(BasicBlock *prt, Value *v, Value *ptr)
 CmpInst::CmpInst(BasicBlock *prt, CmpOp cmp_op, Value *lhs, Value *rhs)
     : Instruction(prt, Types::get().bool_type(), {lhs, rhs}), _cmp_op(cmp_op) {
     assert(lhs->get_type() == rhs->get_type());
-    if (arrcontains(_int_op, cmp_op))
+    if (contains(_int_op, cmp_op))
         assert(is_a<IntType>(lhs->get_type()));
-    else if (arrcontains(_float_op, cmp_op))
+    else if (contains(_float_op, cmp_op))
         assert(is_a<FloatType>(lhs->get_type()));
     else
         throw unreachable_error{"cmp_op"};
@@ -229,27 +229,24 @@ string BinaryInst::print() const {
         throw logic_error{"The op of BinaryInst is wrong!"};
         break;
     }
-    return this->get_name() + " = " + OpName + " " + this->get_type()->print() +
-           " " + this->operands()[0]->get_name() + ", " +
-           this->operands()[1]->get_name();
+    return get_name() + " = " + OpName + " " + get_type()->print() + " " +
+           operands()[0]->get_name() + ", " + operands()[1]->get_name();
 }
 
 string AllocaInst::print() const {
-    return this->get_name() + " = alloca " +
-           as_a<const PointerType>(this->get_type())->get_elem_type()->print();
+    return get_name() + " = alloca " +
+           get_type()->as<PointerType>()->get_elem_type()->print();
 }
 
 string LoadInst::print() const {
-    return this->get_name() + " = load " + this->get_type()->print() + ", " +
-           this->operands()[0]->get_type()->print() + " " +
-           this->operands()[0]->get_name();
+    return get_name() + " = load " + get_type()->print() + ", " +
+           operands()[0]->get_type()->print() + " " + operands()[0]->get_name();
 }
 
 string StoreInst::print() const {
-    return "store " + this->operands()[0]->get_type()->print() + " " +
-           this->operands()[0]->get_name() + ", " +
-           this->operands()[1]->get_type()->print() + " " +
-           this->operands()[1]->get_name();
+    return "store " + operands()[0]->get_type()->print() + " " +
+           operands()[0]->get_name() + ", " +
+           operands()[1]->get_type()->print() + " " + operands()[1]->get_name();
 }
 
 string CmpInst::print() const {
@@ -325,43 +322,43 @@ string PhiInst::print() const {
 string CallInst::print() const {
     string head;
     string args;
-    if (is_a<VoidType>(this->get_type()))
+    if (get_type()->is<VoidType>())
         head = "call ";
     else
         head = this->get_name() + " = call ";
-    head += as_a<FuncType>(this->operands()[0]->get_type())
-                ->get_result_type()
-                ->print() +
-            " " + this->operands()[0]->get_name();
-    for (unsigned i = 1; i < this->operands().size(); i++)
-        args += this->operands()[i]->get_type()->print() + " " +
-                this->operands()[i]->get_name() + ", ";
+    head +=
+        operands()[0]->get_type()->as<FuncType>()->get_result_type()->print() +
+        " " + operands()[0]->get_name();
+    for (unsigned i = 1; i < operands().size(); i++)
+        args += operands()[i]->get_type()->print() + " " +
+                operands()[i]->get_name() + ", ";
     args.erase(args.length() - 2, 2);
     return head + " (" + args + ")";
 }
 
 string Fp2siInst::print() const {
-    return this->get_name() + " = fptosi float " +
-           this->operands()[0]->get_name() + " to i32";
+    return get_name() + " = fptosi float " + operands()[0]->get_name() +
+           " to i32";
 }
 
 string Si2fpInst::print() const {
-    return this->get_name() + " = sitofp " + this->get_type()->print() + " " +
-           this->operands()[0]->get_name() + " to float";
+    return get_name() + " = sitofp " + get_type()->print() + " " +
+           operands()[0]->get_name() + " to float";
 }
 
 string GetElementPtrInst::print() const {
     string index;
-    for (const auto &op : this->operands())
+    for (const auto &op : operands())
         index += ", " + op->get_type()->print() + " " + op->get_name();
-    return this->get_name() + " = getelementptr " +
-           as_a<const PointerType>(this->operands()[0]->get_type())
+    return get_name() + " = getelementptr " +
+           operands()[0]
+               ->get_type()
+               ->as<PointerType>()
                ->get_elem_type()
                ->print() +
            index;
 }
 
 string ZextInst::print() const {
-    return this->get_name() + " = zext i1" + this->operands()[0]->get_name() +
-           " to i32";
+    return get_name() + " = zext i1" + operands()[0]->get_name() + " to i32";
 }
