@@ -19,7 +19,7 @@ class Value {
     template <typename Derived> bool is() { return ::is_a<Derived>(this); }
     template <typename Derived> Derived *as() { return ::as_a<Derived>(this); }
 
-    virtual ~Value() = 0;
+    virtual ~Value() = default;
     virtual std::string print() const = 0;
 
     // remove copy constructor
@@ -30,7 +30,5 @@ class Value {
     Type *const _type;
     const std::string _name;
 };
-
-inline Value::~Value() {}
 
 } // namespace ir

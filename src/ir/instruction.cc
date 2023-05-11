@@ -24,8 +24,6 @@ Instruction::Instruction(BasicBlock *prt, Type *type,
            std::move(operands)),
       _parent(prt) {}
 
-Instruction::~Instruction() {}
-
 RetInst::RetInst(BasicBlock *prt, Value *ret_val)
     : Instruction(prt, Types::get().void_type(), {ret_val}) {
     assert(ret_val->get_type() == prt->get_func()->get_return_type());

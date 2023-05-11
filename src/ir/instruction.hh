@@ -27,8 +27,6 @@ class Instruction : public User, public ilist<Instruction>::node {
     Instruction(const Instruction &) = delete;
     Instruction &operator=(const Instruction &) = delete;
 
-    virtual ~Instruction() = 0;
-
     BasicBlock *get_parent() { return _parent; }
 
   protected:

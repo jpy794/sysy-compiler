@@ -23,7 +23,7 @@ namespace ir {
 
 class Type {
   public:
-    virtual ~Type() = 0;
+    virtual ~Type() = default;
     virtual std::string print() const = 0;
 
     template <typename Derived> bool is() { return is_a<Derived>(this); }
@@ -33,8 +33,6 @@ class Type {
     bool is_legal_ret_type();
     bool is_legal_param_type();
 };
-
-inline Type::~Type() {}
 
 class FloatType : public Type {
   public:

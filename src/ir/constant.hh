@@ -14,14 +14,12 @@ namespace ir {
 class Constant : public Value {
   public:
     Constant(Type *type, std::string &&name) : Value(type, std::move(name)){};
-    virtual ~Constant() = 0;
+    virtual ~Constant() = default;
     std::string print() const final { return this->get_name(); }
 
     template <typename Derived> bool is() { return ::is_a<Derived>(this); }
     template <typename Derived> Derived *as() { return ::as_a<Derived>(this); }
 };
-
-inline Constant::~Constant(){};
 
 class ConstInt : public Constant {
   private:
