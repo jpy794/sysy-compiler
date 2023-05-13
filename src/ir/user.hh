@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "err.hh"
 #include "value.hh"
 
 namespace ir {
@@ -14,7 +15,8 @@ class User : public Value {
         : Value(type, std::move(name)), _operands(operands),
           _op_num(operands.size()) {}
 
-    void set_operand(size_t index, Value *value) {
+    virtual void set_operand(size_t index, Value *value) {
+        throw unreachable_error{"not implemented"};
         assert(index < _op_num);
         _operands[index] = value;
     }

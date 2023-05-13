@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <iterator>
 #include <stdexcept>
 
@@ -193,18 +194,42 @@ template <typename T> class ilist {
         return insert(it, new T{args...});
     }
 
-    T &front() { return *(_head->_next); }
-    T &back() { return *(_tail->_prev); }
+    T &front() {
+        assert(_size);
+        return *(_head->_next);
+    }
+    T &back() {
+        assert(_size);
+        return *(_tail->_prev);
+    }
 
     // const method
-    const_iterator cbegin() const { return const_iterator{_head->_next}; }
-    const_iterator cend() const { return const_iterator{_tail}; }
+    const_iterator cbegin() const {
+        assert(_size);
+        return const_iterator{_head->_next};
+    }
+    const_iterator cend() const {
+        assert(_size);
+        return const_iterator{_tail};
+    }
 
-    const_iterator begin() const { return cbegin(); }
-    const_iterator end() const { return cend(); }
+    const_iterator begin() const {
+        assert(_size);
+        return cbegin();
+    }
+    const_iterator end() const {
+        assert(_size);
+        return cend();
+    }
 
-    const T &front() const { return *(_head->_next); }
-    const T &back() const { return *(_tail->_prev); }
+    const T &front() const {
+        assert(_size);
+        return *(_head->_next);
+    }
+    const T &back() const {
+        assert(_size);
+        return *(_tail->_prev);
+    }
 };
 
 template <typename T> ilist<T>::node::~node() {}
