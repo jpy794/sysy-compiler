@@ -9,7 +9,9 @@
 #include "utils.hh"
 #include "value.hh"
 #include <any>
+#include <stdexcept>
 #include <utility>
+#include <vector>
 using namespace ast;
 using namespace ir;
 using std::vector;
@@ -19,56 +21,10 @@ Constants &constants = Constants::get();
 Function *cur_func;
 BasicBlock *cur_bb;
 
-class BlockHelper {
-  public:
-    void create_true_bb() {
-        if (_not)
-            _false_bb.push_back(cur_func->create_bb());
-        else
-            _true_bb.push_back(cur_func->create_bb());
-    }
-    void create_false_bb() {
-        if (_not)
-            _true_bb.push_back(cur_func->create_bb());
-        else
-            _false_bb.push_back(cur_func->create_bb());
-    }
-    void create_next_bb() { _next_bb.push_back(cur_func->create_bb()); }
-    void pop_true_bb() {
-        if (_not)
-            _false_bb.pop_back();
-        else
-            _true_bb.pop_back();
-    }
-    void pop_false_bb() {
-        if (_not)
-            _true_bb.pop_back();
-        else
-            _false_bb.pop_back();
-    }
-    void pop_next_bb() { _next_bb.pop_back(); }
-    void reverse_not() { _not = !_not; }
-    BasicBlock *true_bb() {
-        if (_not)
-            return _false_bb.back();
-        else
-            return _true_bb.back();
-    }
-    BasicBlock *false_bb() {
-        if (_not)
-            return _true_bb.back();
-        else
-            return _false_bb.back();
-    }
-    BasicBlock *next_bb() { return _next_bb.back(); }
+std::vector<BasicBlock *> true_bb;  // and or while if use
+std::vector<BasicBlock *> false_bb; // and or while if use
+std::vector<BasicBlock *> next_bb;  // only while use
 
-  private:
-    bool _not = false;
-    std::vector<BasicBlock *> _true_bb;
-    std::vector<BasicBlock *> _false_bb;
-    std::vector<BasicBlock *> _next_bb;
-};
-BlockHelper block;
 // convert BaseType to basic type or void type
 Type *ToBaseType(BaseType ty, bool allow_void = false) {
     Type *convert_type;
@@ -139,9 +95,9 @@ std::any SysyBuilder::visit(const BlockStmt &node) {
 std::any SysyBuilder::visit(const IfStmt &node) {
     bool else_exist = node.else_body.has_value();
     // Step1 push true bb and false bb into stack and create next bb
-    block.create_true_bb();  // true_bb
-    block.create_false_bb(); // false_bb;
-    BasicBlock *next_bb = else_exist ? cur_func->create_bb() : block.false_bb();
+    true_bb.push_back(cur_func->create_bb());  // true_bb
+    false_bb.push_back(cur_func->create_bb()); // false_bb;
+    BasicBlock *next_bb = else_exist ? cur_func->create_bb() : false_bb.back();
     auto cond_val = std::any_cast<Value *>(visit(*node.cond));
     Value *cond;
     if (cond_val != nullptr) { // check whether a jump has been made
@@ -154,19 +110,19 @@ std::any SysyBuilder::visit(const IfStmt &node) {
                                                 constants.float_const(0));
         else
             cond = cond_val;
-        cur_bb->create_inst<BrInst>(cond, block.true_bb(), block.false_bb());
+        cur_bb->create_inst<BrInst>(cond, true_bb.back(), false_bb.back());
     }
 
     scope.enter(); // then_body has its own scope regardless of whether it is
                    // expr or block
-    cur_bb = block.true_bb();
+    cur_bb = true_bb.back();
     visit(*node.then_body);
     // Step2 backfill next bb to true_bb
     cur_bb->create_inst<BrInst>(next_bb);
     scope.exit();
     if (else_exist) {
         scope.enter();
-        cur_bb = block.false_bb();
+        cur_bb = false_bb.back();
         visit(*node.else_body.value());
         // Step2 backfill next bb to false_bb
         cur_bb->create_inst<BrInst>(next_bb);
@@ -175,21 +131,22 @@ std::any SysyBuilder::visit(const IfStmt &node) {
     // Step3 set the insert point to next_bb
     cur_bb = next_bb;
     // Step4 pop out bbs created by if
-    block.pop_true_bb();
-    block.pop_false_bb();
+    true_bb.pop_back();
+    false_bb.pop_back();
     return {};
 }
 std::any SysyBuilder::visit(const WhileStmt &node) {
     // Step1 Check whether cur_bb is empty
-    BasicBlock *next_bb = cur_bb;
+    BasicBlock *cond_bb = cur_bb;
     if (cur_bb->get_insts().size() != 0) {
-        next_bb = cur_func->create_bb();
-        cur_bb->create_inst<BrInst>(next_bb); // cond_bb
-        cur_bb = next_bb;
+        cond_bb = cur_func->create_bb();
+        cur_bb->create_inst<BrInst>(cond_bb); // cond_bb
+        cur_bb = cond_bb;
     }
-    // Step2 push true_bb and false_bb into stack;
-    block.create_true_bb();  // body_bb
-    block.create_false_bb(); // next_bb;
+    // Step2 push true_bb, false_bb and next_bb into stack;
+    true_bb.push_back(cur_func->create_bb());  // body_bb
+    false_bb.push_back(cur_func->create_bb()); // next_bb
+    next_bb.push_back(cond_bb);                // cond_bb
     auto cond_val = std::any_cast<Value *>(visit(*node.cond));
     if (cond_val != nullptr) {
         Value *cond;
@@ -202,27 +159,34 @@ std::any SysyBuilder::visit(const WhileStmt &node) {
                                                 constants.float_const(0));
         else
             cond = cond_val;
-        cur_bb->create_inst<BrInst>(cond, block.true_bb(), block.false_bb());
+        cur_bb->create_inst<BrInst>(cond, true_bb.back(), false_bb.back());
     }
-    cur_bb = block.true_bb();
+    cur_bb = true_bb.back();
     scope.enter();
     visit(*node.body);
     // Step3 backfill cond_bb to body_bb
-    cur_bb->create_inst<BrInst>(next_bb);
+    cur_bb->create_inst<BrInst>(cond_bb);
     scope.exit();
     // Step4 set insert_point to false_bb
-    cur_bb = block.false_bb();
+    cur_bb = false_bb.back();
     // Step5 pop out the bbs created by while
-    block.pop_true_bb();
-    block.pop_false_bb();
+    true_bb.pop_back();
+    false_bb.pop_back();
+    next_bb.pop_back();
     return {};
 }
 std::any SysyBuilder::visit(const BreakStmt &node) {
-    cur_bb->create_inst<BrInst>(block.false_bb());
+    if (false_bb.empty())
+        throw std::logic_error{
+            "break must be used in a loop"}; // FIXME: empty => not in a loop,
+                                             // but nonempty !=> in a loop
+    cur_bb->create_inst<BrInst>(false_bb.back());
     return {};
 }
 std::any SysyBuilder::visit(const ContinueStmt &node) {
-    cur_bb->create_inst<BrInst>(block.next_bb());
+    if (next_bb.empty())
+        throw std::logic_error{"continue must be used in a loop"};
+    cur_bb->create_inst<BrInst>(next_bb.back());
     return {};
 }
 std::any SysyBuilder::visit(const ReturnStmt &node) {
@@ -315,7 +279,7 @@ std::any SysyBuilder::visit(const BinaryExpr &node) {
     // TODO: refactor
     if (node.op == ast::BinOp::OR) {
         // Step1 push false bb
-        block.create_false_bb();
+        false_bb.push_back(cur_func->create_bb());
         auto lhs = std::any_cast<Value *>(visit(*node.lhs));
         if (lhs != nullptr) {
             if (lhs->get_type()->is<IntType>())
@@ -324,11 +288,11 @@ std::any SysyBuilder::visit(const BinaryExpr &node) {
             if (lhs->get_type()->is<FloatType>())
                 lhs = cur_bb->create_inst<CmpInst>(CmpInst::FNE, lhs,
                                                    constants.float_const(0));
-            cur_bb->create_inst<BrInst>(lhs, block.true_bb(), block.false_bb());
+            cur_bb->create_inst<BrInst>(lhs, true_bb.back(), false_bb.back());
         }
-        cur_bb = block.false_bb();
+        cur_bb = false_bb.back();
         // Step2 pop false bb
-        block.pop_false_bb();
+        false_bb.pop_back();
         auto rhs = std::any_cast<Value *>(visit(*node.rhs));
         if (rhs != nullptr) {
             if (rhs->get_type()->is<IntType>())
@@ -337,15 +301,15 @@ std::any SysyBuilder::visit(const BinaryExpr &node) {
             if (rhs->get_type()->is<FloatType>())
                 rhs = cur_bb->create_inst<CmpInst>(CmpInst::FNE, rhs,
                                                    constants.float_const(0));
-            cur_bb->create_inst<BrInst>(rhs, block.true_bb(), block.false_bb());
+            cur_bb->create_inst<BrInst>(rhs, true_bb.back(), false_bb.back());
         }
         // Step3 set insert point to true bb
-        cur_bb = block.true_bb();
+        cur_bb = true_bb.back();
         return {};
     }
     if (node.op == ast::BinOp::AND) {
         // Step1 push true bb
-        block.create_true_bb();
+        true_bb.push_back(cur_func->create_bb());
         auto lhs = std::any_cast<Value *>(visit(*node.lhs));
         if (lhs != nullptr) {
             if (lhs->get_type()->is<IntType>())
@@ -354,11 +318,11 @@ std::any SysyBuilder::visit(const BinaryExpr &node) {
             if (lhs->get_type()->is<FloatType>())
                 lhs = cur_bb->create_inst<CmpInst>(CmpInst::FNE, lhs,
                                                    constants.float_const(0));
-            cur_bb->create_inst<BrInst>(lhs, block.true_bb(), block.false_bb());
+            cur_bb->create_inst<BrInst>(lhs, true_bb.back(), false_bb.back());
         }
-        cur_bb = block.false_bb();
+        cur_bb = false_bb.back();
         // Step2 pop true bb
-        block.pop_false_bb();
+        false_bb.pop_back();
         auto rhs = std::any_cast<Value *>(visit(*node.rhs));
         if (rhs != nullptr) {
             if (rhs->get_type()->is<IntType>())
@@ -367,10 +331,10 @@ std::any SysyBuilder::visit(const BinaryExpr &node) {
             if (rhs->get_type()->is<FloatType>())
                 rhs = cur_bb->create_inst<CmpInst>(CmpInst::FNE, rhs,
                                                    constants.float_const(0));
-            cur_bb->create_inst<BrInst>(rhs, block.true_bb(), block.false_bb());
+            cur_bb->create_inst<BrInst>(rhs, true_bb.back(), false_bb.back());
         }
         // Step3 set insert point to true bb
-        cur_bb = block.true_bb();
+        cur_bb = true_bb.back();
         return {};
     }
     auto lhs = std::any_cast<Value *>(visit(*node.lhs));
