@@ -5,6 +5,7 @@
 #include "utils.hh"
 
 #include <cassert>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -68,16 +69,22 @@ class ArrayType : public Type {
   private:
     Type *const _elem_type;
     const size_t _elem_cnt;
+    size_t _dims;
 
   public:
     ArrayType(Type *elem_type, size_t elem_cnt)
         : _elem_type(elem_type), _elem_cnt(elem_cnt) {
         assert(elem_cnt > 0);
         assert(_is_legal_array());
+        if (elem_type->is<ArrayType>())
+            _dims = elem_type->as<ArrayType>()->get_dims() + 1;
+        else
+            _dims = 1;
     }
 
     Type *get_elem_type() const { return _elem_type; }
     size_t get_elem_cnt() const { return _elem_cnt; }
+    size_t get_dims() const { return _dims; }
 
     std::string print() const final {
         return '[' + std::to_string(_elem_cnt) + " x " + _elem_type->print() +
