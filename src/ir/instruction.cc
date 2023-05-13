@@ -30,18 +30,11 @@ RetInst::RetInst(BasicBlock *prt, Value *ret_val)
 }
 
 BrInst::BrInst(BasicBlock *prt, BasicBlock *to)
-    : Instruction(prt, Types::get().void_type(), {to}) {
-    prt->suc_bbs().push_back(to);
-    to->pre_bbs().push_back(prt);
-}
+    : Instruction(prt, Types::get().void_type(), {to}) {}
 
 BrInst::BrInst(BasicBlock *prt, Value *cond, BasicBlock *TBB, BasicBlock *FBB)
     : Instruction(prt, Types::get().void_type(), {cond, TBB, FBB}) {
     assert(is_a<BoolType>(cond->get_type()));
-    prt->suc_bbs().push_back(TBB);
-    prt->suc_bbs().push_back(FBB);
-    TBB->pre_bbs().push_back(prt);
-    FBB->pre_bbs().push_back(prt);
 }
 
 BinaryInst::BinaryInst(BasicBlock *prt, BinOp op, Value *lhs, Value *rhs)
