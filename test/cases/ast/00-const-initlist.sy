@@ -1,0 +1,11 @@
+const int a[2][3] = {{1, 2, 3}, {1, 5, 6}};
+const int b[4][5] = {a[0][a[0][1]], a[1][a[1][0]]};
+const int c = a[1][2];
+
+int main() {
+    const int d[2][3] = {{1, 2, 3}, {4, 5, 6}};
+    const int e[4][5] = {a[0][a[0][1]], a[1][a[0][0]]};
+    const int f = {e[0][0]};
+    const int a = 0;
+    return 0;
+}

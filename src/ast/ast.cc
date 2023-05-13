@@ -53,8 +53,11 @@ class ASTBuilder : public ASTVisitor {
        return: the new off */
     size_t _pack_initval(RawVarDefStmt::InitList &init, size_t depth,
                          size_t off, const vector<size_t> &dims,
-                         vector<optional<Ptr<Expr>>> &res, BaseType type);
-    PtrList<VarDefStmt> _split_vardef(RawVarDefStmt &raw_vardef);
+                         vector<optional<Ptr<Expr>>> &res, BaseType type,
+                         bool is_const);
+    /* if is_global or const, evaluate all initvals, throw if fail */
+    PtrList<VarDefStmt> _split_vardef(RawVarDefStmt &raw_vardef,
+                                      bool is_global);
 
   public:
     using ASTVisitor::visit;
@@ -139,7 +142,7 @@ any ASTBuilder::visit(const LValExpr &node) {
 
     // array type
     for (size_t i = 0; i < vardef->dims.size(); i++) {
-        off += vardef->dims[i] * idxs[i];
+        off = off * vardef->dims[i] + idxs[i];
     }
 
     if (not vardef->init_vals[off].has_value()) {
@@ -244,7 +247,7 @@ any ASTBuilder::visit(const UnaryExpr &node) {
             evaluate dims
             serialize init_val
             if is_const
-                TODO: replace expr in init_val with literal expr node
+                replace expr in init_val with literal expr node
 
     for nodes that could contains raw fundef
         replace the raw ast one with ast one
@@ -260,10 +263,13 @@ template <typename Derived, typename Base> bool is(Base *ptr) {
     return dynamic_cast<Derived *>(ptr) != nullptr;
 }
 
+// FIXME: currently, all {} is initialized to zeros
+// FIXME: we should zero-init vars here so that const_table can get correct
+//        value instead of nullopt
 size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
                                  size_t off, const vector<size_t> &dims,
                                  vector<optional<Ptr<Expr>>> &res,
-                                 BaseType type) {
+                                 BaseType type, bool is_const) {
     auto dim_len{1};
     for (auto i = depth; i < dims.size(); i++) {
         dim_len *= dims[i];
@@ -287,16 +293,32 @@ size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
     }
     if (holds_alternative<Ptr<Expr>>(init.val)) {
         // this is a value, not a init list
-        // TODO: evaluate the value for const vardef
         auto &expr = get<Ptr<Expr>>(init.val);
-        res[dim_idx_begin] = Ptr<Expr>{};
-        res[dim_idx_begin]->swap(expr);
+
+        // try to evaluate the value
+        if (is_const) {
+            auto literal = any_cast<ExprLiteral>(visit(*expr));
+            if (not literal.is_const) {
+                throw logic_error{
+                    "value in const init list is not a compile-time constant"};
+            }
+            auto new_expr = new LiteralExpr{};
+            new_expr->type = type;
+            new_expr->val = literal.val;
+
+            res[dim_idx_begin] = Ptr<Expr>{new_expr};
+        } else {
+            res[dim_idx_begin] = Ptr<Expr>{};
+            res[dim_idx_begin]->swap(expr);
+        }
+
         return off + 1;
     }
     // this is a init list
     auto &list = get<PtrList<RawVarDefStmt::InitList>>(init.val);
     for (size_t i = 0; i < list.size(); i++) {
-        off = _pack_initval(*list[i], depth + 1, off, dims, res, type);
+        off =
+            _pack_initval(*list[i], depth + 1, off, dims, res, type, is_const);
     }
     // if there're undefined initval, off should be set to dim_idx_begin +
     // dim_len
@@ -317,7 +339,8 @@ int expect_const_pos_int(const ExprLiteral &literal) {
     return val;
 }
 
-PtrList<VarDefStmt> ASTBuilder::_split_vardef(RawVarDefStmt &raw_vardef) {
+PtrList<VarDefStmt> ASTBuilder::_split_vardef(RawVarDefStmt &raw_vardef,
+                                              bool is_global = false) {
     PtrList<VarDefStmt> ret;
     for (auto &&entry : raw_vardef.var_defs) {
         auto vardef = new VarDefStmt;
@@ -335,8 +358,9 @@ PtrList<VarDefStmt> ASTBuilder::_split_vardef(RawVarDefStmt &raw_vardef) {
         }
         vardef->init_vals.resize(len);
         if (entry->init_list.has_value()) {
+            bool is_const_init = is_global || vardef->is_const;
             _pack_initval(*entry->init_list.value(), 0, 0, vardef->dims,
-                          vardef->init_vals, vardef->type);
+                          vardef->init_vals, vardef->type, is_const_init);
         }
         if (vardef->is_const) {
             _const_table.insert(vardef->var_name, vardef);
@@ -380,7 +404,7 @@ any ASTBuilder::visit(const Root &node) {
         } else if (is<RawVarDefGlobal>(it->get())) {
             auto &raw_global = dynamic_cast<RawVarDefGlobal &>(**it);
             auto &raw_stmt = *raw_global.vardef_stmt;
-            auto vardefs = _split_vardef(raw_stmt);
+            auto vardefs = _split_vardef(raw_stmt, true);
             it = n.globals.erase(it);
             for (auto &def : vardefs) {
                 auto global = new VarDefGlobal;

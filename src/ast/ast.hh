@@ -230,7 +230,7 @@ struct VarDefStmt : Stmt {
     /* all dims should be non-zero
        evaluated when building the AST */
     std::vector<size_t> dims;
-    /* TODO: evaluate init_vals for global consts
+    /* evaluate init_vals for globals and consts
        instead of leaving it to optimization pass later
        nullopt means undefined init_val for corresponding element */
     std::vector<std::optional<Ptr<Expr>>> init_vals;

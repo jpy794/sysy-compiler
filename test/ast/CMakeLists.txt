@@ -29,3 +29,4 @@ function(ast_test_path BASE)
 endfunction()
 
 ast_test_path(2022/func)
+ast_test_path(ast)
