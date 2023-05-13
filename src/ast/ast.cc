@@ -359,6 +359,7 @@ any ASTBuilder::visit(const Root &node) {
             for (auto &raw_param : raw.params) {
                 FunDefGlobal::Param param;
                 param.type = raw_param->type;
+                param.name = raw_param->name;
                 if (raw_param->is_ptr) {
                     // pointer param need a 0 as dim[0]
                     param.dims.push_back(0);

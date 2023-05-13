@@ -116,6 +116,7 @@ struct Root : ASTNode {
 struct FunDefGlobal : Global {
     struct Param {
         BaseType type;
+        std::string name;
         /* evaluated when building AST
            dim[0] should always be 0 */
         std::vector<size_t> dims;
@@ -284,6 +285,7 @@ struct RawVarDefStmt : Stmt {
 struct RawFunDefGlobal : Global {
     struct Param {
         BaseType type;
+        std::string name;
         bool is_ptr;
         // dim starts from the 2nd one
         PtrList<Expr> dims;

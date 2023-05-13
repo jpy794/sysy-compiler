@@ -340,6 +340,7 @@ any RawASTBuilder::visitFuncparam(sysyParser::FuncparamContext *ctx) {
     } else {
         throw unreachable_error{};
     }
+    ret->name = ctx->Identifier()->getText();
     if (ctx->LeftBracket().size() > 0) {
         ret->is_ptr = true;
     } else {
