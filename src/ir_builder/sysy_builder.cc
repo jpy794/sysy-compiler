@@ -18,6 +18,14 @@ using namespace ir;
 using std::vector;
 Types &types = Types::get();
 Constants &constants = Constants::get();
+inline Constant *ZeroInit(BaseType type) {
+    if (type == BaseType::INT)
+        return constants.int_const(0);
+    else if (type == BaseType::FLOAT)
+        return constants.float_const(0);
+    else
+        throw std::logic_error{"Void Type can't be zero-initialized"};
+}
 
 Function *cur_func;
 BasicBlock *cur_bb;
@@ -50,6 +58,19 @@ Type *ConvertType(BaseType ty, TypeOf callee, const vector<size_t> &dims = {}) {
     else
         return elem_type;
 }
+
+void AddBrInst(Value *oper) {
+    if (oper != nullptr) {
+        if (oper->get_type()->is<IntType>())
+            oper = cur_bb->create_inst<CmpInst>(CmpInst::NE, oper,
+                                                ZeroInit(BaseType::INT));
+        if (oper->get_type()->is<FloatType>())
+            oper = cur_bb->create_inst<CmpInst>(CmpInst::FNE, oper,
+                                                ZeroInit(BaseType::FLOAT));
+        cur_bb->create_inst<BrInst>(oper, true_bb.back(), false_bb.back());
+    }
+}
+
 std::any SysyBuilder::visit(const Root &node) {
     scope.enter();
     for (auto &gv_ptr : node.globals)
@@ -77,10 +98,8 @@ std::any SysyBuilder::visit(const FunDefGlobal &node) {
         switch (node.ret_type) { // FIXME:the branch without return stmt returns
                                  // undef value
         case ast::BaseType::INT:
-            cur_bb->create_inst<RetInst>(constants.int_const(0));
-            break;
         case ast::BaseType::FLOAT:
-            cur_bb->create_inst<RetInst>(constants.float_const(0));
+            cur_bb->create_inst<RetInst>(ZeroInit(node.ret_type));
             break;
         case ast::BaseType::VOID:
             cur_bb->create_inst<RetInst>();
@@ -108,19 +127,7 @@ std::any SysyBuilder::visit(const IfStmt &node) {
     false_bb.push_back(cur_func->create_bb()); // false_bb;
     BasicBlock *next_bb = else_exist ? cur_func->create_bb() : false_bb.back();
     auto cond_val = std::any_cast<Value *>(visit(*node.cond));
-    Value *cond;
-    if (cond_val != nullptr) { // check whether a jump has been made
-        // cond_val may be i32 type or float type
-        if (cond_val->get_type()->is<IntType>())
-            cond = cur_bb->create_inst<CmpInst>(CmpInst::CmpOp::NE, cond_val,
-                                                constants.int_const(0));
-        else if (cond_val->get_type()->is<FloatType>())
-            cond = cur_bb->create_inst<CmpInst>(CmpInst::CmpOp::FNE, cond_val,
-                                                constants.float_const(0));
-        else
-            cond = cond_val;
-        cur_bb->create_inst<BrInst>(cond, true_bb.back(), false_bb.back());
-    }
+    AddBrInst(cond_val);
 
     scope.enter(); // then_body has its own scope regardless of whether it is
                    // expr or block
@@ -159,19 +166,8 @@ std::any SysyBuilder::visit(const WhileStmt &node) {
     false_bb.push_back(cur_func->create_bb()); // next_bb
     next_bb.push_back(cond_bb);                // cond_bb
     auto cond_val = std::any_cast<Value *>(visit(*node.cond));
-    if (cond_val != nullptr) {
-        Value *cond;
-        // cond_val may be i32 type or float type
-        if (cond_val->get_type()->is<IntType>())
-            cond = cur_bb->create_inst<CmpInst>(CmpInst::CmpOp::NE, cond_val,
-                                                constants.int_const(0));
-        else if (cond_val->get_type()->is<FloatType>())
-            cond = cur_bb->create_inst<CmpInst>(CmpInst::CmpOp::FNE, cond_val,
-                                                constants.float_const(0));
-        else
-            cond = cond_val;
-        cur_bb->create_inst<BrInst>(cond, true_bb.back(), false_bb.back());
-    }
+    AddBrInst(cond_val);
+
     cur_bb = true_bb.back();
     scope.enter();
     visit(*node.body);
@@ -217,14 +213,14 @@ std::any SysyBuilder::visit(const AssignStmt &node) {
     if (!node.idxs.empty()) {
         std::vector<Value *> index;
         if (!is_a<Argument>(var)) // add 0 in front of the index
-            index.push_back(constants.int_const(0));
+            index.push_back(ZeroInit(BaseType::INT));
         for (auto &idxs : node.idxs)
             index.push_back(std::any_cast<Value *>(visit(*idxs)));
         auto elem_type = var->get_type()->as<PointerType>()->get_elem_type();
         if (!elem_type->is_basic_type() and
             elem_type->as<ArrayType>()->get_dims() >=
                 index.size()) // add 0 in the back of the index
-            index.push_back(constants.int_const(0));
+            index.push_back(ZeroInit(BaseType::INT));
         var = cur_bb->create_inst<GetElementPtrInst>(var, std::move(index));
     }
     cur_bb->create_inst<StoreInst>(val, var);
@@ -235,9 +231,12 @@ std::any SysyBuilder::visit(const VarDefStmt &node) {
     if (node.is_const) {
         vector<Constant *> init_vals;
         for (auto &init_val : node.init_vals) {
-            if (!init_val.has_value())
-                throw std::logic_error{"const variant must be initialized"};
-            auto init = std::any_cast<Constant *>(visit(*init_val.value()));
+            Constant *init;
+            if (init_val.has_value())
+                init = std::any_cast<Constant *>(visit(*init_val.value()));
+            else {
+                init = ZeroInit(node.type);
+            }
             if (!init)
                 throw std::logic_error{
                     "const init must be able to calculate in compiling"};
@@ -280,8 +279,7 @@ std::any SysyBuilder::visit(const CallExpr &node) {
     for (auto &arg : node.args) {
         args.push_back(std::any_cast<Value *>(visit(*arg)));
     }
-    cur_bb->create_inst<CallInst>(func, std::move(args));
-    return {};
+    return cur_bb->create_inst<CallInst>(func, std::move(args));
 }
 std::any SysyBuilder::visit(const LiteralExpr &node) {
     if (node.type == BaseType::INT)
@@ -297,33 +295,22 @@ std::any SysyBuilder::visit(const LValExpr &node) {
     Value *var = scope.find(node.var_name);
     if (!var)
         throw std::logic_error{node.var_name + " isn't defined"};
-    if (!node.idxs.empty()) {
+    if (!node.idxs.empty()) { // TODO: refactor
         std::vector<Value *> index;
         if (!is_a<Argument>(var)) // add 0 in front of the index
-            index.push_back(constants.int_const(0));
+            index.push_back(ZeroInit(BaseType::INT));
         for (auto &idxs : node.idxs)
             index.push_back(std::any_cast<Value *>(visit(*idxs)));
         auto elem_type = var->get_type()->as<PointerType>()->get_elem_type();
         if (!elem_type->is_basic_type() and
             elem_type->as<ArrayType>()->get_dims() >=
                 index.size()) // add 0 in the back of the index
-            index.push_back(constants.int_const(0));
+            index.push_back(ZeroInit(BaseType::INT));
         var = dynamic_cast<Value *>(
             cur_bb->create_inst<GetElementPtrInst>(var, std::move(index)));
     }
     var = cur_bb->create_inst<LoadInst>(var);
     return var;
-}
-void AddBrInst(Value *oper) {
-    if (oper != nullptr) {
-        if (oper->get_type()->is<IntType>())
-            oper = cur_bb->create_inst<CmpInst>(CmpInst::NE, oper,
-                                                constants.int_const(0));
-        if (oper->get_type()->is<FloatType>())
-            oper = cur_bb->create_inst<CmpInst>(CmpInst::FNE, oper,
-                                                constants.float_const(0));
-        cur_bb->create_inst<BrInst>(oper, true_bb.back(), false_bb.back());
-    }
 }
 std::any SysyBuilder::visit(const BinaryExpr &node) {
     // TODO: refactor
@@ -457,10 +444,10 @@ std::any SysyBuilder::visit(const UnaryExpr &node) {
             throw std::logic_error{"the type of unaryop shouldn't be bool"};
         if (val->get_type()->is<IntType>())
             val = cur_bb->create_inst<BinaryInst>(BinaryInst::SUB,
-                                                  constants.int_const(0), val);
+                                                  ZeroInit(BaseType::INT), val);
         if (val->get_type()->is<FloatType>())
             val = cur_bb->create_inst<BinaryInst>(
-                BinaryInst::FSUB, constants.float_const(0), val);
+                BinaryInst::FSUB, ZeroInit(BaseType::FLOAT), val);
         break;
     case ast::UnaryOp::NOT:
         val = std::any_cast<Value *>(visit(*node.rhs));
@@ -468,10 +455,10 @@ std::any SysyBuilder::visit(const UnaryExpr &node) {
             throw std::logic_error{"the type of unaryop shouldn't be bool"};
         if (val->get_type()->is<IntType>())
             val = cur_bb->create_inst<CmpInst>(CmpInst::EQ, val,
-                                               constants.int_const(0));
+                                               ZeroInit(BaseType::INT));
         if (val->get_type()->is<FloatType>())
             val = cur_bb->create_inst<CmpInst>(CmpInst::FEQ, val,
-                                               constants.float_const(0));
+                                               ZeroInit(BaseType::FLOAT));
         break;
     }
     return val;
