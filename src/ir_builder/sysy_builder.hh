@@ -1,5 +1,4 @@
 #include "ast.hh"
-#include "instruction.hh"
 #include "module.hh"
 #include "value.hh"
 #include <memory>
@@ -20,11 +19,12 @@ class Scope {
             throw std::logic_error{"the name of " + name + " has been defined"};
     }
 
-    ir::Value *find(std::string name) {
-        if (_stack.back().find(name) != _stack.back().end())
-            return _stack.back()[name];
-        else
-            return nullptr;
+    ir::Value *find(const std::string &name) {
+        for (int i = _stack.size() - 1; i >= 0; i++) {
+            if (_stack[i].find(name) != _stack[i].end())
+                return _stack[i][name];
+        }
+        throw std::logic_error{name + " hasn't been defined"};
     }
 
     bool is_in_global() { return _stack.size() == 1; }
@@ -37,6 +37,7 @@ class SysyBuilder : public ast::ASTVisitor {
     SysyBuilder() {
         _m = std::unique_ptr<ir::Module>(new ir::Module("Sysy Module"));
     }
+    std::string print() const { return _m->print(); }
 
   private:
     Scope scope;
@@ -66,8 +67,7 @@ class SysyBuilder : public ast::ASTVisitor {
     std::any visit(const ast::LValExpr &node) override final;
     std::any visit(const ast::BinaryExpr &node) override final;
     std::any visit(const ast::UnaryExpr &node) override final;
-    /* raw node should only exisits in raw_ast
-       ast visitor should throw exception on following nodes */
+    /* raw node */
     std::any visit(const ast::RawVarDefStmt &node) override final;
     std::any visit(const ast::RawFunDefGlobal &node) override final;
     std::any visit(const ast::RawVarDefGlobal &node) override final;

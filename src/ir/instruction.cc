@@ -50,11 +50,7 @@ BinaryInst::BinaryInst(BasicBlock *prt, BinOp op, Value *lhs, Value *rhs)
 }
 AllocaInst::AllocaInst(BasicBlock *prt, Type *elem_type)
     : Instruction(prt, Types::get().ptr_type(elem_type), {}) {
-    // FIXME:
-    // For pointer type, is there a need to alloca space for
-    // int*/int**/int***...? We may need a stricter check
-    assert(elem_type->is_basic_type() or is_a<PointerType>(elem_type) or
-           is_a<ArrayType>(elem_type));
+    assert(elem_type->is_basic_type() or is_a<ArrayType>(elem_type));
 }
 
 Type *LoadInst::_deduce_type(Value *ptr) {

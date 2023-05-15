@@ -10,12 +10,16 @@
 #include "value.hh"
 
 #include <any>
+#include <cstddef>
 #include <stdexcept>
 #include <utility>
 #include <vector>
+
 using namespace ast;
 using namespace ir;
+
 using std::vector;
+
 Types &types = Types::get();
 Constants &constants = Constants::get();
 inline Constant *ZeroInit(BaseType type) {
@@ -78,6 +82,7 @@ std::any SysyBuilder::visit(const Root &node) {
     scope.exit();
     return {};
 }
+
 /* global */
 std::any SysyBuilder::visit(const FunDefGlobal &node) {
     scope.enter();
@@ -108,10 +113,12 @@ std::any SysyBuilder::visit(const FunDefGlobal &node) {
     scope.exit();
     return {};
 }
+
 std::any SysyBuilder::visit(const VarDefGlobal &node) {
     visit(*node.vardef_stmt);
     return {};
 }
+
 /* stmt */
 std::any SysyBuilder::visit(const BlockStmt &node) {
     scope.enter();
@@ -120,6 +127,7 @@ std::any SysyBuilder::visit(const BlockStmt &node) {
     scope.exit();
     return {};
 }
+
 std::any SysyBuilder::visit(const IfStmt &node) {
     bool else_exist = node.else_body.has_value();
     // Step1 push true bb and false bb into stack and create next bb
@@ -153,6 +161,7 @@ std::any SysyBuilder::visit(const IfStmt &node) {
     false_bb.pop_back();
     return {};
 }
+
 std::any SysyBuilder::visit(const WhileStmt &node) {
     // Step1 Check whether cur_bb is empty
     BasicBlock *cond_bb = cur_bb;
@@ -183,18 +192,21 @@ std::any SysyBuilder::visit(const WhileStmt &node) {
     next_bb.pop_back();
     return {};
 }
+
 std::any SysyBuilder::visit(const BreakStmt &node) {
     if (next_bb.empty())
         throw std::logic_error{"break must be used in a loop"};
     cur_bb->create_inst<BrInst>(false_bb.back());
     return {};
 }
+
 std::any SysyBuilder::visit(const ContinueStmt &node) {
     if (next_bb.empty())
         throw std::logic_error{"continue must be used in a loop"};
     cur_bb->create_inst<BrInst>(next_bb.back());
     return {};
 }
+
 std::any SysyBuilder::visit(const ReturnStmt &node) {
     Value *ret_val = nullptr;
     if (node.ret_val.has_value())
@@ -205,6 +217,7 @@ std::any SysyBuilder::visit(const ReturnStmt &node) {
         cur_bb->create_inst<RetInst>();
     return {};
 }
+
 std::any SysyBuilder::visit(const AssignStmt &node) {
     Value *val = std::any_cast<Value *>(visit(*node.val));
     Value *var = scope.find(node.var_name);
@@ -226,7 +239,18 @@ std::any SysyBuilder::visit(const AssignStmt &node) {
     cur_bb->create_inst<StoreInst>(val, var);
     return {};
 }
-Value *GetAddr();
+
+void ModifyIdxs(vector<Value *> &idxs, const vector<size_t> &dims, int n) {
+    vector<Value *> stack;
+    for (int i = dims.size() - 1; i >= 0; i--) {
+        stack.push_back(constants.int_const(n % dims[i]));
+        n = n / dims[i];
+    }
+    idxs.push_back(constants.int_const(0));
+    for (int i = stack.size() - 1; i >= 0; i--) {
+        idxs.push_back(stack[i]);
+    }
+}
 std::any SysyBuilder::visit(const VarDefStmt &node) {
     if (node.is_const) {
         vector<Constant *> init_vals;
@@ -249,27 +273,39 @@ std::any SysyBuilder::visit(const VarDefStmt &node) {
             scope.push(node.var_name, inits);
         }
     } else {
-        vector<Value *> init_vals;
+        vector<std::optional<Value *>> init_vals;
         for (auto &init_val : node.init_vals) {
-            if (!init_val.has_value())
-                throw std::logic_error{"advise a zero initialization"};
-            auto init = std::any_cast<Value *>(visit(*init_val.value()));
-            if (!init)
-                throw std::logic_error{"the var fails to initialize"};
-            init_vals.push_back(init);
+            if (init_val.has_value())
+                init_vals.emplace_back(
+                    std::any_cast<Value *>(visit(*init_val.value())));
+            else
+                init_vals.emplace_back();
         }
         auto type = ConvertType(node.type, TypeOf::Variant, node.dims);
         auto var = cur_bb->create_inst<AllocaInst>(type);
         scope.push(node.var_name, var);
-        // TODO:initilize
+
+        vector<int> inn(node.dims.size(), 0);
+        vector<Value *> idxs;
+        for (unsigned i = 0; i < init_vals.size(); i++) {
+            if (init_vals[i].has_value()) {
+                ModifyIdxs(idxs, node.dims, i);
+                auto addr = cur_bb->create_inst<GetElementPtrInst>(
+                    var, std::move(idxs));
+                cur_bb->create_inst<StoreInst>(addr, init_vals[i].value());
+                idxs.clear();
+            }
+        }
     }
     return {};
 }
+
 std::any SysyBuilder::visit(const ExprStmt &node) {
     if (node.expr.has_value())
         visit(*node.expr.value());
     return {};
 }
+
 /* expr */
 std::any SysyBuilder::visit(const CallExpr &node) {
     Function *func = dynamic_cast<Function *>(scope.find(node.fun_name));
@@ -281,6 +317,7 @@ std::any SysyBuilder::visit(const CallExpr &node) {
     }
     return cur_bb->create_inst<CallInst>(func, std::move(args));
 }
+
 std::any SysyBuilder::visit(const LiteralExpr &node) {
     if (node.type == BaseType::INT)
         return dynamic_cast<Value *>(
@@ -291,6 +328,7 @@ std::any SysyBuilder::visit(const LiteralExpr &node) {
     else
         throw std::logic_error{"the type of LiteralExpr is void"};
 }
+
 std::any SysyBuilder::visit(const LValExpr &node) {
     Value *var = scope.find(node.var_name);
     if (!var)
@@ -312,6 +350,7 @@ std::any SysyBuilder::visit(const LValExpr &node) {
     var = cur_bb->create_inst<LoadInst>(var);
     return var;
 }
+
 std::any SysyBuilder::visit(const BinaryExpr &node) {
     // TODO: refactor
     if (node.op == ast::BinOp::OR) {
@@ -346,8 +385,8 @@ std::any SysyBuilder::visit(const BinaryExpr &node) {
     auto rhs = std::any_cast<Value *>(visit(*node.rhs));
     bool to_float = false;
     if (lhs->get_type()->is<FloatType>() or
-        rhs->get_type()->is<FloatType>()) // check whether it's neccessary to
-                                          // convert int to float
+        rhs->get_type()->is<FloatType>()) // check whether it's neccessary
+                                          // to convert int to float
         to_float = true;
     if (lhs->get_type()->is<BoolType>())
         lhs = cur_bb->create_inst<ZextInst>(lhs);
@@ -431,6 +470,7 @@ std::any SysyBuilder::visit(const BinaryExpr &node) {
     }
     return {};
 }
+
 std::any SysyBuilder::visit(const UnaryExpr &node) {
     Value *val;
     switch (node.op) {
@@ -463,6 +503,7 @@ std::any SysyBuilder::visit(const UnaryExpr &node) {
     }
     return val;
 }
+
 std::any visit(const RawVarDefStmt &node) { throw unreachable_error(); }
 std::any visit(const RawFunDefGlobal &node) { throw unreachable_error(); }
 std::any visit(const RawVarDefGlobal &node) { throw unreachable_error(); }
