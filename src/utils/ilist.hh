@@ -204,23 +204,11 @@ template <typename T> class ilist {
     }
 
     // const method
-    const_iterator cbegin() const {
-        assert(_size);
-        return const_iterator{_head->_next};
-    }
-    const_iterator cend() const {
-        assert(_size);
-        return const_iterator{_tail};
-    }
+    const_iterator cbegin() const { return const_iterator{_head->_next}; }
+    const_iterator cend() const { return const_iterator{_tail}; }
 
-    const_iterator begin() const {
-        assert(_size);
-        return cbegin();
-    }
-    const_iterator end() const {
-        assert(_size);
-        return cend();
-    }
+    const_iterator begin() const { return cbegin(); }
+    const_iterator end() const { return cend(); }
 
     const T &front() const {
         assert(_size);
