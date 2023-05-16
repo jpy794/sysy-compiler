@@ -59,6 +59,8 @@ class ASTBuilder : public ASTVisitor {
     PtrList<VarDefStmt> _split_vardef(RawVarDefStmt &raw_vardef,
                                       bool is_global);
 
+    static Ptr<Expr> _zero_literal(BaseType type);
+
   public:
     using ASTVisitor::visit;
     any visit(const Root &node) final;
@@ -263,9 +265,20 @@ template <typename Derived, typename Base> bool is(Base *ptr) {
     return dynamic_cast<Derived *>(ptr) != nullptr;
 }
 
+Ptr<Expr> ASTBuilder::_zero_literal(BaseType type) {
+    auto literal = new LiteralExpr{};
+    literal->type = type;
+    if (type == BaseType::INT) {
+        literal->val = 0;
+    } else if (type == BaseType::FLOAT) {
+        literal->val = 0.0f;
+    } else {
+        throw unreachable_error{};
+    }
+    return Ptr<Expr>(literal);
+}
+
 // FIXME: currently, all {} is initialized to zeros
-// FIXME: we should zero-init vars here so that const_table can get correct
-//        value instead of nullopt
 size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
                                  size_t off, const vector<size_t> &dims,
                                  vector<optional<Ptr<Expr>>> &res,
@@ -278,16 +291,7 @@ size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
     if (init.is_zero_list) {
         // this is a zero init
         for (auto i = 0; i < dim_len; i++) {
-            auto literal = new LiteralExpr{};
-            literal->type = type;
-            if (type == BaseType::INT) {
-                literal->val = 0;
-            } else if (type == BaseType::FLOAT) {
-                literal->val = 0.0f;
-            } else {
-                throw unreachable_error{};
-            }
-            res[dim_idx_begin + i] = Ptr<Expr>{literal};
+            res[dim_idx_begin + i] = _zero_literal(type);
         }
         return dim_idx_begin + dim_len;
     }
@@ -367,11 +371,22 @@ PtrList<VarDefStmt> ASTBuilder::_split_vardef(RawVarDefStmt &raw_vardef,
             len *= i;
         }
         vardef->init_vals.resize(len);
+
+        // all elem of const init should has value
+        bool is_const_init = is_global || vardef->is_const;
         if (entry->init_list.has_value()) {
-            bool is_const_init = is_global || vardef->is_const;
             _pack_initval(*entry->init_list.value(), 0, 0, vardef->dims,
                           vardef->init_vals, vardef->type, is_const_init);
         }
+        if (is_const_init) {
+            // fill the undefined val with zero if it is a const init
+            for (auto &&val : vardef->init_vals) {
+                if (not val.has_value()) {
+                    val = _zero_literal(vardef->type);
+                }
+            }
+        }
+
         if (vardef->is_const) {
             _const_table.insert(vardef->var_name, vardef);
         }

@@ -230,9 +230,14 @@ struct VarDefStmt : Stmt {
     /* all dims should be non-zero
        evaluated when building the AST */
     std::vector<size_t> dims;
-    /* evaluate init_vals for globals and consts
+    /* ast evaluates init_vals for globals and consts
        instead of leaving it to optimization pass later
-       nullopt means undefined init_val for corresponding element */
+
+       zero-init has been handled in ast, the user should throw error on any
+       undefined init value of globals or consts
+
+       nullopt means undefined init_val for corresponding
+       element, which should only occur on local non-const var */
     std::vector<std::optional<Ptr<Expr>>> init_vals;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
