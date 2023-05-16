@@ -66,11 +66,11 @@ Type *ConvertType(BaseType ty, TypeOf callee, const vector<size_t> &dims = {}) {
 void AddBrInst(Value *oper) {
     if (oper != nullptr) {
         if (oper->get_type()->is<IntType>())
-            oper = cur_bb->create_inst<CmpInst>(CmpInst::NE, oper,
-                                                ZeroInit(BaseType::INT));
+            oper = cur_bb->create_inst<ICmpInst>(ICmpInst::NE, oper,
+                                                 ZeroInit(BaseType::INT));
         if (oper->get_type()->is<FloatType>())
-            oper = cur_bb->create_inst<CmpInst>(CmpInst::FNE, oper,
-                                                ZeroInit(BaseType::FLOAT));
+            oper = cur_bb->create_inst<FCmpInst>(FCmpInst::FNE, oper,
+                                                 ZeroInit(BaseType::FLOAT));
         cur_bb->create_inst<BrInst>(oper, true_bb.back(), false_bb.back());
     }
 }
@@ -399,69 +399,76 @@ std::any SysyBuilder::visit(const BinaryExpr &node) {
     switch (node.op) {
     case ast::BinOp::ADD:
         if (to_float)
-            return cur_bb->create_inst<BinaryInst>(BinaryInst::FADD, lhs, rhs);
+            return cur_bb->create_inst<FBinaryInst>(FBinaryInst::FADD, lhs,
+                                                    rhs);
         else
-            return cur_bb->create_inst<BinaryInst>(BinaryInst::ADD, lhs, rhs);
+            return cur_bb->create_inst<IBinaryInst>(IBinaryInst::ADD, lhs, rhs);
         break;
     case ast::BinOp::SUB:
         if (to_float)
-            return cur_bb->create_inst<BinaryInst>(BinaryInst::FSUB, lhs, rhs);
+            return cur_bb->create_inst<FBinaryInst>(FBinaryInst::FSUB, lhs,
+                                                    rhs);
         else
-            return cur_bb->create_inst<BinaryInst>(BinaryInst::SUB, lhs, rhs);
+            return cur_bb->create_inst<IBinaryInst>(IBinaryInst::SUB, lhs, rhs);
         break;
     case ast::BinOp::MUL:
         if (to_float)
-            return cur_bb->create_inst<BinaryInst>(BinaryInst::FMUL, lhs, rhs);
+            return cur_bb->create_inst<FBinaryInst>(FBinaryInst::FMUL, lhs,
+                                                    rhs);
         else
-            return cur_bb->create_inst<BinaryInst>(BinaryInst::MUL, lhs, rhs);
+            return cur_bb->create_inst<IBinaryInst>(IBinaryInst::MUL, lhs, rhs);
         break;
     case ast::BinOp::DIV:
         if (to_float)
-            return cur_bb->create_inst<BinaryInst>(BinaryInst::FDIV, lhs, rhs);
+            return cur_bb->create_inst<FBinaryInst>(FBinaryInst::FDIV, lhs,
+                                                    rhs);
         else
-            return cur_bb->create_inst<BinaryInst>(BinaryInst::SDIV, lhs, rhs);
+            return cur_bb->create_inst<IBinaryInst>(IBinaryInst::SDIV, lhs,
+                                                    rhs);
         break;
     case ast::BinOp::MOD:
         if (to_float)
-            return cur_bb->create_inst<BinaryInst>(BinaryInst::FREM, lhs, rhs);
+            return cur_bb->create_inst<FBinaryInst>(FBinaryInst::FREM, lhs,
+                                                    rhs);
         else
-            return cur_bb->create_inst<BinaryInst>(BinaryInst::SREM, lhs, rhs);
+            return cur_bb->create_inst<IBinaryInst>(IBinaryInst::SREM, lhs,
+                                                    rhs);
         break;
     case ast::BinOp::LT:
         if (to_float)
-            return cur_bb->create_inst<CmpInst>(CmpInst::FLT, lhs, rhs);
+            return cur_bb->create_inst<FCmpInst>(FCmpInst::FLT, lhs, rhs);
         else
-            return cur_bb->create_inst<CmpInst>(CmpInst::LT, lhs, rhs);
+            return cur_bb->create_inst<ICmpInst>(ICmpInst::LT, lhs, rhs);
         break;
     case ast::BinOp::GT:
         if (to_float)
-            return cur_bb->create_inst<CmpInst>(CmpInst::FGT, lhs, rhs);
+            return cur_bb->create_inst<FCmpInst>(FCmpInst::FGT, lhs, rhs);
         else
-            return cur_bb->create_inst<CmpInst>(CmpInst::GT, lhs, rhs);
+            return cur_bb->create_inst<ICmpInst>(ICmpInst::GT, lhs, rhs);
         break;
     case ast::BinOp::LE:
         if (to_float)
-            return cur_bb->create_inst<CmpInst>(CmpInst::FLE, lhs, rhs);
+            return cur_bb->create_inst<FCmpInst>(FCmpInst::FLE, lhs, rhs);
         else
-            return cur_bb->create_inst<CmpInst>(CmpInst::LE, lhs, rhs);
+            return cur_bb->create_inst<ICmpInst>(ICmpInst::LE, lhs, rhs);
         break;
     case ast::BinOp::GE:
         if (to_float)
-            return cur_bb->create_inst<CmpInst>(CmpInst::FGE, lhs, rhs);
+            return cur_bb->create_inst<FCmpInst>(FCmpInst::FGE, lhs, rhs);
         else
-            return cur_bb->create_inst<CmpInst>(CmpInst::GE, lhs, rhs);
+            return cur_bb->create_inst<ICmpInst>(ICmpInst::GE, lhs, rhs);
         break;
     case ast::BinOp::EQ:
         if (to_float)
-            return cur_bb->create_inst<CmpInst>(CmpInst::FEQ, lhs, rhs);
+            return cur_bb->create_inst<FCmpInst>(FCmpInst::FEQ, lhs, rhs);
         else
-            return cur_bb->create_inst<CmpInst>(CmpInst::EQ, lhs, rhs);
+            return cur_bb->create_inst<ICmpInst>(ICmpInst::EQ, lhs, rhs);
         break;
     case ast::BinOp::NE:
         if (to_float)
-            return cur_bb->create_inst<CmpInst>(CmpInst::FNE, lhs, rhs);
+            return cur_bb->create_inst<FCmpInst>(FCmpInst::FNE, lhs, rhs);
         else
-            return cur_bb->create_inst<CmpInst>(CmpInst::NE, lhs, rhs);
+            return cur_bb->create_inst<ICmpInst>(ICmpInst::NE, lhs, rhs);
         break;
     case ast::BinOp::AND:
         break;
@@ -483,22 +490,22 @@ std::any SysyBuilder::visit(const UnaryExpr &node) {
         if (val->get_type()->is<BoolType>())
             throw std::logic_error{"the type of unaryop shouldn't be bool"};
         if (val->get_type()->is<IntType>())
-            val = cur_bb->create_inst<BinaryInst>(BinaryInst::SUB,
-                                                  ZeroInit(BaseType::INT), val);
+            val = cur_bb->create_inst<IBinaryInst>(
+                IBinaryInst::SUB, ZeroInit(BaseType::INT), val);
         if (val->get_type()->is<FloatType>())
-            val = cur_bb->create_inst<BinaryInst>(
-                BinaryInst::FSUB, ZeroInit(BaseType::FLOAT), val);
+            val = cur_bb->create_inst<FBinaryInst>(
+                FBinaryInst::FSUB, ZeroInit(BaseType::FLOAT), val);
         break;
     case ast::UnaryOp::NOT:
         val = std::any_cast<Value *>(visit(*node.rhs));
         if (val->get_type()->is<BoolType>())
             throw std::logic_error{"the type of unaryop shouldn't be bool"};
         if (val->get_type()->is<IntType>())
-            val = cur_bb->create_inst<CmpInst>(CmpInst::EQ, val,
-                                               ZeroInit(BaseType::INT));
+            val = cur_bb->create_inst<ICmpInst>(ICmpInst::EQ, val,
+                                                ZeroInit(BaseType::INT));
         if (val->get_type()->is<FloatType>())
-            val = cur_bb->create_inst<CmpInst>(CmpInst::FEQ, val,
-                                               ZeroInit(BaseType::FLOAT));
+            val = cur_bb->create_inst<FCmpInst>(FCmpInst::FEQ, val,
+                                                ZeroInit(BaseType::FLOAT));
         break;
     }
     return val;
