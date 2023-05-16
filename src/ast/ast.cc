@@ -304,7 +304,17 @@ size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
             }
             auto new_expr = new LiteralExpr{};
             new_expr->type = type;
-            new_expr->val = literal.val;
+
+            // cast the type of const initval to decl type of lval
+            auto cast2int = [&](auto &&v) { return static_cast<int>(v); };
+            auto cast2float = [&](auto &&v) { return static_cast<float>(v); };
+            if (type == BaseType::INT) {
+                new_expr->val = std::visit(cast2int, literal.val);
+            } else if (type == BaseType::FLOAT) {
+                new_expr->val = std::visit(cast2float, literal.val);
+            } else {
+                throw unreachable_error{};
+            }
 
             res[dim_idx_begin] = Ptr<Expr>{new_expr};
         } else {
