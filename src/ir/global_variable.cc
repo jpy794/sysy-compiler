@@ -11,7 +11,7 @@ GlobalVariable::GlobalVariable(Type *type, Constant *init, std::string &&name)
 std::string GlobalVariable::print() const {
     std::string init_ir;
     if (_init)
-        init_ir = " " + _init->print();
+        init_ir = " " + _init->get_name();
     else
         init_ir = "";
     return get_name() + " = global " +
