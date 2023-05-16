@@ -37,17 +37,18 @@ BrInst::BrInst(BasicBlock *prt, Value *cond, BasicBlock *TBB, BasicBlock *FBB)
     assert(is_a<BoolType>(cond->get_type()));
 }
 
-BinaryInst::BinaryInst(BasicBlock *prt, BinOp op, Value *lhs, Value *rhs)
-    : Instruction(prt, lhs->get_type(), {lhs, rhs}), _op(op) {
-    assert(lhs->get_type() == rhs->get_type());
-    if (contains(_int_op, op))
-        assert(is_a<IntType>(lhs->get_type()));
-    else if (contains(_float_op, op)) {
-        assert(is_a<FloatType>(lhs->get_type()));
-    } else {
-        throw unreachable_error{"binop"};
-    }
+IBinaryInst::IBinaryInst(BasicBlock *prt, IBinOp op, Value *lhs, Value *rhs)
+    : Instruction(prt, Types::get().int_type(), {lhs, rhs}), _op(op) {
+    assert(is_a<IntType>(lhs->get_type()));
+    assert(is_a<IntType>(rhs->get_type()));
 }
+
+FBinaryInst::FBinaryInst(BasicBlock *prt, FBinOp op, Value *lhs, Value *rhs)
+    : Instruction(prt, Types::get().float_type(), {lhs, rhs}), _op(op) {
+    assert(is_a<FloatType>(lhs->get_type()));
+    assert(is_a<FloatType>(rhs->get_type()));
+}
+
 AllocaInst::AllocaInst(BasicBlock *prt, Type *elem_type)
     : Instruction(prt, Types::get().ptr_type(elem_type), {}) {
     assert(elem_type->is_basic_type() or is_a<ArrayType>(elem_type));
@@ -70,15 +71,16 @@ StoreInst::StoreInst(BasicBlock *prt, Value *v, Value *ptr)
            as_a<PointerType>(ptr->get_type())->get_elem_type());
 }
 
-CmpInst::CmpInst(BasicBlock *prt, CmpOp cmp_op, Value *lhs, Value *rhs)
+ICmpInst::ICmpInst(BasicBlock *prt, ICmpOp cmp_op, Value *lhs, Value *rhs)
     : Instruction(prt, Types::get().bool_type(), {lhs, rhs}), _cmp_op(cmp_op) {
-    assert(lhs->get_type() == rhs->get_type());
-    if (contains(_int_op, cmp_op))
-        assert(is_a<IntType>(lhs->get_type()));
-    else if (contains(_float_op, cmp_op))
-        assert(is_a<FloatType>(lhs->get_type()));
-    else
-        throw unreachable_error{"cmp_op"};
+    assert(is_a<IntType>(lhs->get_type()));
+    assert(is_a<IntType>(rhs->get_type()));
+}
+
+FCmpInst::FCmpInst(BasicBlock *prt, FCmpOp cmp_op, Value *lhs, Value *rhs)
+    : Instruction(prt, Types::get().bool_type(), {lhs, rhs}), _cmp_op(cmp_op) {
+    assert(is_a<FloatType>(lhs->get_type()));
+    assert(is_a<FloatType>(rhs->get_type()));
 }
 
 vector<Value *> PhiInst::_get_op(const vector<Value *> &values) {
@@ -179,7 +181,7 @@ string BrInst::print() const {
                this->operands()[2]->get_name();
 }
 
-string BinaryInst::print() const {
+string IBinaryInst::print() const {
     string OpName;
     switch (_op) {
     case ADD:
@@ -197,6 +199,16 @@ string BinaryInst::print() const {
     case SREM:
         OpName = "srem";
         break;
+    default:
+        throw unreachable_error{};
+    }
+    return get_name() + " = " + OpName + " " + get_type()->print() + " " +
+           operands()[0]->get_name() + ", " + operands()[1]->get_name();
+}
+
+string FBinaryInst::print() const {
+    string OpName;
+    switch (_op) {
     case FADD:
         OpName = "fadd";
         break;
@@ -213,8 +225,7 @@ string BinaryInst::print() const {
         OpName = "frem";
         break;
     default:
-        throw logic_error{"The op of BinaryInst is wrong!"};
-        break;
+        throw unreachable_error{};
     }
     return get_name() + " = " + OpName + " " + get_type()->print() + " " +
            operands()[0]->get_name() + ", " + operands()[1]->get_name();
@@ -236,63 +247,63 @@ string StoreInst::print() const {
            operands()[1]->get_type()->print() + " " + operands()[1]->get_name();
 }
 
-string CmpInst::print() const {
+string ICmpInst::print() const {
     string CmpName;
-    string cmp;
     switch (_cmp_op) {
     case EQ:
         CmpName = "eq";
-        cmp = "icmp";
         break;
     case NE:
         CmpName = "ne";
-        cmp = "icmp";
         break;
     case GT:
         CmpName = "sgt";
-        cmp = "icmp";
         break;
     case GE:
         CmpName = "sge";
-        cmp = "icmp";
         break;
     case LT:
         CmpName = "slt";
-        cmp = "icmp";
         break;
     case LE:
         CmpName = "sle";
-        cmp = "icmp";
         break;
+    default:
+        throw unreachable_error{};
+    }
+
+    return this->get_name() + " = icmp " + CmpName + " " +
+           this->operands()[0]->get_type()->print() + " " +
+           this->operands()[0]->get_name() + ", " +
+           this->operands()[1]->get_name();
+}
+
+string FCmpInst::print() const {
+    string CmpName;
+    switch (_cmp_op) {
     case FEQ:
         CmpName = "oeq";
-        cmp = "fcmp";
         break;
     case FNE:
         CmpName = "oge";
-        cmp = "fcmp";
         break;
     case FGT:
         CmpName = "ogt";
-        cmp = "fcmp";
         break;
     case FGE:
         CmpName = "oge";
-        cmp = "fcmp";
         break;
     case FLT:
         CmpName = "olt";
-        cmp = "fcmp";
         break;
     case FLE:
         CmpName = "ole";
-        cmp = "fcmp";
         break;
     default:
         break;
     }
 
-    return this->get_name() + " = " + cmp + " " + CmpName + " " +
+    return this->get_name() + " = fcmp " + CmpName + " " +
            this->operands()[0]->get_type()->print() + " " +
            this->operands()[0]->get_name() + ", " +
            this->operands()[1]->get_name();

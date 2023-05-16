@@ -60,20 +60,28 @@ class BrInst : public Instruction {
     std::string print() const final;
 };
 
-// FIXME: split this inst into fbinary and binary
-class BinaryInst : public Instruction {
+class IBinaryInst : public Instruction {
   public:
-    enum BinOp { ADD = 0, SUB, MUL, SDIV, SREM, FADD, FSUB, FMUL, FDIV, FREM };
+    enum IBinOp { ADD = 0, SUB, MUL, SDIV, SREM };
 
-    BinaryInst(BasicBlock *prt, BinOp op, Value *lhs, Value *rhs);
+    IBinaryInst(BasicBlock *prt, IBinOp op, Value *lhs, Value *rhs);
 
     std::string print() const final;
 
   private:
-    BinOp _op;
-    static constexpr std::array<BinOp, 5> _int_op = {ADD, SUB, MUL, SDIV, SREM};
-    static constexpr std::array<BinOp, 5> _float_op = {FADD, FSUB, FMUL, FDIV,
-                                                       FREM};
+    IBinOp _op;
+};
+
+class FBinaryInst : public Instruction {
+  public:
+    enum FBinOp { FADD, FSUB, FMUL, FDIV, FREM };
+
+    FBinaryInst(BasicBlock *prt, FBinOp op, Value *lhs, Value *rhs);
+
+    std::string print() const final;
+
+  private:
+    FBinOp _op;
 };
 
 class AllocaInst : public Instruction {
@@ -97,18 +105,24 @@ class StoreInst : public Instruction {
     std::string print() const final;
 };
 
-// FIXME: split this inst into fcmp and cmp
-class CmpInst : public Instruction {
+class ICmpInst : public Instruction {
   public:
-    enum CmpOp { EQ, NE, GT, GE, LT, LE, FEQ, FNE, FGT, FGE, FLT, FLE };
-    CmpInst(BasicBlock *prt, CmpOp cmp_op, Value *lhs, Value *rhs);
+    enum ICmpOp { EQ, NE, GT, GE, LT, LE };
+    ICmpInst(BasicBlock *prt, ICmpOp cmp_op, Value *lhs, Value *rhs);
     std::string print() const final;
 
   private:
-    CmpOp _cmp_op;
-    static constexpr std::array<CmpOp, 6> _int_op = {EQ, NE, GT, GE, LT, LE};
-    static constexpr std::array<CmpOp, 6> _float_op = {FEQ, FNE, FGT,
-                                                       FGE, FLT, FLE};
+    ICmpOp _cmp_op;
+};
+
+class FCmpInst : public Instruction {
+  public:
+    enum FCmpOp { FEQ, FNE, FGT, FGE, FLT, FLE };
+    FCmpInst(BasicBlock *prt, FCmpOp cmp_op, Value *lhs, Value *rhs);
+    std::string print() const final;
+
+  private:
+    FCmpOp _cmp_op;
 };
 
 class PhiInst : public Instruction {

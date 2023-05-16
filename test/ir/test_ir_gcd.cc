@@ -18,8 +18,10 @@ using namespace std;
 Constant *CONST_INT(int x) { return Constants::get().int_const(x); }
 Constant *CONST_FlOAT(int x) { return Constants::get().float_const(x); }
 
-using CmpOp = CmpInst::CmpOp;
-using BinOp = BinaryInst::BinOp;
+using ICmpOp = ICmpInst::ICmpOp;
+using FCmpOp = FCmpInst::FCmpOp;
+using IBinOp = IBinaryInst::IBinOp;
+using FBinOp = FBinaryInst::FBinOp;
 
 int main() {
     auto mod = new Module("test ir");
@@ -56,7 +58,7 @@ int main() {
     auto u = gcdFun->get_args()[0];
     auto v = gcdFun->get_args()[1];
 
-    auto icmp = bb->create_inst<CmpInst>(CmpOp::EQ, v, CONST_INT(0));
+    auto icmp = bb->create_inst<ICmpInst>(ICmpOp::EQ, v, CONST_INT(0));
     auto TBB = gcdFun->create_bb();
     auto FBB = gcdFun->create_bb();
     auto retBB = gcdFun->create_bb();
@@ -68,9 +70,9 @@ int main() {
     TBB->create_inst<BrInst>(retBB);
 
     // if false
-    auto div = FBB->create_inst<BinaryInst>(BinOp::SDIV, u, v);
-    auto mul = FBB->create_inst<BinaryInst>(BinOp::MUL, div, v);
-    auto sub = FBB->create_inst<BinaryInst>(BinOp::SUB, u, mul);
+    auto div = FBB->create_inst<IBinaryInst>(IBinOp::SDIV, u, v);
+    auto mul = FBB->create_inst<IBinaryInst>(IBinOp::MUL, div, v);
+    auto sub = FBB->create_inst<IBinaryInst>(IBinOp::SUB, u, mul);
     auto call = FBB->create_inst<CallInst>(gcdFun, v, sub);
 
     FBB->create_inst<StoreInst>(call, retAlloca);
@@ -101,7 +103,7 @@ int main() {
 
     auto aLoad = entry->create_inst<LoadInst>(aAlloca);
     auto bLoad = entry->create_inst<LoadInst>(bAlloca);
-    icmp = entry->create_inst<CmpInst>(CmpOp::LT, aLoad, bLoad);
+    icmp = entry->create_inst<ICmpInst>(ICmpOp::LT, aLoad, bLoad);
     TBB = funArrayFun->create_bb();
     retBB = funArrayFun->create_bb();
     entry->create_inst<BrInst>(icmp, TBB, retBB);
