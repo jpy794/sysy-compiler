@@ -7,7 +7,4 @@ add_executable(sysyc main.cc)
 
 target_link_libraries(
     sysyc
-    ast
-    ir
-    builder
 )

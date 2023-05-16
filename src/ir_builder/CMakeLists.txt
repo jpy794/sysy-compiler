@@ -1,15 +1,17 @@
-add_library(builder
-    sysy_builder.cc
+add_library(
+    ir_builder
+    ir_builder.cc
+    ir_builder.hh
 )
 
-target_include_directories(builder
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
+target_include_directories(
+    ir_builder
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-target_link_libraries(builder
-    PRIVATE
-        ast
-        ir
-        utils
+target_link_libraries(
+    ir_builder
+    PRIVATE ast
+    PRIVATE ir
+    PRIVATE utils
 )
