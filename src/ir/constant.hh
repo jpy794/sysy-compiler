@@ -15,7 +15,7 @@ class Constant : public Value {
   public:
     Constant(Type *type, std::string &&name) : Value(type, std::move(name)){};
     virtual ~Constant() = default;
-    std::string print() const final { return this->get_name(); }
+    std::string print() const final { throw unreachable_error{}; }
 
     template <typename Derived> bool is() { return ::is_a<Derived>(this); }
     template <typename Derived> Derived *as() { return ::as_a<Derived>(this); }
