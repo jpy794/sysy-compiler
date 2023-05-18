@@ -327,10 +327,11 @@ string CallInst::print() const {
     head +=
         operands()[0]->get_type()->as<FuncType>()->get_result_type()->print() +
         " " + operands()[0]->get_name();
-    for (unsigned i = 1; i < operands().size(); i++)
+    for (unsigned i = 1; i < operands().size(); i++) {
         args += operands()[i]->get_type()->print() + " " +
                 operands()[i]->get_name() + ", ";
-    args.erase(args.length() - 2, 2);
+        args.erase(args.length() - 2, 2);
+    }
     return head + " (" + args + ")";
 }
 
