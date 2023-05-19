@@ -1,4 +1,5 @@
 #include "ir_builder.hh"
+#include "ast.hh"
 #include "basic_block.hh"
 #include "constant.hh"
 #include "err.hh"
@@ -50,13 +51,53 @@ class IRBuilderImpl : public ast::ASTVisitor {
   public:
     IRBuilderImpl() {
         _m = unique_ptr<ir::Module>(new ir::Module("Sysy Module"));
+        // add putint,getint func in test examples which isn't defined
+        // this is only used in testing
+        // begin
         scope.enter();
-        scope.push("putint",
+        auto int_type = Types::get().int_type();
+        auto float_type = Types::get().float_type();
+        auto void_type = Types::get().void_type();
+        scope.push("putint", _m->create_func(
+                                 Types::get().func_type(void_type, {int_type}),
+                                 "putint"));
+        scope.push(
+            "getint",
+            _m->create_func(Types::get().func_type(int_type, {}), "getint"));
+        scope.push("putch",
                    _m->create_func(
-                       Types::get().func_type( // add putint func in test
-                                               // examples which isn't defined
-                           Types::get().void_type(), {Types::get().int_type()}),
-                       "putint"));
+                       Types::get().func_type(void_type, {int_type}), "putch"));
+        scope.push("getch", _m->create_func(
+                                Types::get().func_type(int_type, {}), "getch"));
+        scope.push(
+            "getarray",
+            _m->create_func(Types::get().func_type(
+                                int_type, {Types::get().ptr_type(int_type)}),
+                            "getarray"));
+        scope.push(
+            "putarray",
+            _m->create_func(
+                Types::get().func_type(
+                    void_type, {int_type, Types::get().ptr_type(int_type)}),
+                "putarray"));
+        scope.push("putfloat", _m->create_func(Types::get().func_type(
+                                                   void_type, {float_type}),
+                                               "putfloat"));
+        scope.push("getfloat",
+                   _m->create_func(Types::get().func_type(float_type, {}),
+                                   "getfloat"));
+        scope.push("getfarray",
+                   _m->create_func(
+                       Types::get().func_type(
+                           float_type, {Types::get().ptr_type(float_type)}),
+                       "getfarray"));
+        scope.push(
+            "putfarray",
+            _m->create_func(
+                Types::get().func_type(
+                    void_type, {float_type, Types::get().ptr_type(float_type)}),
+                "putfarray"));
+        // end
     }
 
     unique_ptr<ir::Module> release_module() { return std::move(_m); }
@@ -125,13 +166,13 @@ vector<BasicBlock *> false_bb; // and or while if use
 vector<BasicBlock *> next_bb;  // only while use
 
 enum class TypeOf { Func, Param, Variant };
-Type *ConvertType(BaseType ty, TypeOf callee, const vector<size_t> &dims = {}) {
+Type *AstTy2IRTy(BaseType ty, TypeOf target, const vector<size_t> &dims = {}) {
     Type *base_type;
     if (ty == BaseType::INT)
         base_type = types.int_type();
     else if (ty == BaseType::FLOAT)
         base_type = types.float_type();
-    else if (ty == BaseType::VOID && callee == TypeOf::Func)
+    else if (ty == BaseType::VOID && target == TypeOf::Func)
         base_type = types.void_type();
     else if (ty == BaseType::VOID)
         throw logic_error{"only function can use void type"};
@@ -141,12 +182,37 @@ Type *ConvertType(BaseType ty, TypeOf callee, const vector<size_t> &dims = {}) {
     Type *elem_type = base_type;
     for (int i = dims.size() - 1; i > 0; i--)
         elem_type = types.array_type(elem_type, dims[i]);
-    if (callee == TypeOf::Param and not dims.empty())
+    if (target == TypeOf::Param and not dims.empty())
         return types.ptr_type(elem_type);
     else if (not dims.empty())
         return types.array_type(elem_type, dims[0]);
     else
         return elem_type;
+}
+
+void TypeConvert(Value *&val, Type *target) {
+    if (target->is<IntType>()) {
+        if (val->get_type()->is<BoolType>())
+            val = cur_bb->create_inst<ZextInst>(val);
+        if (val->get_type()->is<FloatType>())
+            val = cur_bb->create_inst<Fp2siInst>(val);
+    } else if (target->is<FloatType>()) {
+        if (val->get_type()->is<BoolType>())
+            val = cur_bb->create_inst<ZextInst>(val);
+        if (val->get_type()->is<IntType>())
+            val = cur_bb->create_inst<Si2fpInst>(val);
+    } else if (target->is<BoolType>()) {
+        if (val->get_type()->is<IntType>())
+            val = cur_bb->create_inst<ICmpInst>(ICmpInst::NE, val,
+                                                constants.int_const(0));
+        if (val->get_type()->is<FloatType>())
+            val = cur_bb->create_inst<FCmpInst>(FCmpInst::FNE, val,
+                                                constants.float_const(0));
+    } else if (target->is<VoidType>()) {
+        throw logic_error{"val can't be converted to void"};
+    } else {
+        return;
+    }
 }
 
 void AddBrInst(Value *oper) {
@@ -171,11 +237,11 @@ any IRBuilderImpl::visit(const Root &node) {
 /* global */
 any IRBuilderImpl::visit(const FunDefGlobal &node) {
     // create function
-    Type *ret_type = ConvertType(node.ret_type, TypeOf::Func);
+    Type *ret_type = AstTy2IRTy(node.ret_type, TypeOf::Func);
     vector<Type *> param_types;
     for (const auto &param : node.params) {
         param_types.push_back(
-            ConvertType(param.type, TypeOf::Param, param.dims));
+            AstTy2IRTy(param.type, TypeOf::Param, param.dims));
     }
     FuncType *func_type = types.func_type(ret_type, std::move(param_types));
     auto name = node.fun_name;
@@ -239,8 +305,7 @@ std::any IRBuilderImpl::visit(const VarDefGlobal &node) {
                 init_vals.emplace_back(ZeroInit(suc_node->type));
             }
         }
-        auto type =
-            ConvertType(suc_node->type, TypeOf::Variant, suc_node->dims);
+        auto type = AstTy2IRTy(suc_node->type, TypeOf::Variant, suc_node->dims);
         Value *var;
         string name = suc_node->var_name;
         if (suc_node->dims.empty()) {
@@ -344,13 +409,15 @@ any IRBuilderImpl::visit(const ContinueStmt &node) {
 }
 
 any IRBuilderImpl::visit(const ReturnStmt &node) {
-    Value *ret_val = nullptr;
-    if (node.ret_val.has_value())
-        ret_val = any_cast<Value *>(visit(*node.ret_val.value()));
-    if (ret_val)
+    if (node.ret_val.has_value()) {
+        auto ret_val = any_cast<Value *>(visit(*node.ret_val.value()));
+        Type *ret_type =
+            cur_func->get_type()->as<FuncType>()->get_result_type();
+        TypeConvert(ret_val, ret_type);
         cur_bb->create_inst<RetInst>(ret_val);
-    else
+    } else {
         cur_bb->create_inst<RetInst>();
+    }
     return {};
 }
 
@@ -358,9 +425,9 @@ any IRBuilderImpl::visit(const AssignStmt &node) {
     Value *val = any_cast<Value *>(visit(*node.val));
     Value *addr = scope.find(node.var_name);
     if (!addr)
-        throw std::logic_error{node.var_name + " hasn't been defined"};
+        throw logic_error{node.var_name + " hasn't been defined"};
     if (addr->is<Constant>())
-        throw std::logic_error{"const variable can't be assigned a value"};
+        throw logic_error{"const variable can't be assigned a value"};
     if (!node.idxs.empty()) {
         vector<Value *> index;
         if (!is_a<Argument>(addr)) // add 0 in front of the index
@@ -374,6 +441,7 @@ any IRBuilderImpl::visit(const AssignStmt &node) {
             index.push_back(ZeroInit(BaseType::INT));
         addr = cur_bb->create_inst<GetElementPtrInst>(addr, std::move(index));
     }
+    TypeConvert(val, addr->get_type()->as<PointerType>()->get_elem_type());
     cur_bb->create_inst<StoreInst>(val, addr);
     return {};
 }
@@ -411,14 +479,17 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
             else
                 init_vals.emplace_back();
         }
-        auto type = ConvertType(node.type, TypeOf::Variant, node.dims);
+        auto type = AstTy2IRTy(node.type, TypeOf::Variant, node.dims);
         auto var = cur_bb->create_inst<AllocaInst>(type);
         scope.push(node.var_name, var);
 
         vector<int> inn(node.dims.size(), 0);
         if (node.dims.empty()) {
             if (init_vals[0].has_value()) {
-                cur_bb->create_inst<StoreInst>(init_vals[0].value(), var);
+                auto val = init_vals[0].value();
+                TypeConvert(
+                    val, var->get_type()->as<PointerType>()->get_elem_type());
+                cur_bb->create_inst<StoreInst>(val, var);
             }
         } else {
             for (unsigned i = 0; i < init_vals.size(); i++) {
@@ -426,8 +497,11 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
                     auto idxs = unflatten_idx(node.dims, i);
                     auto addr = cur_bb->create_inst<GetElementPtrInst>(
                         var, std::move(idxs));
-                    cur_bb->create_inst<StoreInst>(init_vals[i].value(), addr);
-                    idxs.clear();
+                    auto val = init_vals[i].value();
+                    TypeConvert(
+                        val,
+                        addr->get_type()->as<PointerType>()->get_elem_type());
+                    cur_bb->create_inst<StoreInst>(val, addr);
                 }
             }
         }
@@ -447,11 +521,14 @@ any IRBuilderImpl::visit(const CallExpr &node) {
     if (!func->is<Function>())
         throw logic_error{node.fun_name + " is not a function name"};
     vector<Value *> args;
+    auto func_type = func->as<Function>()->get_type()->as<FuncType>();
     for (auto &arg : node.args) {
-        args.push_back(any_cast<Value *>(visit(*arg)));
+        auto param = any_cast<Value *>(visit(*arg));
+        TypeConvert(param, func_type->get_param_type(args.size()));
+        args.push_back(param);
     }
-    return dynamic_cast<Value *>(
-        cur_bb->create_inst<CallInst>(func->as<Function>(), std::move(args)));
+    return cur_bb->create_inst<CallInst>(func->as<Function>(), std::move(args))
+        ->as<Value>();
 }
 
 any IRBuilderImpl::visit(const LiteralExpr &node) {
@@ -464,27 +541,32 @@ any IRBuilderImpl::visit(const LiteralExpr &node) {
         throw logic_error{"the type of LiteralExpr is void"};
 }
 
-any IRBuilderImpl::visit(const LValExpr &node) {
+any IRBuilderImpl::visit(const LValExpr &node) { // return the value of the var
     Value *var = scope.find(node.var_name);
     if (!var)
-        throw std::logic_error{node.var_name + " isn't defined"};
-    if (!var->get_type()->is<PointerType>())
+        throw logic_error{node.var_name + " isn't defined"};
+    if (!var->get_type()->is<PointerType>()) {
         return var;
-    if (!node.idxs.empty()) { // TODO: refactor
-        vector<Value *> index;
-        if (!is_a<Argument>(var)) // add 0 in front of the index
-            index.push_back(ZeroInit(BaseType::INT));
-        for (auto &idxs : node.idxs)
-            index.push_back(any_cast<Value *>(visit(*idxs)));
-        auto elem_type = var->get_type()->as<PointerType>()->get_elem_type();
-        if (!elem_type->is_basic_type() and
-            elem_type->as<ArrayType>()->get_dims() >=
-                index.size()) // add 0 in the back of the index
-            index.push_back(ZeroInit(BaseType::INT));
-        var = dynamic_cast<Value *>(
-            cur_bb->create_inst<GetElementPtrInst>(var, std::move(index)));
+    } // const store it's init value into scope
+    vector<Value *> index;
+    if (!is_a<Argument>(var)) { // add 0 in front of the index
+        index.push_back(ZeroInit(BaseType::INT));
     }
-    var = cur_bb->create_inst<LoadInst>(var);
+    for (auto &idxs : node.idxs) {
+        index.push_back(any_cast<Value *>(visit(*idxs)));
+    }
+    auto elem_type = var->get_type()->as<PointerType>()->get_elem_type();
+    if (!elem_type->is_basic_type() and
+        elem_type->as<ArrayType>()->get_dims() >=
+            index.size()) { // the value of the var is an address
+        index.push_back(ZeroInit(BaseType::INT));
+        var = cur_bb->create_inst<GetElementPtrInst>(var, std::move(index))
+                  ->as<Value>();
+    } else {
+        var = cur_bb->create_inst<GetElementPtrInst>(var, std::move(index))
+                  ->as<Value>();
+        var = cur_bb->create_inst<LoadInst>(var);
+    }
     return var;
 }
 
@@ -493,13 +575,15 @@ any IRBuilderImpl::visit(const BinaryExpr &node) {
     if (node.op == ast::BinOp::OR) {
         // Step1 push false bb
         false_bb.push_back(cur_func->create_bb());
-        auto lhs = any_cast<Value *>(visit(*node.lhs));
-        AddBrInst(lhs);
+        auto lhs = visit(*node.lhs);
+        if (lhs.has_value())
+            AddBrInst(any_cast<Value *>(lhs));
         cur_bb = false_bb.back();
         // Step2 pop false bb
         false_bb.pop_back();
-        auto rhs = any_cast<Value *>(visit(*node.rhs));
-        AddBrInst(rhs);
+        auto rhs = visit(*node.rhs);
+        if (rhs.has_value())
+            AddBrInst(any_cast<Value *>(rhs));
         // Step3 set insert point to true bb
         cur_bb = true_bb.back();
         return {};
@@ -507,13 +591,15 @@ any IRBuilderImpl::visit(const BinaryExpr &node) {
     if (node.op == ast::BinOp::AND) {
         // Step1 push true bb
         true_bb.push_back(cur_func->create_bb());
-        auto lhs = any_cast<Value *>(visit(*node.lhs));
-        AddBrInst(lhs);
-        cur_bb = false_bb.back();
+        auto lhs = visit(*node.lhs);
+        if (lhs.has_value())
+            AddBrInst(any_cast<Value *>(lhs));
+        cur_bb = true_bb.back();
         // Step2 pop true bb
-        false_bb.pop_back();
-        auto rhs = any_cast<Value *>(visit(*node.rhs));
-        AddBrInst(rhs);
+        true_bb.pop_back();
+        auto rhs = visit(*node.rhs);
+        if (rhs.has_value())
+            AddBrInst(any_cast<Value *>(rhs));
         // Step3 set insert point to true bb
         cur_bb = true_bb.back();
         return {};
@@ -525,14 +611,13 @@ any IRBuilderImpl::visit(const BinaryExpr &node) {
         rhs->get_type()->is<FloatType>()) // check whether it's neccessary
                                           // to convert int to float
         to_float = true;
-    if (lhs->get_type()->is<BoolType>())
-        lhs = cur_bb->create_inst<ZextInst>(lhs);
-    if (lhs->get_type()->is<IntType>() && to_float)
-        lhs = cur_bb->create_inst<Si2fpInst>(lhs);
-    if (rhs->get_type()->is<BoolType>())
-        rhs = cur_bb->create_inst<ZextInst>(rhs);
-    if (rhs->get_type()->is<IntType>() && to_float)
-        rhs = cur_bb->create_inst<Si2fpInst>(rhs);
+    if (to_float) {
+        TypeConvert(lhs, types.float_type());
+        TypeConvert(rhs, types.float_type());
+    } else {
+        TypeConvert(lhs, types.int_type());
+        TypeConvert(rhs, types.int_type());
+    }
     Value *expr_val;
     switch (node.op) {
     case ast::BinOp::ADD:
@@ -629,24 +714,26 @@ any IRBuilderImpl::visit(const UnaryExpr &node) {
     case ast::UnaryOp::MINUS:
         val = any_cast<Value *>(visit(*node.rhs));
         if (val->get_type()->is<BoolType>())
-            throw logic_error{"the type of unaryop shouldn't be bool"};
+            val = cur_bb->create_inst<ZextInst>(val);
         if (val->get_type()->is<IntType>())
             val = cur_bb->create_inst<IBinaryInst>(
                 IBinaryInst::SUB, ZeroInit(BaseType::INT), val);
         if (val->get_type()->is<FloatType>())
             val = cur_bb->create_inst<FBinaryInst>(
                 FBinaryInst::FSUB, ZeroInit(BaseType::FLOAT), val);
+
         break;
     case ast::UnaryOp::NOT:
         val = any_cast<Value *>(visit(*node.rhs));
-        if (val->get_type()->is<BoolType>())
-            throw logic_error{"the type of unaryop shouldn't be bool"};
         if (val->get_type()->is<IntType>())
             val = cur_bb->create_inst<ICmpInst>(ICmpInst::EQ, val,
                                                 ZeroInit(BaseType::INT));
         if (val->get_type()->is<FloatType>())
             val = cur_bb->create_inst<FCmpInst>(FCmpInst::FEQ, val,
                                                 ZeroInit(BaseType::FLOAT));
+        if (val->get_type()->is<BoolType>())
+            val = cur_bb->create_inst<IBinaryInst>(IBinaryInst::XOR, val,
+                                                   constants.bool_const(true));
         break;
     }
     return val;

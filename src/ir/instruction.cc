@@ -206,6 +206,7 @@ string IBinaryInst::print() const {
         break;
     case XOR:
         OpName = "xor";
+        break;
     default:
         throw unreachable_error{};
     }
@@ -337,8 +338,9 @@ string CallInst::print() const {
     for (unsigned i = 1; i < operands().size(); i++) {
         args += operands()[i]->get_type()->print() + " " +
                 operands()[i]->get_name() + ", ";
-        args.erase(args.length() - 2, 2);
     }
+    if (!args.empty())
+        args.erase(args.length() - 2, 2);
     return head + " (" + args + ")";
 }
 
