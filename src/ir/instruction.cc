@@ -39,8 +39,13 @@ BrInst::BrInst(BasicBlock *prt, Value *cond, BasicBlock *TBB, BasicBlock *FBB)
 
 IBinaryInst::IBinaryInst(BasicBlock *prt, IBinOp op, Value *lhs, Value *rhs)
     : Instruction(prt, Types::get().int_type(), {lhs, rhs}), _op(op) {
-    assert(is_a<IntType>(lhs->get_type()));
-    assert(is_a<IntType>(rhs->get_type()));
+    if (op == XOR) {
+        assert(is_a<BoolType>(lhs->get_type()));
+        assert(is_a<BoolType>(rhs->get_type()));
+    } else {
+        assert(is_a<IntType>(lhs->get_type()));
+        assert(is_a<IntType>(rhs->get_type()));
+    }
 }
 
 FBinaryInst::FBinaryInst(BasicBlock *prt, FBinOp op, Value *lhs, Value *rhs)
@@ -199,6 +204,8 @@ string IBinaryInst::print() const {
     case SREM:
         OpName = "srem";
         break;
+    case XOR:
+        OpName = "xor";
     default:
         throw unreachable_error{};
     }
