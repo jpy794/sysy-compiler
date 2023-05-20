@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <map>
 #include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
@@ -17,6 +18,11 @@ template <typename Derived, typename Base> Derived *as_a(Base *base) {
         throw std::logic_error{"bad asa"};
     }
     return derived;
+}
+
+template <typename Key, typename... Args>
+bool contains(std::map<Key, Args...> &con, const Key &key) {
+    return con.find(key) != con.end();
 }
 
 template <typename Key, typename... Args>

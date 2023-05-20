@@ -2,6 +2,7 @@ add_subdirectory(ast)
 add_subdirectory(ir)
 add_subdirectory(ir_builder)
 add_subdirectory(utils)
+add_subdirectory(pass)
 
 add_executable(sysyc main.cc)
 
