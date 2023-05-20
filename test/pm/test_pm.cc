@@ -1,6 +1,7 @@
 #include "basic_block.hh"
 #include "module.hh"
 #include "pass.hh"
+#include "utils.hh"
 
 #include <any>
 #include <iostream>
@@ -11,13 +12,11 @@ using namespace pass;
 using namespace ir;
 using namespace std;
 
-#define DEFAULT_CONSTRUCTOR(PASSNAME, BASEPASS)                                \
-    PASSNAME(ir::Module *m, PassManager *mgr) : BASEPASS(m, mgr) {}
-
 class DeadCodeElim;
 class Dominator;
 
-class Dominator : public AnalysisPass {
+class Dominator : public AnalysisPass, public Singleton<Dominator> {
+
   public:
     struct ResultType {
         // NOTE: Just Simulation
@@ -29,9 +28,7 @@ class Dominator : public AnalysisPass {
         std::string final_result;
     };
 
-    DEFAULT_CONSTRUCTOR(Dominator, AnalysisPass)
-
-    virtual const void *get_result() const override { return &_result; }
+    Analysis_Default_HEAD(Dominator);
 
     virtual void run() override final {
         clear();
@@ -40,15 +37,12 @@ class Dominator : public AnalysisPass {
     }
 
     virtual void clear() override final { _result.final_result = ""; }
-
-  private:
-    ResultType _result;
 };
 
-class Mem2reg : public TransformPass {
-  public:
-    DEFAULT_CONSTRUCTOR(Mem2reg, TransformPass)
+class Mem2reg : public TransformPass, public Singleton<Mem2reg> {
+    Transform_Default_HEAD(Mem2reg);
 
+  public:
     virtual void get_analysis_usage(AnalysisUsage &AU) const override {
         using KillType = AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
@@ -58,17 +52,17 @@ class Mem2reg : public TransformPass {
 
     virtual void run() override {
         auto &reuslt = get_result<Dominator>();
-        // reuslt.final_result = "adw";
+        // reuslt.final_result = "cannot modify the data";
 
         cout << "running Mem2reg, get Dominator result: " << reuslt.final_result
              << endl;
     }
 };
 
-class DeadCodeElim : public TransformPass {
-  public:
-    DEFAULT_CONSTRUCTOR(DeadCodeElim, TransformPass)
+class DeadCodeElim : public TransformPass, public Singleton<DeadCodeElim> {
+    Transform_Default_HEAD(DeadCodeElim);
 
+  public:
     virtual bool always_invalid() const override { return true; }
     virtual void run() override { cout << "running DeadCodeElim" << endl; }
 };
