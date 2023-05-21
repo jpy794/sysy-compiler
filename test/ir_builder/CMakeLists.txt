@@ -8,7 +8,7 @@ target_link_libraries(
     PRIVATE ir_builder
 )
 
-set(TESTCASES_BASE ${CMAKE_SOURCE_DIR}/test/cases)
+set(SYSY_TESTS ${CMAKE_SOURCE_DIR}/test/sysy_tests)
 
 function(ir_builder_test BASE CASE)
     add_test(
@@ -16,17 +16,18 @@ function(ir_builder_test BASE CASE)
         test_ir_builder
         ${CASE}
         out
-        ${TESTCASES_BASE}/${BASE}
-        ${TESTCASES_BASE}/${BASE}/in
-        ${TESTCASES_BASE}/${BASE}/out
+        ${SYSY_TESTS}/cases/${BASE}
+        ${SYSY_TESTS}/in/${BASE}
+        ${SYSY_TESTS}/out/${BASE}
+        ${SYSY_TESTS}/lib/sylib.c
     )
 endfunction()
 
 function(ir_builder_test_path BASE)
     file(
         GLOB CASES_SY
-        RELATIVE ${TESTCASES_BASE}/${BASE}
-        ${TESTCASES_BASE}/${BASE}/*.sy
+        RELATIVE ${SYSY_TESTS}/cases/${BASE}
+        ${SYSY_TESTS}/cases/${BASE}/*.sy
     )
     foreach(CASE_SY ${CASES_SY})
         get_filename_component(CASE ${CASE_SY} NAME_WE) 
@@ -35,3 +36,8 @@ function(ir_builder_test_path BASE)
 endfunction()
 
 ir_builder_test_path(2022/func)
+
+add_custom_target(
+    check_ir_builder
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'test_ir_builder_'
+)

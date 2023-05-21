@@ -5,7 +5,7 @@ target_link_libraries(
     PRIVATE ast
 )
 
-set(TESTCASES_BASE ${CMAKE_SOURCE_DIR}/test/cases)
+set(TESTCASES_BASE ${CMAKE_SOURCE_DIR}/test/sysy_tests/cases)
 
 function(ast_test BASE CASE)
     add_test(
@@ -30,3 +30,8 @@ endfunction()
 
 ast_test_path(2022/func)
 ast_test_path(ast)
+
+add_custom_target(
+    check_ast
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'test_ast_'
+)

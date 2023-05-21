@@ -11,7 +11,7 @@ using namespace std;
 using namespace filesystem;
 
 int main(int argc, char **argv) {
-    if (argc != 6) {
+    if (argc != 7) {
         throw std::runtime_error{"wrong arguement"};
     }
 
@@ -32,6 +32,8 @@ int main(int argc, char **argv) {
         return base / (test_case + suffix);
     };
 
+    auto lib_file = path{argv[6]};
+
     if (not is_regular_file(test(sysy_path, ".sy"))) {
         throw runtime_error{"sysy source not exist"};
     }
@@ -45,7 +47,8 @@ int main(int argc, char **argv) {
     ir.close();
 
     // FIXME: link sysy runtime library
-    auto clang_cmd = "clang " + tmp(".ll").string() + "-o" + tmp("").string();
+    auto clang_cmd = "clang " + tmp(".ll").string() + " " + lib_file.string() +
+                     " -o" + tmp("").string();
     auto clang_exit_code = std::system(clang_cmd.c_str());
 
     if (clang_exit_code != 0) {
