@@ -642,10 +642,11 @@ any IRBuilderImpl::visit(const LValExpr &node) { // return the value of the var
 
     auto addr = get_addr(var, node.idxs);
 
-    auto num_idx =
-        var->is<Argument>()
-            ? 1
-            : 0; // calculate the num of index of the var when load value
+    // calculate the num of index of the var when load value
+    size_t num_idx{0};
+    if (var->is<Argument>()) {
+        num_idx = 1;
+    }
     auto elem_type = var->get_type()->as<PointerType>()->get_elem_type();
     if (elem_type->is<ArrayType>())
         num_idx += elem_type->as<ArrayType>()->get_dims();
@@ -682,6 +683,7 @@ any IRBuilderImpl::visit(const BinaryExpr &node) {
         short_circuit(true_bb, false_bb, node);
         return {};
     }
+    throw unreachable_error{};
 }
 
 any IRBuilderImpl::visit(const UnaryExpr &node) {
