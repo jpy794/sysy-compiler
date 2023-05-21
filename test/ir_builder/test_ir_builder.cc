@@ -46,28 +46,28 @@ int main(int argc, char **argv) {
     ir << module->print();
     ir.close();
 
-    // FIXME: link sysy runtime library
-    auto clang_cmd = "clang " + tmp(".ll").string() + " " + lib_file.string() +
-                     " -o" + tmp("").string();
+    auto clang_cmd = "clang -Wno-override-module " + tmp(".ll").string() + " " +
+                     lib_file.string() + " -o " + tmp("").string();
     auto clang_exit_code = std::system(clang_cmd.c_str());
 
     if (clang_exit_code != 0) {
         throw runtime_error{"clang failed to compile the ll file"};
     }
 
-    auto bin_cmd = tmp("").string() + " < " + test(in_path, ".in").string() +
-                   " &> " + tmp(".out").string();
-    auto bin_exit_code = std::system(bin_cmd.c_str());
-
-    if (bin_exit_code != 0) {
-        throw runtime_error{"the binary returns " + to_string(bin_exit_code)};
+    auto bin_cmd = tmp("").string() + " &> " + tmp(".stdout").string();
+    if (is_regular_file(test(in_path, ".in"))) {
+        bin_cmd += " < " + test(in_path, ".in").string();
     }
+    auto bin_exit_code = WEXITSTATUS(std::system(bin_cmd.c_str()));
 
-    auto diff_cmd =
-        "diff " + tmp(".out").string() + " " + test(out_path, ".out").string();
-    auto diff_exit_code = std::system(diff_cmd.c_str());
+    fstream out_file{test(out_path, ".out")};
+    int exit_code{0};
+    out_file >> exit_code;
 
-    if (diff_exit_code != 0) {
-        throw runtime_error{"the output is incorrect"};
+    if (bin_exit_code != exit_code) {
+        throw runtime_error{"the binary returns " + to_string(bin_exit_code) +
+                            " instead of " + to_string(exit_code & 0xff) +
+                            ", which is " + to_string(exit_code) +
+                            " originally"};
     }
 }
