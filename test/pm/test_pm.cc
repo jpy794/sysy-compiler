@@ -1,4 +1,3 @@
-#include "basic_block.hh"
 #include "module.hh"
 #include "pass.hh"
 
@@ -11,11 +10,10 @@ using namespace pass;
 using namespace ir;
 using namespace std;
 
-#define DEFAULT_CONSTRUCTOR(PASSNAME, BASEPASS)                                \
-    PASSNAME(ir::Module *m, PassManager *mgr) : BASEPASS(m, mgr) {}
-
 class DeadCodeElim;
 class Dominator;
+class Pass1;
+class Pass2;
 
 class Dominator : public AnalysisPass {
   public:
@@ -29,11 +27,21 @@ class Dominator : public AnalysisPass {
         std::string final_result;
     };
 
-    DEFAULT_CONSTRUCTOR(Dominator, AnalysisPass)
+    Dominator() = default;
 
-    virtual const void *get_result() const override { return &_result; }
+    virtual void get_analysis_usage(AnalysisUsage &AU) const override {
+        using KillType = AnalysisUsage::KillType;
+        AU.set_kill_type(KillType::None);
+        AU.add_require<Pass1>();
+        AU.add_require<Pass2>();
+    }
 
-    virtual void run() override final {
+    virtual std::any get_result() const override { return &_result; }
+
+    virtual void run(PassManager *mgr) override final {
+        // NOTE: use this to make sure module will not be modified :(
+        /* const Module *m = mgr->get_module();
+         * m->create_func(); */
         clear();
         cout << "running Dominator" << endl;
         _result.final_result = "Result Of Dominator";
@@ -47,7 +55,7 @@ class Dominator : public AnalysisPass {
 
 class Mem2reg : public TransformPass {
   public:
-    DEFAULT_CONSTRUCTOR(Mem2reg, TransformPass)
+    Mem2reg() = default;
 
     virtual void get_analysis_usage(AnalysisUsage &AU) const override {
         using KillType = AnalysisUsage::KillType;
@@ -56,8 +64,8 @@ class Mem2reg : public TransformPass {
         AU.add_post<DeadCodeElim>();
     }
 
-    virtual void run() override {
-        auto &reuslt = get_result<Dominator>();
+    virtual void run(PassManager *mgr) override {
+        auto &reuslt = mgr->get_result<Dominator>();
         // reuslt.final_result = "adw";
 
         cout << "running Mem2reg, get Dominator result: " << reuslt.final_result
@@ -67,15 +75,58 @@ class Mem2reg : public TransformPass {
 
 class DeadCodeElim : public TransformPass {
   public:
-    DEFAULT_CONSTRUCTOR(DeadCodeElim, TransformPass)
+    DeadCodeElim() = default;
 
     virtual bool always_invalid() const override { return true; }
-    virtual void run() override { cout << "running DeadCodeElim" << endl; }
+    virtual void run(PassManager *mgr) override {
+        cout << "running DeadCodeElim" << endl;
+    }
+};
+
+class Pass1 : public AnalysisPass {
+  public:
+    struct ResultType {};
+
+    virtual std::any get_result() const override { return &result; }
+
+    virtual void run(PassManager *mgr) override final {
+        cout << "running Pass1" << endl;
+    }
+
+  private:
+    ResultType result;
+};
+
+class Pass2 : public AnalysisPass {
+  public:
+    struct ResultType {};
+
+    virtual std::any get_result() const override { return &result; }
+
+    virtual void run(PassManager *mgr) override final {
+        cout << "running Pass2" << endl;
+    }
+
+    virtual void get_analysis_usage(AnalysisUsage &AU) const override {
+        using KillType = AnalysisUsage::KillType;
+        AU.set_kill_type(KillType::None);
+        AU.add_require<Pass1>();
+    }
+
+  private:
+    ResultType result;
 };
 
 int main() {
+    /* The rely graph of passes:
+     *
+     * Pass1 <-- Pass2 <-- Dominator <-- Mem2reg ::> DeadCodeElim(suggested)
+     *    ^----------------+
+     */
     PassManager pm(nullptr);
 
+    pm.add_pass<Pass1>();
+    pm.add_pass<Pass2>();
     pm.add_pass<DeadCodeElim>();
     pm.add_pass<Dominator>();
     pm.add_pass<Mem2reg>();
@@ -89,8 +140,8 @@ int main() {
     cout << "===Test2===" << endl;
     pm.run(false);
 
-    pm.reset();
     // run the core pass mem2reg, should bring life to Dominator and DCE
+    pm.reset();
     cout << "===Test3===" << endl;
     pm.run(true, {PassID<Mem2reg>()});
 }

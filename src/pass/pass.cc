@@ -1,7 +1,8 @@
 #include "pass.hh"
-#include "basic_block.hh"
 #include <set>
+#include <stdexcept>
 
+using namespace std;
 using namespace pass;
 
 void PassManager::run(bool post, const PassOrder &o) {
@@ -9,7 +10,7 @@ void PassManager::run(bool post, const PassOrder &o) {
     const PassOrder &order = (o.size() ? o : _order);
 
     for (auto passid : order) {
-        PassInfo &info = _passes.at(passid);
+        PassInfo &info = at(passid);
         Pass *ptr = info.get();
         if (not info.need_run())
             continue;
@@ -18,18 +19,18 @@ void PassManager::run(bool post, const PassOrder &o) {
 
         // recursively run relied pass
         for (auto relyid : AU._relys) {
-            if (_passes.at(relyid).need_run())
+            if (at(relyid).need_run())
                 run(false, {relyid});
         }
 
-        ptr->run();
+        ptr->run(this);
 
         // invalidation of affected passes
         switch (AU._kt) {
         case AnalysisUsage::Normal:
             for (auto killid : AU._kills) {
                 if (contains(_passes, killid))
-                    _passes.at(killid).mark_killd();
+                    at(killid).mark_killd();
             }
             break;
         case AnalysisUsage::All:
