@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <map>
-#include <memory>
 #include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
@@ -36,27 +35,3 @@ bool contains(const Container &con, const Elem &elem) {
     static_assert(std::is_same<typename Container::value_type, Elem>::value);
     return std::find(con.begin(), con.end(), elem) != con.end();
 }
-
-template <typename T> class Singleton {
-    static T *instance;
-
-  public:
-    static T *get(bool assert_exist = true) {
-        assert(instance || not assert_exist); // should initialize first
-        return instance;
-    }
-
-    template <typename... Args> static void initialize(Args... args) {
-        assert(instance == nullptr); // should only initialize once
-        instance = new T(args...);
-    }
-
-  protected:
-    Singleton<T>() = default;
-    Singleton(const Singleton &) = delete;
-    void operator=(const Singleton &) = delete;
-
-    virtual ~Singleton<T>() { delete instance; }
-};
-
-template <typename T> T *Singleton<T>::instance = nullptr;

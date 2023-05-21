@@ -22,13 +22,42 @@
 
 namespace pass {
 
+// NOTE: The explanation below may have expired, I will rewrite/delete it then.
+/* @ Pass Design
+ * 1. A Pass may rely on other Passes' result, so `add_require<>()` is provided
+ * 2. A Pass may have a will for other Passes to be executed after its own run,
+ *    so a `add_post<>()` is provided, it will be treated as a suggestion.
+ */
 class Pass;
+
+/* @ AnalysisUsage Design
+ */
 class AnalysisUsage;
+
+/* @ AnalysisPass Design
+ * 1. Subclasses of AnalysisPass should define its return type by:
+ *      `using ResultType = ...`
+ *    and set the return value after run() is called
+ *    This is a convention, so the PassManager can use
+ *    AnalysisPassSubClass::ResultType for any_cast
+ */
 class AnalysisPass;
+
+/* @ TransformPass Design
+ * 1. Cause TransformPass may change IR, so TransformPass shuold have a `cancel`
+ *    function to denote a AnalysisPass set for cancelization
+ */
 class TransformPass;
+
+/* @ PassManager Design
+ * 1. Auto satisfy the data rely during run() is called
+ * 2. Register mechanism, this
+ * 1. For one instance of PassManager, each pass should be added at most once
+ */
 class PassManager;
 
 template <typename T> using Ptr = std::unique_ptr<T>;
+using AnalysisResultType = std::any;
 using PassIDType = std::type_index;
 using PassOrder = std::list<PassIDType>;
 
@@ -106,12 +135,15 @@ class AnalysisPass : public Pass {
 
     // clear resources
     virtual void clear(){};
+
+    virtual const void *get_result() const = 0;
 };
 
 class TransformPass : public Pass {
   public:
     explicit TransformPass(ir::Module *m, PassManager *mgr) : Pass(m, mgr) {}
 
+    /* void run() override { std::cout << "in TransformPass" << std::endl; } */
     virtual void get_analysis_usage(AnalysisUsage &AU) const override {
         using KillType = AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
@@ -119,8 +151,10 @@ class TransformPass : public Pass {
 };
 
 class PassManager {
+    /* public:
+     * private: */
     class PassInfo {
-        Pass *ptr;
+        Ptr<Pass> ptr;
         bool valid;
         const bool aws_inv; // invalid is always false for some TransformPass
       public:
@@ -132,7 +166,7 @@ class PassManager {
         void mark_killd() { valid = false; }
         void mark_valid() { valid = (not aws_inv) and true; }
         bool need_run() const { return not valid; }
-        Pass *get() { return ptr; }
+        Pass *get() { return ptr.get(); }
     };
 
     std::map<PassIDType, PassInfo> _passes;
@@ -146,13 +180,10 @@ class PassManager {
     // This function must be defined in header.
     template <typename PassName, typename... Args>
     void add_pass(Args &&...args) {
-        // initialize for Singleton
-        if (PassName::get(false) == nullptr)
-            PassName::initialize(_m, this, args...);
-        // add to PM's pass-info-map
         auto ID = PassID<PassName>();
         if (not contains(_passes, ID)) {
-            _passes.insert({ID, PassInfo(PassName::get())});
+            _passes.insert({ID, PassInfo(new PassName(
+                                    _m, this, std::forward<Args>(args)...))});
         }
         _order.push_back(ID);
     }
@@ -165,7 +196,8 @@ class PassManager {
         if (info.need_run()) {
             run(false, {ID});
         }
-        return PassName::get()->_result;
+        auto reuslt_ptr = as_a<const AnalysisPass>(info.get())->get_result();
+        return *(static_cast<const ResultType *>(reuslt_ptr));
     }
 
     void run(bool post = true, const PassOrder &o = {});
@@ -180,27 +212,5 @@ template <typename RequireType>
 inline const typename RequireType::ResultType &Pass::get_result() {
     return _mgr->get_result<RequireType>();
 }
-
-// Note: use the macro below to get focused on the implemention
-// - friend class for Singleton
-// - BaseType initialization
-#define __Default_Head(PassName, BaseType)                                     \
-  private:                                                                     \
-    friend class Singleton<PassName>;                                          \
-    PassName(ir::Module *m, PassManager *mgr) : BaseType(m, mgr) {}
-
-// should used after the defination of ResultType
-// - let PM's get_result can access the _result
-// - declare the analysis result `_result`
-// - make the public domain constant(define of ResultType must be in public)
-#define Analysis_Default_HEAD(PassName)                                        \
-    __Default_Head(PassName, AnalysisPass);                                    \
-    friend const ResultType &PassManager::get_result<PassName>();              \
-    ResultType _result;                                                        \
-                                                                               \
-  public:
-
-//
-#define Transform_Default_HEAD(PassName) __Default_Head(PassName, TransformPass)
 
 }; // namespace pass
