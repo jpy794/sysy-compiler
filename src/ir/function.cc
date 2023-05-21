@@ -21,8 +21,12 @@ Function::~Function() {
 
 std::string Function::print() const {
     std::string func_ir;
-    func_ir =
-        "define " +
+    if (_bbs.size() == 0)
+        func_ir = "declare";
+    else
+        func_ir = "define";
+    func_ir +=
+        " " +
         dynamic_cast<FuncType *>(this->get_type())->get_result_type()->print() +
         " " + this->get_name();
     func_ir += "(";
@@ -32,11 +36,13 @@ std::string Function::print() const {
     if (this->_args.size() > 0)
         func_ir.erase(func_ir.length() - 2, 2);
     func_ir += ")";
-    func_ir += "{\n";
-    for (auto &bb : this->_bbs) {
-        func_ir += bb.print();
+    if (_bbs.size() > 0) {
+        func_ir += "{\n";
+        for (auto &bb : this->_bbs) {
+            func_ir += bb.print();
+        }
+        func_ir += "}";
     }
-    func_ir += "}";
     return func_ir;
 }
 
