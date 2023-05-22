@@ -128,7 +128,7 @@ any RawASTBuilder::visitNumber(sysyParser::NumberContext *ctx) {
         node->type = BaseType::FLOAT;
     } else if (ctx->IntConst()) {
         auto val_str = ctx->IntConst()->getText();
-        node->val = stoi(val_str);
+        node->val = stoi(val_str, 0, 0);
         node->type = BaseType::INT;
     } else {
         throw unreachable_error{};
