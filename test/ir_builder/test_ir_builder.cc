@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -54,20 +55,35 @@ int main(int argc, char **argv) {
         throw runtime_error{"clang failed to compile the ll file"};
     }
 
-    auto bin_cmd = tmp("").string() + " &> " + tmp(".stdout").string();
+    auto bin_cmd = tmp("").string() + " 1> " + tmp(".stdout").string() +
+                   " 2> " + tmp(".stderr").string();
     if (is_regular_file(test(in_path, ".in"))) {
         bin_cmd += " < " + test(in_path, ".in").string();
     }
-    auto bin_exit_code = WEXITSTATUS(std::system(bin_cmd.c_str()));
+    size_t bin_exit_code = WEXITSTATUS(std::system(bin_cmd.c_str()));
 
-    fstream out_file{test(out_path, ".out")};
-    int exit_code{0};
-    out_file >> exit_code;
+    ifstream bin_stdout{tmp(".stdout")};
+    ofstream bin_out{tmp(".out")};
 
-    if (bin_exit_code != exit_code) {
-        throw runtime_error{"the binary returns " + to_string(bin_exit_code) +
-                            " instead of " + to_string(exit_code & 0xff) +
-                            ", which is " + to_string(exit_code) +
-                            " originally"};
+    // copy stdout to buf
+    stringstream bufs{};
+    bufs << bin_stdout.rdbuf();
+    bin_stdout.close();
+
+    // output buf exitcode to .out
+    auto buf = bufs.str();
+    bin_out << buf;
+    if (not buf.empty() and buf.back() != '\n') {
+        bin_out << '\n';
+    }
+    bin_out << bin_exit_code << '\n';
+    bin_out.close();
+
+    auto diff_cmd =
+        "diff " + tmp(".out").string() + " " + test(out_path, ".out").string();
+    auto diff_exit_code = std::system(diff_cmd.c_str());
+
+    if (diff_exit_code != 0) {
+        throw runtime_error{"the output is incorrect"};
     }
 }
