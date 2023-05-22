@@ -38,7 +38,7 @@ BrInst::BrInst(BasicBlock *prt, Value *cond, BasicBlock *TBB, BasicBlock *FBB)
 }
 
 IBinaryInst::IBinaryInst(BasicBlock *prt, IBinOp op, Value *lhs, Value *rhs)
-    : Instruction(prt, Types::get().int_type(), {lhs, rhs}), _op(op) {
+    : Instruction(prt, lhs->get_type(), {lhs, rhs}), _op(op) {
     if (op == XOR) {
         assert(is_a<BoolType>(lhs->get_type()));
         assert(is_a<BoolType>(rhs->get_type()));
@@ -350,7 +350,8 @@ string Fp2siInst::print() const {
 }
 
 string Si2fpInst::print() const {
-    return get_name() + " = sitofp " + get_type()->print() + " " +
+    return get_name() + " = sitofp " +
+           this->get_operand(0)->get_type()->print() + " " +
            operands()[0]->get_name() + " to float";
 }
 
@@ -368,5 +369,5 @@ string GetElementPtrInst::print() const {
 }
 
 string ZextInst::print() const {
-    return get_name() + " = zext i1" + operands()[0]->get_name() + " to i32";
+    return get_name() + " = zext i1 " + operands()[0]->get_name() + " to i32";
 }

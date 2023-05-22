@@ -116,7 +116,8 @@ class IRBuilderImpl : public ast::ASTVisitor {
 
     vector<BasicBlock *> true_bb;  // and or while if use
     vector<BasicBlock *> false_bb; // and or while if use
-    vector<BasicBlock *> next_bb;  // only while use
+    vector<BasicBlock *> next_bb;  // while if use
+    unsigned loop_idx = 0;         // only while use
 
     Types &types = Types::get(); // Convenient reference to Types object for
                                  // easy access to members.
@@ -209,17 +210,17 @@ class IRBuilderImpl : public ast::ASTVisitor {
     vector<Value *> unflatten_idx(const vector<size_t> &dims,
                                   int idx) { // get unflatten indexes of array
         vector<Value *> idxs;
-        idxs.push_back(constants.int_const(0));
         for (int i = dims.size() - 1; i >= 0; i--) {
             idxs.insert(idxs.begin(), constants.int_const(idx % dims[i]));
             idx /= dims[i];
         }
+        idxs.insert(idxs.begin(), constants.int_const(0));
         return idxs;
     }
 
     Value *get_addr(Value *base_addr,
-                    const PtrList<Expr>
-                        &idxs) { // calculate the indexes of the variable in GEP
+                    const PtrList<Expr> &idxs) { // calculate the indexes of
+                                                 // the variable in GEP
         auto elem_type =
             base_addr->get_type()->as<PointerType>()->get_elem_type();
         if ((base_addr->is<Argument>() || elem_type->is_basic_type()) &&
@@ -235,9 +236,9 @@ class IRBuilderImpl : public ast::ASTVisitor {
             index.push_back(any_cast<Value *>(visit(*idxs)));
         }
 
-        auto dims = elem_type->is_basic_type()
-                        ? 0
-                        : elem_type->as<ArrayType>()->get_dims();
+        size_t dims = elem_type->is_basic_type()
+                          ? 0
+                          : elem_type->as<ArrayType>()->get_dims();
 
         if (dims > index.size() - 1) // add 0 in the back of the index
             index.push_back(zero_init(BaseType::INT));
@@ -254,8 +255,9 @@ class IRBuilderImpl : public ast::ASTVisitor {
             return any_cast<Value *>(visit(*init.value()));
         else if (is_const)
             return dynamic_cast<Value *>(zero_init(type));
-        else
-            return {};
+        else // undef FIXME:if the undef is zero, it can pass the test. So is
+             // undef zero?
+            return dynamic_cast<Value *>(zero_init(type));
     }
 
     void short_circuit(vector<BasicBlock *> &short_circuit_bb,
@@ -404,8 +406,8 @@ any IRBuilderImpl::visit(const FunDefGlobal &node) {
 
     visit(*node.body);
     if (not cur_bb->is_terminated())
-        switch (node.ret_type) { // FIXME:the branch without return stmt returns
-                                 // undef value
+        switch (node.ret_type) { // FIXME:the branch without return stmt
+                                 // returns undef value
         case ast::BaseType::INT:
         case ast::BaseType::FLOAT:
             cur_bb->create_inst<RetInst>(zero_init(node.ret_type));
@@ -461,17 +463,17 @@ any IRBuilderImpl::visit(const IfStmt &node) {
     // Step1 push true bb and false bb into stack and create next bb
     true_bb.push_back(cur_func->create_bb());  // true_bb
     false_bb.push_back(cur_func->create_bb()); // false_bb;
-    BasicBlock *next_bb = else_exist ? cur_func->create_bb() : false_bb.back();
+    next_bb.push_back(else_exist ? cur_func->create_bb() : false_bb.back());
     auto cond = visit(*node.cond);
     if (cond.has_value())
         add_brinst(any_cast<Value *>(cond));
-    scope.enter(); // then_body has its own scope regardless of whether it is
-                   // expr or block
+    scope.enter(); // then_body has its own scope regardless of whether it
+                   // is expr or block
     cur_bb = true_bb.back();
     visit(*node.then_body);
     // Step2 backfill next bb to true_bb
     if (not cur_bb->is_terminated())
-        cur_bb->create_inst<BrInst>(next_bb);
+        cur_bb->create_inst<BrInst>(next_bb.back());
     scope.exit();
     if (else_exist) {
         scope.enter();
@@ -479,14 +481,15 @@ any IRBuilderImpl::visit(const IfStmt &node) {
         visit(*node.else_body.value());
         // Step2 backfill next bb to false_bb
         if (not cur_bb->is_terminated())
-            cur_bb->create_inst<BrInst>(next_bb);
+            cur_bb->create_inst<BrInst>(next_bb.back());
         scope.exit();
     }
     // Step3 set the insert point to next_bb
-    cur_bb = next_bb;
+    cur_bb = next_bb.back();
     // Step4 pop out bbs created by if
     true_bb.pop_back();
     false_bb.pop_back();
+    next_bb.pop_back();
     return {};
 }
 
@@ -502,6 +505,8 @@ any IRBuilderImpl::visit(const WhileStmt &node) {
     true_bb.push_back(cur_func->create_bb());  // body_bb
     false_bb.push_back(cur_func->create_bb()); // next_bb
     next_bb.push_back(cond_bb);                // cond_bb
+    unsigned last_loop_idx = loop_idx;
+    loop_idx = next_bb.size(); // add loop index
     auto cond = visit(*node.cond);
     if (cond.has_value())
         add_brinst(any_cast<Value *>(cond));
@@ -514,24 +519,25 @@ any IRBuilderImpl::visit(const WhileStmt &node) {
     scope.exit();
     // Step4 set insert_point to false_bb
     cur_bb = false_bb.back();
-    // Step5 pop out the bbs created by while
+    // Step5 pop out the bbs created by while when exiting loop
     true_bb.pop_back();
     false_bb.pop_back();
     next_bb.pop_back();
+    loop_idx = last_loop_idx;
     return {};
 }
 
 any IRBuilderImpl::visit(const BreakStmt &node) {
-    if (next_bb.empty())
+    if (loop_idx == 0)
         throw logic_error{"break must be used in a loop"};
-    cur_bb->create_inst<BrInst>(false_bb.back());
+    cur_bb->create_inst<BrInst>(false_bb[loop_idx - 1]);
     return {};
 }
 
 any IRBuilderImpl::visit(const ContinueStmt &node) {
-    if (next_bb.empty())
+    if (loop_idx == 0)
         throw logic_error{"continue must be used in a loop"};
-    cur_bb->create_inst<BrInst>(next_bb.back());
+    cur_bb->create_inst<BrInst>(next_bb[loop_idx - 1]);
     return {};
 }
 
@@ -705,15 +711,15 @@ any IRBuilderImpl::visit(const UnaryExpr &node) {
         break;
     case ast::UnaryOp::NOT:
         val = any_cast<Value *>(visit(*node.rhs));
+        if (val->get_type()->is<BoolType>())
+            val = cur_bb->create_inst<IBinaryInst>(IBinaryInst::XOR, val,
+                                                   constants.bool_const(true));
         if (val->get_type()->is<IntType>())
             val = cur_bb->create_inst<ICmpInst>(ICmpInst::EQ, val,
                                                 zero_init(BaseType::INT));
         if (val->get_type()->is<FloatType>())
             val = cur_bb->create_inst<FCmpInst>(FCmpInst::FEQ, val,
                                                 zero_init(BaseType::FLOAT));
-        if (val->get_type()->is<BoolType>())
-            val = cur_bb->create_inst<IBinaryInst>(IBinaryInst::XOR, val,
-                                                   constants.bool_const(true));
         break;
     }
     return val;

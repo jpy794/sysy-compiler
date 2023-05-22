@@ -1,5 +1,6 @@
 #pragma once
 
+#include "constant.hh"
 #include "ilist.hh"
 #include "type.hh"
 #include "value.hh"
@@ -17,6 +18,8 @@ class GlobalVariable : public Value, public ilist<GlobalVariable>::node {
     std::string print() const final;
 
   private:
+    static std::string _gen_zeroinitializer(Type *type, ConstArray *init,
+                                            size_t &index);
     Constant *const _init;
 };
 
