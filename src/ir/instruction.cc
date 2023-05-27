@@ -293,7 +293,7 @@ string FCmpInst::print() const {
         CmpName = "oeq";
         break;
     case FNE:
-        CmpName = "oge";
+        CmpName = "one";
         break;
     case FGT:
         CmpName = "ogt";

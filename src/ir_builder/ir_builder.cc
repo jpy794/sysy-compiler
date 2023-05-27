@@ -97,16 +97,16 @@ class IRBuilderImpl : public ast::ASTVisitor {
         scope.push("getfloat",
                    _m->create_func(Types::get().func_type(float_type, {}),
                                    "getfloat"));
-        scope.push("getfarray",
-                   _m->create_func(
-                       Types::get().func_type(
-                           float_type, {Types::get().ptr_type(float_type)}),
-                       "getfarray"));
+        scope.push(
+            "getfarray",
+            _m->create_func(Types::get().func_type(
+                                int_type, {Types::get().ptr_type(float_type)}),
+                            "getfarray"));
         scope.push(
             "putfarray",
             _m->create_func(
                 Types::get().func_type(
-                    void_type, {float_type, Types::get().ptr_type(float_type)}),
+                    void_type, {int_type, Types::get().ptr_type(float_type)}),
                 "putfarray"));
     }
 
