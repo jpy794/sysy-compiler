@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iomanip>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -47,10 +48,17 @@ class ConstBool : public Constant {
 class ConstFloat : public Constant {
   private:
     float _val;
+    std::string to_hex_str(float val) {
+        double v = val;
+        std::stringstream hex_s;
+        hex_s << "0x" << std::hex << std::uppercase
+              << *reinterpret_cast<uint64_t *>(&v);
+        return hex_s.str();
+    }
 
   public:
     ConstFloat(float val)
-        : Constant(Types::get().float_type(), std::to_string(val)), _val(val){};
+        : Constant(Types::get().float_type(), to_hex_str(val)), _val(val){};
 
     float val() const { return _val; }
 };
