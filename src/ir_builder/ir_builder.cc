@@ -496,7 +496,8 @@ any IRBuilderImpl::visit(const IfStmt &node) {
 any IRBuilderImpl::visit(const WhileStmt &node) {
     // Step1 Check whether cur_bb is empty
     BasicBlock *cond_bb = cur_bb;
-    if (cur_bb->get_insts().size() != 0) {
+    if (cur_bb->get_insts().size() != 0 ||
+        cur_bb == &cur_func->get_entry_bb()) {
         cond_bb = cur_func->create_bb();
         cur_bb->create_inst<BrInst>(cond_bb); // cond_bb
         cur_bb = cond_bb;
@@ -581,7 +582,9 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
 
         // define variable
         auto type = ast2ir_ty(node.type, type_of::Variant, node.dims);
-        auto var = cur_bb->create_inst<AllocaInst>(type);
+        const auto begin = cur_func->get_entry_bb().insts().begin();
+        auto var =
+            cur_func->get_entry_bb().insert_inst<AllocaInst>(begin, type);
         scope.push(node.var_name, var);
 
         // assign initial value to variable

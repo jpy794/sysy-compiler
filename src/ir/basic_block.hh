@@ -32,6 +32,26 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
         return as_a<Inst>(&_insts.back());
     }
 
+    template <typename Inst, typename... Args>
+    Inst *insert_inst(const ilist<Instruction>::iterator &it, Args &&...args) {
+        // check for RetInst
+        if constexpr (std::is_same<RetInst, Inst>::value) {
+            assert(not is_terminated());
+        }
+        // check for BrInst
+        if constexpr (std::is_same<BrInst, Inst>::value) {
+            assert(not is_terminated());
+            _link(std::forward<Args>(args)...);
+        }
+        _insts.push_front(new Inst{
+            this,
+            std::forward<Args>(
+                args)...}); // FIXME: this function need to be able to be
+                            // inserted in any position, but for instructions,
+                            // it can't use emplace member function
+        return as_a<Inst>(&_insts.front());
+    }
+
     std::vector<BasicBlock *> &pre_bbs() { return _pre_bbs; }
     std::vector<BasicBlock *> &suc_bbs() { return _suc_bbs; }
     ilist<Instruction> &insts() { return _insts; }
