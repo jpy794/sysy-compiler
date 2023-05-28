@@ -15,7 +15,7 @@ class Module;
 
 class Function : public Value, public ilist<Function>::node {
   public:
-    Function(FuncType *type, std::string &&name);
+    Function(FuncType *type, std::string &&name, bool external = false);
     ~Function();
 
     // creaters
@@ -40,6 +40,9 @@ class Function : public Value, public ilist<Function>::node {
     size_t get_inst_seq() { return _inst_seq++; }
 
     std::string print() const final;
+
+    // external symbol
+    bool is_external;
 
   private:
     std::vector<Argument *> _args;

@@ -6,8 +6,8 @@
 using namespace ir;
 using namespace std;
 
-Function::Function(FuncType *type, std::string &&name)
-    : Value(type, "@" + name), _inst_seq(0) {
+Function::Function(FuncType *type, std::string &&name, bool external)
+    : Value(type, "@" + name), is_external(external), _inst_seq(0) {
     for (size_t i = 0; i < type->get_param_types().size(); ++i) {
         _args.push_back(new Argument(this, type->get_param_type(i)));
     }
@@ -21,10 +21,11 @@ Function::~Function() {
 
 std::string Function::print() const {
     std::string func_ir;
-    if (_bbs.size() == 0)
+    if (this->is_external) {
         func_ir = "declare";
-    else
+    } else {
         func_ir = "define";
+    }
     func_ir +=
         " " +
         dynamic_cast<FuncType *>(this->get_type())->get_result_type()->print() +
@@ -36,7 +37,7 @@ std::string Function::print() const {
     if (this->_args.size() > 0)
         func_ir.erase(func_ir.length() - 2, 2);
     func_ir += ")";
-    if (_bbs.size() > 0) {
+    if (!this->is_external) {
         func_ir += "{\n";
         for (auto &bb : this->_bbs) {
             func_ir += bb.print();
