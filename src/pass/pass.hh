@@ -32,6 +32,7 @@ class Pass {
     Pass(const Pass &) = delete;
     Pass &operator=(const Pass &) = delete;
 
+    virtual ~Pass() {}
     virtual void run(PassManager *mgr) = 0;
     virtual void get_analysis_usage(AnalysisUsage &AU) const {}
     virtual bool always_invalid() const { return false; }
