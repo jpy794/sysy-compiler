@@ -52,7 +52,7 @@ class IRBuilderImpl : public ast::ASTVisitor {
   public:
     IRBuilderImpl() {
         _m = unique_ptr<ir::Module>(new ir::Module("Sysy Module"));
-        load_extern_symbol();
+        load_external_symbol();
     }
 
     unique_ptr<ir::Module> release_module() { return std::move(_m); }
@@ -62,52 +62,54 @@ class IRBuilderImpl : public ast::ASTVisitor {
     unique_ptr<ir::Module> _m;
 
     /* extern symbol table*/
-    void load_extern_symbol() {
+    void load_external_symbol() {
         scope.enter();
         // add extern symbol while running
         // this is only used in testing
         auto int_type = Types::get().int_type();
         auto float_type = Types::get().float_type();
         auto void_type = Types::get().void_type();
+        bool external = true;
         scope.push("putint", _m->create_func(
                                  Types::get().func_type(void_type, {int_type}),
-                                 "putint"));
-        scope.push(
-            "getint",
-            _m->create_func(Types::get().func_type(int_type, {}), "getint"));
-        scope.push("putch",
-                   _m->create_func(
-                       Types::get().func_type(void_type, {int_type}), "putch"));
-        scope.push("getch", _m->create_func(
-                                Types::get().func_type(int_type, {}), "getch"));
+                                 "putint", external));
+        scope.push("getint",
+                   _m->create_func(Types::get().func_type(int_type, {}),
+                                   "getint", external));
+        scope.push("putch", _m->create_func(
+                                Types::get().func_type(void_type, {int_type}),
+                                "putch", external));
+        scope.push("getch",
+                   _m->create_func(Types::get().func_type(int_type, {}),
+                                   "getch", external));
         scope.push(
             "getarray",
             _m->create_func(Types::get().func_type(
                                 int_type, {Types::get().ptr_type(int_type)}),
-                            "getarray"));
+                            "getarray", external));
         scope.push(
             "putarray",
             _m->create_func(
                 Types::get().func_type(
                     void_type, {int_type, Types::get().ptr_type(int_type)}),
-                "putarray"));
+                "putarray", external));
         scope.push("putfloat", _m->create_func(Types::get().func_type(
                                                    void_type, {float_type}),
-                                               "putfloat"));
+                                               "putfloat", external));
         scope.push("getfloat",
                    _m->create_func(Types::get().func_type(float_type, {}),
-                                   "getfloat"));
+                                   "getfloat", external));
         scope.push(
             "getfarray",
             _m->create_func(Types::get().func_type(
                                 int_type, {Types::get().ptr_type(float_type)}),
-                            "getfarray"));
+                            "getfarray", external));
         scope.push(
             "putfarray",
             _m->create_func(
                 Types::get().func_type(
                     void_type, {int_type, Types::get().ptr_type(float_type)}),
-                "putfarray"));
+                "putfarray", external));
     }
 
     /* variables that tansform information */
@@ -669,22 +671,25 @@ any IRBuilderImpl::visit(const LValExpr &node) { // return the value of the var
 }
 //(,tofloat)
 any IRBuilderImpl::visit(const BinaryExpr &node) {
+    Value *lhs, *rhs;
     switch (node.op) {
     case ast::BinOp::ADD:
     case ast::BinOp::SUB:
     case ast::BinOp::MUL:
     case ast::BinOp::DIV:
     case ast::BinOp::MOD:
-        return bin_expr(any_cast<Value *>(visit(*node.lhs)),
-                        any_cast<Value *>(visit(*node.rhs)), node.op);
+        lhs = any_cast<Value *>(visit(*node.lhs));
+        rhs = any_cast<Value *>(visit(*node.rhs));
+        return bin_expr(lhs, rhs, node.op);
     case ast::BinOp::LT:
     case ast::BinOp::GT:
     case ast::BinOp::LE:
     case ast::BinOp::GE:
     case ast::BinOp::EQ:
     case ast::BinOp::NE:
-        return cmp_expr(any_cast<Value *>(visit(*node.lhs)),
-                        any_cast<Value *>(visit(*node.rhs)), node.op);
+        rhs = any_cast<Value *>(visit(*node.rhs));
+        lhs = any_cast<Value *>(visit(*node.lhs));
+        return cmp_expr(lhs, rhs, node.op);
     case ast::BinOp::AND:
         short_circuit(false_bb, true_bb, node);
         return {};
