@@ -79,10 +79,6 @@ class ASTBuilder : public ASTVisitor {
     any visit(const LValExpr &node) final;
     any visit(const BinaryExpr &node) final;
     any visit(const UnaryExpr &node) final;
-    /* raw */
-    any visit(const RawVarDefGlobal &node) final { throw unreachable_error{}; }
-    any visit(const RawVarDefStmt &node) final { throw unreachable_error{}; }
-    any visit(const RawFunDefGlobal &node) final { throw unreachable_error{}; }
     /* unexpected nodes in raw ast */
     any visit(const VarDefStmt &node) final {
         throw logic_error{"unexpected node in raw ast"};
@@ -528,6 +524,5 @@ AST::AST(RawAST &&raw_ast) {
 
 ostream &ast::operator<<(ostream &os, const AST &ast) {
     ASTPrinter printer;
-    os << any_cast<string>(ast.visit(printer));
-    return os;
+    return os << any_cast<string>(ast.accept(printer));
 }

@@ -350,21 +350,11 @@ class IRBuilderImpl : public ast::ASTVisitor {
     any visit(const ast::LValExpr &node) override final;
     any visit(const ast::BinaryExpr &node) override final;
     any visit(const ast::UnaryExpr &node) override final;
-    /* raw node */
-    any visit(const ast::RawVarDefStmt &node) override final {
-        throw unreachable_error{};
-    };
-    any visit(const ast::RawFunDefGlobal &node) override final {
-        throw unreachable_error{};
-    };
-    any visit(const ast::RawVarDefGlobal &node) override final {
-        throw unreachable_error{};
-    };
 };
 
 IRBuilder::IRBuilder(const ast::AST &ast) {
     auto builder = IRBuilderImpl{};
-    ast.visit(builder);
+    ast.accept(builder);
     _module = builder.release_module();
 }
 

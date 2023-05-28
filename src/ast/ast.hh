@@ -99,11 +99,6 @@ class ASTVisitor {
     virtual std::any visit(const LValExpr &node) = 0;
     virtual std::any visit(const BinaryExpr &node) = 0;
     virtual std::any visit(const UnaryExpr &node) = 0;
-    /* raw node should only exisits in raw_ast
-       ast visitor should throw exception on following nodes */
-    virtual std::any visit(const RawVarDefStmt &node) = 0;
-    virtual std::any visit(const RawFunDefGlobal &node) = 0;
-    virtual std::any visit(const RawVarDefGlobal &node) = 0;
 };
 
 struct Root : ASTNode {
@@ -309,7 +304,7 @@ class RawAST;
 class AST {
   public:
     AST(RawAST &&raw_ast);
-    std::any visit(ASTVisitor &visitor) const {
+    std::any accept(ASTVisitor &visitor) const {
         if (not root) {
             throw std::logic_error{"trying to visit an empty AST"};
         }

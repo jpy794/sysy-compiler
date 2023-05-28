@@ -162,16 +162,6 @@ class ASTPrinter : public ASTVisitor {
     virtual std::any visit(const LValExpr &node) override final;
     virtual std::any visit(const BinaryExpr &node) override final;
     virtual std::any visit(const UnaryExpr &node) override final;
-    /* unexpected raw nodes */
-    std::any visit(const RawFunDefGlobal &node) final {
-        throw unreachable_error{};
-    }
-    std::any visit(const RawVarDefGlobal &node) final {
-        throw unreachable_error{};
-    }
-    std::any visit(const RawVarDefStmt &node) final {
-        throw unreachable_error{};
-    }
 };
 
 } // namespace ast
