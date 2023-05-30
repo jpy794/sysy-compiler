@@ -225,15 +225,23 @@ struct VarDefStmt : Stmt {
     /* all dims should be non-zero
        evaluated when building the AST */
     std::vector<size_t> dims;
-    /* ast evaluates init_vals for globals and consts
-       instead of leaving it to optimization pass later
-
-       zero-init has been handled in ast, the user should throw error on any
-       undefined init value of globals or consts
-
-       nullopt means undefined init_val for corresponding
-       element, which should only occur on local non-const var */
-    std::vector<std::optional<Ptr<Expr>>> init_vals;
+    /* @init_vals: info of designated initializer
+     *
+     * Has the following features:
+     * - flattened initialize-list
+     * - each element in this vector is the designated initialize-value
+     * - for const and gloabl, the inner node is LiteralExpr actually, and 0 is
+     *   aborted (because 0 is default value)
+     * - for other cases, Expr is just normal Expr
+     *
+     * Semantic:
+     * - nullopt indicates no initialization
+     * - for the BaseType var init case, init_vals holds a vector with single
+     *   element: { <pos=0, val=...> }
+     *
+     * for example, idx of [2][3] for type int[4][5] has the posistion 2*5+3=13.
+     */
+    std::optional<std::vector<std::pair<size_t, Ptr<Expr>>>> init_vals;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
     }

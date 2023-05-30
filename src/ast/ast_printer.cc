@@ -96,15 +96,18 @@ std::any ASTPrinter::visit(const VarDefStmt &node) {
     body += kvpair("type", BaseTypeStr(node.type), STP::String) + ",";
     body += kvpair("var_name", node.var_name, STP::String) + ",";
     body += kvpair("dims", dims2array(node.dims)) + ",";
-    string init_vals{};
-    for (auto &ini : node.init_vals) {
-        if (ini.has_value())
-            init_vals += any_string(ini->get()->accept(*this)) + ",";
-        else
-            init_vals += "\"default\",";
-    }
-    init_vals = no_trailing(init_vals);
-    body += kvpair("init_vals", init_vals, STP::Array);
+
+    if (node.init_vals.has_value()) {
+        string init_vals{};
+        for (auto &ini : node.init_vals.value()) {
+            init_vals += kvpair(to_string(ini.first),
+                                any_string(ini.second->accept(*this))) +
+                         ",";
+        }
+        init_vals = no_trailing(init_vals);
+        body += kvpair("init_vals", init_vals, STP::Object);
+    } else
+        body += kvpair("init_vals", "not initialized", STP::String);
     return make_return("VarDefStmt", body);
 }
 

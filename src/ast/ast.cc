@@ -4,6 +4,7 @@
 #include "raw_ast.hh"
 
 #include <map>
+#include <variant>
 
 using namespace std;
 using namespace ast;
@@ -53,12 +54,13 @@ class ASTBuilder : public ASTVisitor {
        return: the new off */
     size_t _pack_initval(RawVarDefStmt::InitList &init, size_t depth,
                          size_t off, const vector<size_t> &dims,
-                         vector<optional<Ptr<Expr>>> &res, BaseType type,
+                         vector<pair<size_t, Ptr<Expr>>> &res, BaseType type,
                          bool is_const);
     /* if is_global or const, evaluate all initvals, throw if fail */
     PtrList<VarDefStmt> _split_vardef(RawVarDefStmt &raw_vardef,
                                       bool is_global);
 
+    // may not useful now
     static Ptr<Expr> _zero_literal(BaseType type);
 
   public:
@@ -106,6 +108,12 @@ struct ExprLiteral {
     ExprLiteral(float v) : is_const(true), val(v) {}
     ExprLiteral(int v) : is_const(true), val(v) {}
     ExprLiteral(variant<float, int> v) : is_const(true), val(v) {}
+    bool is_zero() const {
+        if (holds_alternative<int>(val))
+            return get<int>(val) == 0;
+        else
+            return get<float>(val) == 0;
+    }
 };
 
 any ASTBuilder::visit(const CallExpr &node) { return ExprLiteral{}; }
@@ -136,19 +144,36 @@ any ASTBuilder::visit(const LValExpr &node) {
         throw runtime_error{"size of idxs is not the same as defined"};
     }
     // base type
-    auto off = 0;
+    size_t off = 0;
 
     // array type
     for (size_t i = 0; i < vardef->dims.size(); i++) {
         off = off * vardef->dims[i] + idxs[i];
     }
 
-    if (not vardef->init_vals[off].has_value()) {
-        throw logic_error{"an item of const_table should be fully initialized"};
+    if (vardef->init_vals.has_value()) {
+        // find the target element, throw logic_error on fail
+        for (auto &[pos, ptr] : vardef->init_vals.value()) {
+            if (pos > off)
+                break;
+            if (pos == off) {
+                auto init_expr = visit(*(ptr));
+                auto init_literal = any_cast<ExprLiteral>(init_expr);
+                return init_literal;
+            }
+        }
+        // not found, return a 0 as default case
+        if (vardef->type == BaseType::INT) {
+            return ExprLiteral(0);
+        } else if (vardef->type == BaseType::FLOAT) {
+            return ExprLiteral(0.f);
+        } else {
+            throw unreachable_error{};
+        }
     }
-    auto init_expr = visit(*(vardef->init_vals[off].value()));
-    auto init_literal = any_cast<ExprLiteral>(init_expr);
-    return init_literal;
+
+    // this indicates a const var without initialization
+    throw logic_error{"an item of const_table should be initialized"};
 }
 
 template <typename A, typename B>
@@ -277,18 +302,15 @@ Ptr<Expr> ASTBuilder::_zero_literal(BaseType type) {
 // FIXME: currently, all {} is initialized to zeros
 size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
                                  size_t off, const vector<size_t> &dims,
-                                 vector<optional<Ptr<Expr>>> &res,
-                                 BaseType type, bool is_const) {
-    auto dim_len{1};
+                                 vector<pair<size_t, Ptr<Expr>>> &res,
+                                 BaseType type, bool is_literal) {
+    size_t dim_len{1};
     for (auto i = depth; i < dims.size(); i++) {
         dim_len *= dims[i];
     }
     auto dim_idx_begin = off;
     if (init.is_zero_list) {
-        // this is a zero init
-        for (auto i = 0; i < dim_len; i++) {
-            res[dim_idx_begin + i] = _zero_literal(type);
-        }
+        // this is a zero init, which is the default behaviour
         return dim_idx_begin + dim_len;
     }
     if (holds_alternative<Ptr<Expr>>(init.val)) {
@@ -296,30 +318,33 @@ size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
         auto &expr = get<Ptr<Expr>>(init.val);
 
         // try to evaluate the value
-        if (is_const) {
+        if (is_literal) {
             auto literal = any_cast<ExprLiteral>(visit(*expr));
             if (not literal.is_const) {
                 throw logic_error{
                     "value in const init list is not a compile-time constant"};
             }
-            auto new_expr = new LiteralExpr{};
-            new_expr->type = type;
+            if (not literal.is_zero()) {
+                auto new_expr = new LiteralExpr{};
+                new_expr->type = type;
 
-            // cast the type of const initval to decl type of lval
-            auto cast2int = [&](auto &&v) { return static_cast<int>(v); };
-            auto cast2float = [&](auto &&v) { return static_cast<float>(v); };
-            if (type == BaseType::INT) {
-                new_expr->val = std::visit(cast2int, literal.val);
-            } else if (type == BaseType::FLOAT) {
-                new_expr->val = std::visit(cast2float, literal.val);
-            } else {
-                throw unreachable_error{};
+                // cast the type of const initval to decl type of lval
+                auto cast2int = [&](auto &&v) { return static_cast<int>(v); };
+                auto cast2float = [&](auto &&v) {
+                    return static_cast<float>(v);
+                };
+                if (type == BaseType::INT) {
+                    new_expr->val = std::visit(cast2int, literal.val);
+                } else if (type == BaseType::FLOAT) {
+                    new_expr->val = std::visit(cast2float, literal.val);
+                } else {
+                    throw unreachable_error{};
+                }
+
+                res.push_back({dim_idx_begin, Ptr<Expr>{new_expr}});
             }
-
-            res[dim_idx_begin] = Ptr<Expr>{new_expr};
         } else {
-            res[dim_idx_begin] = Ptr<Expr>{};
-            res[dim_idx_begin]->swap(expr);
+            res.push_back({dim_idx_begin, std::move(expr)});
         }
 
         return off + 1;
@@ -327,8 +352,8 @@ size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
     // this is a init list
     auto &list = get<PtrList<RawVarDefStmt::InitList>>(init.val);
     for (size_t i = 0; i < list.size(); i++) {
-        off =
-            _pack_initval(*list[i], depth + 1, off, dims, res, type, is_const);
+        off = _pack_initval(*list[i], depth + 1, off, dims, res, type,
+                            is_literal);
     }
     // if there're undefined initval, off should be set to dim_idx_begin +
     // dim_len
@@ -354,6 +379,7 @@ PtrList<VarDefStmt> ASTBuilder::_split_vardef(RawVarDefStmt &raw_vardef,
     PtrList<VarDefStmt> ret;
     for (auto &&entry : raw_vardef.var_defs) {
         auto vardef = new VarDefStmt;
+
         vardef->var_name = entry->var_name;
         vardef->type = entry->type;
         vardef->is_const = entry->is_const;
@@ -362,25 +388,13 @@ PtrList<VarDefStmt> ASTBuilder::_split_vardef(RawVarDefStmt &raw_vardef,
             vardef->dims.push_back(expect_const_pos_int(literal));
         }
 
-        size_t len{1};
-        for (auto i : vardef->dims) {
-            len *= i;
-        }
-        vardef->init_vals.resize(len);
-
-        // all elem of const init should has value
-        bool is_const_init = is_global || vardef->is_const;
+        // fill in the init-vals
+        bool is_literal_init = is_global || vardef->is_const;
         if (entry->init_list.has_value()) {
+            vardef->init_vals = vector<pair<size_t, Ptr<Expr>>>{};
             _pack_initval(*entry->init_list.value(), 0, 0, vardef->dims,
-                          vardef->init_vals, vardef->type, is_const_init);
-        }
-        if (is_const_init) {
-            // fill the undefined val with zero if it is a const init
-            for (auto &&val : vardef->init_vals) {
-                if (not val.has_value()) {
-                    val = _zero_literal(vardef->type);
-                }
-            }
+                          vardef->init_vals.value(), vardef->type,
+                          is_literal_init);
         }
 
         if (vardef->is_const) {
