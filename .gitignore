@@ -4,5 +4,8 @@
 # clangd
 /**/.cache/
 
+# vscode
+/**/.vscode
+
 # antlr
 .antlr
