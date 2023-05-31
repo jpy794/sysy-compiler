@@ -34,11 +34,13 @@ int main() {
     inst_list.emplace(it, "I'm");
 
     bool is_except{false};
+    auto bad_ele = new inst{"hi"};
     try {
-        inst_list.erase(new inst{"hi"});
+        inst_list.erase(bad_ele);
     } catch (std::logic_error &e) {
         is_except = true;
     }
+    delete bad_ele;
     if (not is_except) {
         throw std::logic_error{"tag test failed"};
     } else {
