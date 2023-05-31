@@ -1,6 +1,4 @@
 #include "ast_printer.hh"
-#include "ast.hh"
-#include "err.hh"
 #include <any>
 #include <cstdio>
 #include <stdexcept>
@@ -92,15 +90,6 @@ std::any ASTPrinter::visit(const AssignStmt &node) {
     return make_return("AssignStmt", body);
 }
 
-template <typename T>
-pair<size_t, size_t> _range_same_kind(size_t &pos, const VarDefStmt &node) {
-    auto start = pos;
-    while (pos < node.init_vals.size() and
-           holds_alternative<T>(node.init_vals[pos]))
-        pos++;
-    return {start, pos - 1};
-}
-
 std::any ASTPrinter::visit(const VarDefStmt &node) {
     string body{};
     body += kvpair("const", node.is_const ? "true" : "false") + ",";
@@ -108,29 +97,17 @@ std::any ASTPrinter::visit(const VarDefStmt &node) {
     body += kvpair("var_name", node.var_name, STP::String) + ",";
     body += kvpair("dims", dims2array(node.dims)) + ",";
 
-    string init_vals{};
-    for (size_t pos = 0; pos < node.init_vals.size();) {
-        auto &ini = node.init_vals[pos];
-        if (holds_alternative<Ptr<Expr>>(ini)) { // explicit init
-            auto &expr = get<Ptr<Expr>>(ini);
-            init_vals +=
-                kvpair(to_string(pos), any_string(expr->accept(*this))) + ",";
-            pos++;
-        } else if (holds_alternative<VarDefStmt::Implicit0>(ini)) {
-            auto [l, r] = _range_same_kind<VarDefStmt::Implicit0>(pos, node);
-            init_vals += kvpair(to_string(l) + "~" + to_string(r),
-                                "implicit init to 0", STP::String) +
+    if (node.init_vals.has_value()) {
+        string init_vals{};
+        for (auto &ini : node.init_vals.value()) {
+            init_vals += kvpair(to_string(ini.first),
+                                any_string(ini.second->accept(*this))) +
                          ",";
-        } else if (holds_alternative<VarDefStmt::Undef>(ini)) {
-            auto [l, r] = _range_same_kind<VarDefStmt::Undef>(pos, node);
-            init_vals += kvpair(to_string(l) + "~" + to_string(r),
-                                "undefined init", STP::String) +
-                         ",";
-        } else
-            throw unreachable_error{};
-    }
-    init_vals = no_trailing(init_vals);
-    body += kvpair("init_vals", init_vals, STP::Object);
+        }
+        init_vals = no_trailing(init_vals);
+        body += kvpair("init_vals", init_vals, STP::Object);
+    } else
+        body += kvpair("init_vals", "not initialized", STP::String);
     return make_return("VarDefStmt", body);
 }
 

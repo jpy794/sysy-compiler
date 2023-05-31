@@ -3,9 +3,10 @@
 #include "err.hh"
 #include "raw_ast.hh"
 
-#include <algorithm>
 #include <map>
+#include <utility>
 #include <variant>
+#include <vector>
 
 using namespace std;
 using namespace ast;
@@ -48,7 +49,6 @@ class ConstTable {
    const_cast is used on nodes that are needed to be modified */
 class ASTBuilder : public ASTVisitor {
   private:
-    using InitStatus = VarDefStmt::InitStatus;
     ConstTable _const_table;
 
     /* depth: wrapped by how many brackets
@@ -56,12 +56,12 @@ class ASTBuilder : public ASTVisitor {
        return: the new off */
     size_t _pack_initval(RawVarDefStmt::InitList &init, size_t depth,
                          size_t off, const vector<size_t> &dims,
-                         vector<InitStatus> &res, BaseType type, bool is_const);
+                         std::map<size_t, Ptr<Expr>> &res, BaseType type,
+                         bool is_const);
     /* if is_global or const, evaluate all initvals, throw if fail */
     PtrList<VarDefStmt> _split_vardef(RawVarDefStmt &raw_vardef,
                                       bool is_global);
 
-    // may not useful now
     static Ptr<Expr> _zero_literal(BaseType type);
 
   public:
@@ -152,14 +152,17 @@ any ASTBuilder::visit(const LValExpr &node) {
         off = off * vardef->dims[i] + idxs[i];
     }
 
-    // check the target element status, throw logic_error on undef
-    auto &target = vardef->init_vals.at(off);
-    if (holds_alternative<Ptr<Expr>>(target)) {
-        auto &ptr = get<Ptr<Expr>>(target);
-        auto init_expr = visit(*(ptr));
-        auto init_literal = any_cast<ExprLiteral>(init_expr);
-        return init_literal;
-    } else if (holds_alternative<VarDefStmt::Implicit0>(target)) {
+    if (vardef->init_vals.has_value()) {
+        auto &initmap = vardef->init_vals.value();
+
+        // use the designated init value
+        if (contains(initmap, off)) {
+            auto init_expr = visit(*initmap.at(off));
+            auto init_literal = any_cast<ExprLiteral>(init_expr);
+            return init_literal;
+        }
+
+        // not found, return 0 as default
         if (vardef->type == BaseType::INT) {
             return ExprLiteral(0);
         } else if (vardef->type == BaseType::FLOAT) {
@@ -167,8 +170,10 @@ any ASTBuilder::visit(const LValExpr &node) {
         } else {
             throw unreachable_error{};
         }
-    } else
-        throw logic_error{"an item of const_table should be initialized"};
+    }
+
+    // this indicates a const var without initialization
+    throw unreachable_error{"an item of const_table should be initialized"};
 }
 
 template <typename A, typename B>
@@ -294,23 +299,20 @@ Ptr<Expr> ASTBuilder::_zero_literal(BaseType type) {
     return Ptr<Expr>(literal);
 }
 
+// FIXME: currently, all {} is initialized to zeros
 size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
                                  size_t off, const vector<size_t> &dims,
-                                 vector<InitStatus> &res, BaseType type,
+                                 map<size_t, Ptr<Expr>> &res, BaseType type,
                                  bool is_literal) {
     size_t dim_len{1};
     for (auto i = depth; i < dims.size(); i++) {
         dim_len *= dims[i];
     }
     auto dim_idx_begin = off;
-
     if (init.is_zero_list) {
-        // the {} case, should init to zero
-        auto end = dim_idx_begin + dim_len;
-        fill(res.begin() + off, res.begin() + end, VarDefStmt::Implicit0{});
-        return end;
+        // this is a zero init, which is the default behaviour
+        return dim_idx_begin + dim_len;
     }
-
     if (holds_alternative<Ptr<Expr>>(init.val)) {
         // this is a value, not a init list
         auto &expr = get<Ptr<Expr>>(init.val);
@@ -339,12 +341,11 @@ size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
 
             res[dim_idx_begin] = Ptr<Expr>{new_expr};
         } else {
-            res[dim_idx_begin] = std::move(expr);
+            res[dim_idx_begin].swap(expr);
         }
 
         return off + 1;
     }
-
     // this is a init list
     auto &list = get<PtrList<RawVarDefStmt::InitList>>(init.val);
     for (size_t i = 0; i < list.size(); i++) {
@@ -384,26 +385,21 @@ PtrList<VarDefStmt> ASTBuilder::_split_vardef(RawVarDefStmt &raw_vardef,
             vardef->dims.push_back(expect_const_pos_int(literal));
         }
 
-        // resize to same size of declared, default to undef
-        size_t len{1};
-        for (auto i : vardef->dims) {
-            len *= i;
-        }
-        vardef->init_vals.resize(len);
-
-        // set default value
-        if (is_global or entry->init_list.has_value())
-            fill(vardef->init_vals.begin(), vardef->init_vals.end(),
-                 VarDefStmt::Implicit0{});
-        else
-            fill(vardef->init_vals.begin(), vardef->init_vals.end(),
-                 VarDefStmt::Undef{});
-
-        // fill in init-vals, including implicit 0.
+        // fill in the init-vals
         bool is_literal_init = is_global || vardef->is_const;
+        // init value exists
         if (entry->init_list.has_value()) {
+            vardef->init_vals = std::map<size_t, Ptr<Expr>>{};
             _pack_initval(*entry->init_list.value(), 0, 0, vardef->dims,
-                          vardef->init_vals, vardef->type, is_literal_init);
+                          vardef->init_vals.value(), vardef->type,
+                          is_literal_init);
+        } else if (is_global) { // default zero init for global
+            vardef->init_vals = std::map<size_t, Ptr<Expr>>{};
+
+            // for semantic: `BaseType var`, check ast.hh::VarDefStmt::init_vals
+            if (vardef->dims.size() == 0)
+                vardef->init_vals->insert(
+                    make_pair(0, _zero_literal(vardef->type)));
         }
 
         if (vardef->is_const) {

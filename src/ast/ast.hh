@@ -1,6 +1,7 @@
 #pragma once
 
 #include <any>
+#include <map>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -219,18 +220,38 @@ struct AssignStmt : Stmt {
 };
 
 struct VarDefStmt : Stmt {
-    struct Implicit0 {};
-    struct Undef {};
-    using InitStatus = std::variant<Ptr<Expr>, Implicit0, Undef>;
-
+    /*     struct initPair {
+     *         size_t pos;
+     *         Ptr<Expr> ptr;
+     *
+     *         explicit initPair(size_t _pos, Ptr<Expr> &&_ptr)
+     *             : pos(_pos), ptr(std::move(_ptr)) {}
+     *
+     *     }; */
     bool is_const;
     BaseType type;
     std::string var_name;
     /* all dims should be non-zero
        evaluated when building the AST */
     std::vector<size_t> dims;
-    // if meet undef on const, ir_builder should throw an error
-    std::vector<InitStatus> init_vals;
+    /* @init_vals: info of designated initializer
+     *
+     * Has the following features:
+     * - flattened initialize-list
+     * - each kv-pair in the map is the designated initialize-value
+     * - for const and gloabl, the inner node is LiteralExpr actually
+     * - for other cases, no guarantee for epxr
+     *
+     * Semantic:
+     * - nullopt indicates no initialization. global variable always has init
+     *   due to the rule of implicit 0-init
+     * - for the BaseType var init case, init_vals always holds `single`
+     *   kv-pair: <0, value>
+     * - for inited array type(not nullopt), if init_vals contains target idx,
+     *   use the mapped value, or means implicit 0 init.
+     *
+     */
+    std::optional<std::map<size_t, Ptr<Expr>>> init_vals;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
     }
