@@ -220,14 +220,6 @@ struct AssignStmt : Stmt {
 };
 
 struct VarDefStmt : Stmt {
-    /*     struct initPair {
-     *         size_t pos;
-     *         Ptr<Expr> ptr;
-     *
-     *         explicit initPair(size_t _pos, Ptr<Expr> &&_ptr)
-     *             : pos(_pos), ptr(std::move(_ptr)) {}
-     *
-     *     }; */
     bool is_const;
     BaseType type;
     std::string var_name;

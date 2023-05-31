@@ -299,7 +299,6 @@ Ptr<Expr> ASTBuilder::_zero_literal(BaseType type) {
     return Ptr<Expr>(literal);
 }
 
-// FIXME: currently, all {} is initialized to zeros
 size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
                                  size_t off, const vector<size_t> &dims,
                                  map<size_t, Ptr<Expr>> &res, BaseType type,
