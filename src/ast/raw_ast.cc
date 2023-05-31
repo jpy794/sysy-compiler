@@ -266,9 +266,6 @@ any RawASTBuilder::visitVardecl(sysyParser::VardeclContext *ctx) {
         auto entry = as_ptr<RawVarDefStmt::Entry>(visit(pvardef));
         entry->is_const = is_const;
         entry->type = var_type;
-        if (is_const and not entry->init_list.has_value())
-            throw unreachable_error{entry->var_name +
-                                    ": const without initval"};
         node->var_defs.push_back(std::move(entry));
     }
 
