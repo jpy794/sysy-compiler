@@ -67,23 +67,27 @@ class PointerType : public Type {
 
 class ArrayType : public Type {
   private:
-    Type *const _elem_type;
-    const size_t _elem_cnt;
+    Type *const _elem_type;  // base_type or sub array
+    const size_t _elem_cnt;  // the outer dim
+    Type *const _base_type;  // int|float
+    const size_t _total_cnt; // how many int/float does it contain
     size_t _dims;
 
   public:
     ArrayType(Type *elem_type, size_t elem_cnt)
-        : _elem_type(elem_type), _elem_cnt(elem_cnt) {
+        : _elem_type(elem_type), _elem_cnt(elem_cnt),
+          _base_type(_get_base_type()), _total_cnt(_get_total_cnt()) {
         assert(elem_cnt > 0);
-        assert(_is_legal_array());
         if (elem_type->is<ArrayType>())
             _dims = elem_type->as<ArrayType>()->get_dims() + 1;
         else
             _dims = 1;
     }
 
+    Type *get_base_type() const { return _base_type; }
     Type *get_elem_type() const { return _elem_type; }
     size_t get_elem_cnt() const { return _elem_cnt; }
+    size_t get_total_cnt() const { return _total_cnt; }
     size_t get_dims() const { return _dims; }
 
     std::string print() const final {
@@ -92,7 +96,8 @@ class ArrayType : public Type {
     }
 
   private:
-    bool _is_legal_array();
+    Type *_get_base_type() const;
+    size_t _get_total_cnt() const;
 };
 
 class LabelType : public Type {
