@@ -99,7 +99,6 @@ int main() {
     arr_type = get_arr_type(inttype, {5, 4, 2});
     mod->create_global_var(arr_type, "e", init);
 
-
     // main函数
     auto mainFunType = types.func_type(inttype, {});
     auto mainFun = mod->create_func(mainFunType, "main");
