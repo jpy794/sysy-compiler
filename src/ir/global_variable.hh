@@ -42,8 +42,6 @@ class GlobalVariable : public Value, public ilist<GlobalVariable>::node {
     std::pair<bool, std::string>
     _gen_initializer(Type *type, size_t off,
                      std::map<size_t, Constant *>::const_iterator &iter) const;
-    static std::string _gen_zeroinitializer(Type *type, ConstArray *init,
-                                            size_t &index);
     // default implicit 0 init
     std::map<size_t, Constant *> _init;
 };

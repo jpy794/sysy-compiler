@@ -71,33 +71,6 @@ pair<bool, string> GlobalVariable::_gen_initializer(
     }
 }
 
-string GlobalVariable::_gen_zeroinitializer(Type *type, ConstArray *init,
-                                            size_t &index) {
-    if (type->is_basic_type()) {
-        return init->array()[index++]->get_name();
-    } else {
-        size_t elem_cnt = type->as<ArrayType>()->get_elem_cnt();
-        auto elem_type = type->as<ArrayType>()->get_elem_type();
-        string array;
-        bool all_zero = true;
-        for (size_t i = 0; i < elem_cnt; i++) {
-            auto elem_str = _gen_zeroinitializer(elem_type, init, index);
-            if (elem_str == "0") {
-                array += elem_type->print() + " zeroinitializer , ";
-            } else {
-                array += elem_type->print() + " " + elem_str + ", ";
-                all_zero = false;
-            }
-        }
-        if (!all_zero)
-            array.erase(array.size() - 2, 2);
-        if (all_zero)
-            return "0";
-        else
-            return "[" + array + "]";
-    }
-}
-
 string GlobalVariable::print() const {
     string init_ir;
     auto elem_type = get_type()->as<PointerType>()->get_elem_type();
