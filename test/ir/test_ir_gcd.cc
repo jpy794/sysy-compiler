@@ -26,17 +26,13 @@ using FBinOp = FBinaryInst::FBinOp;
 int main() {
     auto mod = new Module("test ir");
     auto &types = Types::get();
-    auto &consts = Constants::get();
+    // auto &consts = Constants::get();
     auto inttype = Types::get().int_type();
 
     // 全局数组,x,y
-    vector<int> zero_vec{0};
     auto arrayType = types.array_type(inttype, 1);
-    auto initializer = consts.array_const({CONST_INT(0)});
-    auto x = mod->create_global_var(arrayType, initializer,
-                                    std::forward<string>("x"));
-    auto y = mod->create_global_var(arrayType, initializer,
-                                    std::forward<string>("y"));
+    auto x = mod->create_global_var(arrayType, "x");
+    auto y = mod->create_global_var(arrayType, "y");
 
     //
     // gcd函数
