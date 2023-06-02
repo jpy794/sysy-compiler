@@ -121,10 +121,10 @@ class Constants {
         }
     }
 
-    std::unordered_map<bool, Constant *> _bool_hash;
-    std::unordered_map<int, Constant *> _int_hash;
-    std::unordered_map<float, Constant *> _float_hash;
-    std::unordered_map<std::vector<Constant *>, Constant *, VectorHash>
+    std::unordered_map<bool, ConstBool *> _bool_hash;
+    std::unordered_map<int, ConstInt *> _int_hash;
+    std::unordered_map<float, ConstFloat *> _float_hash;
+    std::unordered_map<std::vector<Constant *>, ConstArray *, VectorHash>
         _array_hash;
 
   public:
@@ -133,28 +133,28 @@ class Constants {
         return factory;
     }
 
-    Constant *bool_const(bool val) {
+    ConstBool *bool_const(bool val) {
         if (not contains(_bool_hash, val)) {
             _bool_hash.insert({val, new ConstBool{val}});
         }
         return _bool_hash[val];
     }
 
-    Constant *int_const(int val) {
+    ConstInt *int_const(int val) {
         if (not contains(_int_hash, val)) {
             _int_hash.insert({val, new ConstInt{val}});
         }
         return _int_hash[val];
     }
 
-    Constant *float_const(float val) {
+    ConstFloat *float_const(float val) {
         if (not contains(_float_hash, val)) {
             _float_hash.insert({val, new ConstFloat{val}});
         }
         return _float_hash[val];
     }
 
-    Constant *array_const(std::vector<Constant *> &&array) {
+    ConstArray *array_const(std::vector<Constant *> &&array) {
         if (not contains(_array_hash, array)) {
             _array_hash.insert({array, new ConstArray{std::move(array)}});
         }
