@@ -3,6 +3,7 @@
 #include "err.hh"
 #include "raw_ast.hh"
 
+#include <cassert>
 #include <map>
 #include <utility>
 #include <variant>
@@ -303,19 +304,11 @@ size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
                                  size_t off, const vector<size_t> &dims,
                                  map<size_t, Ptr<Expr>> &res, BaseType type,
                                  bool is_literal) {
-    size_t dim_len{1};
-    for (auto i = depth; i < dims.size(); i++) {
-        dim_len *= dims[i];
-    }
-    auto dim_idx_begin = off;
-    if (init.is_zero_list) {
-        // this is a zero init, which is the default behaviour
-        return dim_idx_begin + dim_len;
-    }
-    if (holds_alternative<Ptr<Expr>>(init.val)) {
-        // this is a value, not a init list
+    auto hold_expr =
+        not(init.is_zero_list) and holds_alternative<Ptr<Expr>>(init.val);
+    // leaf node
+    if (hold_expr) {
         auto &expr = get<Ptr<Expr>>(init.val);
-
         // try to evaluate the value
         if (is_literal) {
             auto literal = any_cast<ExprLiteral>(visit(*expr));
@@ -338,22 +331,47 @@ size_t ASTBuilder::_pack_initval(RawVarDefStmt::InitList &init, size_t depth,
                 throw unreachable_error{};
             }
 
-            res[dim_idx_begin] = Ptr<Expr>{new_expr};
+            res[off] = Ptr<Expr>{new_expr};
         } else {
-            res[dim_idx_begin].swap(expr);
+            res[off].swap(expr);
         }
 
         return off + 1;
     }
-    // this is a init list
+
+    // list init
+    size_t dim_len{1}, dim_idx_begin{off};
+    for (auto i = depth; i < dims.size(); i++) {
+        dim_len *= dims[i];
+    }
+
+    // sanity check:
+    // - depth may be 1 more than dims.size() for hold_expr case, but <=
+    //   dims.size() for list init case
+    // - list init should have aligned offset
+    assert(depth <= dims.size());
+    assert(dim_idx_begin % dim_len == 0);
+
+    // zero init is the default behaviour
+    if (init.is_zero_list) {
+        return dim_idx_begin + dim_len;
+    }
+
     auto &list = get<PtrList<RawVarDefStmt::InitList>>(init.val);
+    size_t sub_arr_dim_len{1};
+    if (depth != dims.size()) // not reach the boundary
+        sub_arr_dim_len = dim_len / dims[depth];
     for (size_t i = 0; i < list.size(); i++) {
-        off = _pack_initval(*list[i], depth + 1, off, dims, res, type,
+        // If the cur off did not fully step over some sub-array, deep into it.
+        // Why need it:
+        // int a[5][4][2] = {{}, 1, 2, {}, 3},
+        // the second {} is different from the first one
+        auto deepin = (off % sub_arr_dim_len == 0 ? 1 : 2);
+        off = _pack_initval(*list[i], depth + deepin, off, dims, res, type,
                             is_literal);
     }
-    // if there're undefined initval, off should be set to dim_idx_begin +
-    // dim_len
-    return max(off, dim_idx_begin + dim_len);
+    assert(off <= dim_idx_begin + dim_len);
+    return dim_idx_begin + dim_len;
 }
 
 int expect_const_pos_int(const ExprLiteral &literal) {
