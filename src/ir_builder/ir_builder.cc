@@ -250,18 +250,6 @@ class IRBuilderImpl : public ast::ASTVisitor {
         return addr;
     }
 
-    optional<Value *>
-    get_init(const optional<Ptr<Expr>> &init, BaseType type,
-             bool is_const = true) { // get initial value from Ptr<Expr>
-        if (init.has_value())
-            return any_cast<Value *>(visit(*init.value()));
-        else if (is_const)
-            return dynamic_cast<Value *>(zero_init(type));
-        else // undef FIXME:if the undef is zero, it can pass the test. So is
-             // undef zero?
-            return dynamic_cast<Value *>(zero_init(type));
-    }
-
     void short_circuit(vector<BasicBlock *> &short_circuit_bb,
                        vector<BasicBlock *> &next_bb,
                        const BinaryExpr &node) { // create a short-circuit
@@ -413,30 +401,32 @@ any IRBuilderImpl::visit(const FunDefGlobal &node) {
 }
 
 std::any IRBuilderImpl::visit(const VarDefGlobal &node) {
-    auto &suc_node = node.vardef_stmt;
-    if (suc_node->is_const && suc_node->dims.empty()) { // define int or float
-        auto init = get_init(suc_node->init_vals[0], suc_node->type);
-        scope.push(suc_node->var_name, init.value());
+    const auto &suc_node = *node.vardef_stmt;
+    if (suc_node.is_const && suc_node.dims.empty()) { // define int or float
+        Value *init;
+        if (suc_node.init_vals.has_value() && !suc_node.init_vals->empty()) {
+            auto &value = *suc_node.init_vals.value().find(0)->second;
+            init = any_cast<Value *>(visit(value));
+        } else
+            init = zero_init(suc_node.type);
+        scope.push(suc_node.var_name, init);
     } else { // define array
         // calculate initial values
-        vector<Constant *> init_vals;
-        for (auto &init_val : suc_node->init_vals) {
-            auto init = get_init(init_val, suc_node->type);
-            init_vals.emplace_back(init.value()->as<Constant>());
+        vector<pair<size_t, Constant *>> init_vals;
+        if (suc_node.init_vals.has_value()) {
+            for (auto &[off, init_val] : suc_node.init_vals.value()) {
+                auto init = any_cast<Value *>(visit(*init_val));
+                init_vals.push_back({off, init->as<Constant>()});
+            }
         }
 
         // create global value
-        auto type = ast2ir_ty(suc_node->type, type_of::Variant, suc_node->dims);
+        auto type = ast2ir_ty(suc_node.type, type_of::Variant, suc_node.dims);
         Value *var;
-        string name = suc_node->var_name;
-        if (suc_node->dims.empty()) {
-            var = _m->create_global_var(type, init_vals[0], std::move(name));
-        } else {
-            var = _m->create_global_var(
-                type, constants.array_const(std::move(init_vals)),
-                std::move(name));
-        }
-        scope.push(suc_node->var_name, var);
+        string name = suc_node.var_name;
+        var = _m->create_global_var(type, std::move(name), init_vals);
+
+        scope.push(suc_node.var_name, var);
     }
     return {};
 }
@@ -562,14 +552,21 @@ any IRBuilderImpl::visit(const AssignStmt &node) {
 
 any IRBuilderImpl::visit(const VarDefStmt &node) {
     if (node.is_const && node.dims.empty()) { // define const int or float
-        auto init = get_init(node.init_vals[0], node.type).value();
+        Value *init;
+        if (node.init_vals.has_value() && !node.init_vals->empty()) {
+            auto &value = *node.init_vals.value().find(0)->second;
+            init = any_cast<Value *>(visit(value));
+        } else
+            init = zero_init(node.type);
         scope.push(node.var_name, init);
     } else {
         // calculate the initial values
-        vector<optional<Value *>> init_vals;
-        for (auto &init_val : node.init_vals) {
-            auto init = get_init(init_val, node.type, node.is_const);
-            init_vals.emplace_back(init);
+        map<size_t, Value *> init_vals;
+        if (node.init_vals.has_value()) {
+            for (auto &[off, init_val] : node.init_vals.value()) {
+                auto init = any_cast<Value *>(visit(*init_val));
+                init_vals[off] = init;
+            }
         }
 
         // define variable
@@ -579,23 +576,36 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
             cur_func->get_entry_bb().insert_inst<AllocaInst>(begin, type);
         scope.push(node.var_name, var);
 
-        // assign initial value to variable
-
-        for (unsigned i = 0; i < init_vals.size(); i++) {
-            if (init_vals[i].has_value()) {
-                Value *addr;
-                if (node.dims.empty()) {
-                    addr = var;
-                } else {
-                    auto idxs = unflatten_idx(node.dims, i);
-                    addr = cur_bb->create_inst<GetElementPtrInst>(
-                        var, std::move(idxs));
-                }
-                auto val = init_vals[i].value();
-                type_convert(
-                    val, addr->get_type()->as<PointerType>()->get_elem_type());
-                cur_bb->create_inst<StoreInst>(val, addr);
+        // zero-initialization is required for unassigned
+        if (node.init_vals.has_value()) {
+            if (type->is_basic_type()) {
+                if (init_vals.empty())
+                    cur_bb->create_inst<StoreInst>(zero_init(node.type), var);
+            } else {
+                for (size_t off = 0;
+                     off < type->as<ArrayType>()->get_total_cnt(); off++)
+                    if (init_vals.find(off) == init_vals.end()) {
+                        auto idxs = unflatten_idx(node.dims, off);
+                        auto addr = cur_bb->create_inst<GetElementPtrInst>(
+                            var, std::move(idxs));
+                        cur_bb->create_inst<StoreInst>(zero_init(node.type),
+                                                       addr);
+                    }
             }
+        }
+        // assign initial value to variable
+        for (auto [off, val] : init_vals) {
+            Value *addr;
+            if (node.dims.empty()) {
+                addr = var;
+            } else {
+                auto idxs = unflatten_idx(node.dims, off);
+                addr = cur_bb->create_inst<GetElementPtrInst>(var,
+                                                              std::move(idxs));
+            }
+            type_convert(val,
+                         addr->get_type()->as<PointerType>()->get_elem_type());
+            cur_bb->create_inst<StoreInst>(val, addr);
         }
     }
     return {};
