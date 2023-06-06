@@ -315,10 +315,14 @@ class IRBuilderImpl : public ast::ASTVisitor {
         }
     }
 
-    Constant *_gen_initializer(Type *type, size_t off,
-                               map<size_t, Constant *>::const_iterator &iter,
-                               map<size_t, Constant *> &_init) {
-        auto left_is_all_zero = iter == _init.end();
+    // combine low-dimensional constant into high-dimensional constarray or
+    // constzero
+    // FIXME: this method may overflow the stack in extreme cases(int
+    // a[1][1][1]......) and have low performance in sparse initial value array.
+    Constant *gen_initializer(Type *type, size_t off,
+                              map<size_t, Constant *>::const_iterator &iter,
+                              map<size_t, Constant *>::const_iterator &end) {
+        auto left_is_all_zero = iter == end;
         if (left_is_all_zero) { // no more init value left, all should be zero
             return constants.get().zero_const(type);
         }
@@ -341,7 +345,7 @@ class IRBuilderImpl : public ast::ASTVisitor {
         vector<Constant *> sub_consts;
         for (size_t i = 0; i < arr_type->get_elem_cnt(); ++i) {
             auto sub_const =
-                _gen_initializer(arr_type->get_elem_type(), off, iter, _init);
+                gen_initializer(arr_type->get_elem_type(), off, iter, end);
             sub_consts.push_back(sub_const);
             off += step;
             all_zero &= sub_const->is<ConstZero>();
@@ -350,6 +354,24 @@ class IRBuilderImpl : public ast::ASTVisitor {
             return constants.get().zero_const(type);
         } else {
             return constants.get().array_const(std::move(sub_consts));
+        }
+    }
+
+    // only for conversion of float to int or int to float
+    // because the type of literalexpr doesn't match the base type of array
+    Constant *const_type_convert(Constant *con, Type *target) {
+        if (con->get_type()->is_basic_type()) {
+            if (con->get_type() != target) {
+                if (con->is<ConstFloat>()) {
+                    return constants.int_const(con->as<ConstFloat>()->val());
+                } else {
+                    return constants.float_const(con->as<ConstInt>()->val());
+                }
+            } else {
+                return con;
+            }
+        } else {
+            return con;
         }
     }
 
@@ -577,7 +599,8 @@ any IRBuilderImpl::visit(const ReturnStmt &node) {
 
 any IRBuilderImpl::visit(const AssignStmt &node) {
     Value *val = any_cast<Value *>(visit(*node.val));
-    Value *addr = scope.find(node.var_name);
+    Value *addr = scope.find(
+        node.var_name); // FIXME:for const var, it shouldn't be stored any more
     if (!addr)
         throw logic_error{node.var_name + " hasn't been defined"};
     if (addr->is<Constant>())
@@ -606,16 +629,8 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
             for (auto &[off, init_val] : node.init_vals.value()) {
                 auto init = any_cast<Value *>(visit(*init_val));
                 if (init->is<Constant>()) {
-                    if (init->get_type() != base_type) {
-                        if (init->get_type()->is<FloatType>()) {
-                            auto val = init->as<ConstFloat>()->val();
-                            init = constants.get().int_const(val);
-                        } else {
-                            auto val = init->as<ConstInt>()->val();
-                            init = constants.get().float_const(val);
-                        }
-                    }
-                    init_const[off] = init->as<Constant>();
+                    init_const[off] =
+                        const_type_convert(init->as<Constant>(), base_type);
                 } else
                     init_var[off] = init;
             }
@@ -629,8 +644,9 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
         scope.push(node.var_name, var);
 
         // zero-initialization is required for unassigned
-        auto iter = init_const.cbegin();
-        auto zero_const = _gen_initializer(type, 0, iter, init_const);
+        auto begin_iter = init_const.cbegin();
+        auto end_iter = init_const.cend();
+        auto zero_const = gen_initializer(type, 0, begin_iter, end_iter);
         if (node.init_vals.has_value()) {
             cur_bb->create_inst<StoreInst>(zero_const, var);
         }
