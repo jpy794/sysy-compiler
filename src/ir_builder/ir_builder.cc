@@ -13,7 +13,9 @@
 #include <any>
 #include <cstddef>
 #include <map>
+#include <set>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -120,6 +122,8 @@ class IRBuilderImpl : public ast::ASTVisitor {
     vector<BasicBlock *> false_bb; // and or while if use
     vector<BasicBlock *> next_bb;  // while if use
     unsigned loop_idx = 0;         // only while use
+
+    set<Value *> const_table;
 
     Types &types = Types::get(); // Convenient reference to Types object for
                                  // easy access to members.
@@ -446,11 +450,20 @@ any IRBuilderImpl::visit(const FunDefGlobal &node) {
 
     visit(*node.body);
     if (not cur_bb->is_terminated())
-        switch (node.ret_type) { // FIXME:the branch without return stmt
-                                 // returns undef value
+        switch (node.ret_type) {
         case ast::BaseType::INT:
         case ast::BaseType::FLOAT:
-            cur_bb->create_inst<RetInst>(zero_init(node.ret_type));
+            // for the function except main, it returns undef value
+            if (cur_func->get_name() == "@main") {
+                cur_bb->create_inst<RetInst>(zero_init(node.ret_type));
+            } else {
+                const auto begin = cur_func->get_entry_bb().insts().begin();
+                auto type = ast2ir_ty(node.ret_type, type_of::Variant);
+                auto addr = cur_func->get_entry_bb().insert_inst<AllocaInst>(
+                    begin, type);
+                auto undef_var = cur_bb->create_inst<LoadInst>(addr);
+                cur_bb->create_inst<RetInst>(undef_var);
+            }
             break;
         case ast::BaseType::VOID:
             cur_bb->create_inst<RetInst>();
@@ -470,6 +483,7 @@ std::any IRBuilderImpl::visit(const VarDefGlobal &node) {
         } else
             init = zero_init(suc_node.type);
         scope.push(suc_node.var_name, init);
+        const_table.insert(init);
     } else { // define array
         // calculate initial values
         vector<pair<size_t, Constant *>> init_vals;
@@ -487,6 +501,9 @@ std::any IRBuilderImpl::visit(const VarDefGlobal &node) {
         var = _m->create_global_var(type, std::move(name), init_vals);
 
         scope.push(suc_node.var_name, var);
+        if (suc_node.is_const) {
+            const_table.insert(var);
+        }
     }
     return {};
 }
@@ -599,11 +616,8 @@ any IRBuilderImpl::visit(const ReturnStmt &node) {
 
 any IRBuilderImpl::visit(const AssignStmt &node) {
     Value *val = any_cast<Value *>(visit(*node.val));
-    Value *addr = scope.find(
-        node.var_name); // FIXME:for const var, it shouldn't be stored any more
-    if (!addr)
-        throw logic_error{node.var_name + " hasn't been defined"};
-    if (addr->is<Constant>())
+    Value *addr = scope.find(node.var_name);
+    if (const_table.find(addr) != const_table.end())
         throw logic_error{"const variable can't be assigned a value"};
     addr = get_addr(addr, node.idxs);
     type_convert(val, addr->get_type()->as<PointerType>()->get_elem_type());
@@ -620,6 +634,7 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
         } else
             init = zero_init(node.type);
         scope.push(node.var_name, init);
+        const_table.insert(init);
     } else {
         // calculate the initial values
         map<size_t, Value *> init_var;
@@ -643,12 +658,15 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
             cur_func->get_entry_bb().insert_inst<AllocaInst>(begin, type);
         scope.push(node.var_name, var);
 
-        // zero-initialization is required for unassigned
+        // const-initialization is required for unassigned
         auto begin_iter = init_const.cbegin();
         auto end_iter = init_const.cend();
-        auto zero_const = gen_initializer(type, 0, begin_iter, end_iter);
+        auto const_inits = gen_initializer(type, 0, begin_iter, end_iter);
         if (node.init_vals.has_value()) {
-            cur_bb->create_inst<StoreInst>(zero_const, var);
+            cur_bb->create_inst<StoreInst>(const_inits, var);
+        }
+        if (node.is_const) {
+            const_table.insert(var);
         }
         // assign initial value to variable
         for (auto [off, val] : init_var) {
@@ -702,8 +720,6 @@ any IRBuilderImpl::visit(const LiteralExpr &node) {
 
 any IRBuilderImpl::visit(const LValExpr &node) { // return the value of the var
     Value *var = scope.find(node.var_name);
-    if (!var)
-        throw logic_error{node.var_name + " isn't defined"};
     if (!var->get_type()->is<PointerType>()) {
         return var;
     } // const val store it's init value into scope
