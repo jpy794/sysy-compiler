@@ -315,6 +315,44 @@ class IRBuilderImpl : public ast::ASTVisitor {
         }
     }
 
+    Constant *_gen_initializer(Type *type, size_t off,
+                               map<size_t, Constant *>::const_iterator &iter,
+                               map<size_t, Constant *> &_init) {
+        auto left_is_all_zero = iter == _init.end();
+        if (left_is_all_zero) { // no more init value left, all should be zero
+            return constants.get().zero_const(type);
+        }
+
+        // leaf node
+        if (type->is_basic_type()) {
+            assert(off <= iter->first);
+            if (off == iter->first) {
+                auto con = iter->second;
+                ++iter;
+                return con;
+            } else {
+                return constants.get().zero_const(type);
+            }
+        }
+
+        auto arr_type = type->as<ArrayType>();
+        bool all_zero = true;
+        size_t step = arr_type->get_total_cnt() / arr_type->get_elem_cnt();
+        vector<Constant *> sub_consts;
+        for (size_t i = 0; i < arr_type->get_elem_cnt(); ++i) {
+            auto sub_const =
+                _gen_initializer(arr_type->get_elem_type(), off, iter, _init);
+            sub_consts.push_back(sub_const);
+            off += step;
+            all_zero &= sub_const->is<ConstZero>();
+        }
+        if (all_zero) {
+            return constants.get().zero_const(type);
+        } else {
+            return constants.get().array_const(std::move(sub_consts));
+        }
+    }
+
     /* visit for super class pointer */
     using ast::ASTVisitor::visit;
     /* do NOT save pointer to AST tree node in visitor */
@@ -561,11 +599,25 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
         scope.push(node.var_name, init);
     } else {
         // calculate the initial values
-        map<size_t, Value *> init_vals;
+        map<size_t, Value *> init_var;
+        map<size_t, Constant *> init_const;
+        auto base_type = ast2ir_ty(node.type, type_of::Variant);
         if (node.init_vals.has_value()) {
             for (auto &[off, init_val] : node.init_vals.value()) {
                 auto init = any_cast<Value *>(visit(*init_val));
-                init_vals[off] = init;
+                if (init->is<Constant>()) {
+                    if (init->get_type() != base_type) {
+                        if (init->get_type()->is<FloatType>()) {
+                            auto val = init->as<ConstFloat>()->val();
+                            init = constants.get().int_const(val);
+                        } else {
+                            auto val = init->as<ConstInt>()->val();
+                            init = constants.get().float_const(val);
+                        }
+                    }
+                    init_const[off] = init->as<Constant>();
+                } else
+                    init_var[off] = init;
             }
         }
 
@@ -577,24 +629,13 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
         scope.push(node.var_name, var);
 
         // zero-initialization is required for unassigned
+        auto iter = init_const.cbegin();
+        auto zero_const = _gen_initializer(type, 0, iter, init_const);
         if (node.init_vals.has_value()) {
-            if (type->is_basic_type()) {
-                if (init_vals.empty())
-                    cur_bb->create_inst<StoreInst>(zero_init(node.type), var);
-            } else {
-                for (size_t off = 0;
-                     off < type->as<ArrayType>()->get_total_cnt(); off++)
-                    if (init_vals.find(off) == init_vals.end()) {
-                        auto idxs = unflatten_idx(node.dims, off);
-                        auto addr = cur_bb->create_inst<GetElementPtrInst>(
-                            var, std::move(idxs));
-                        cur_bb->create_inst<StoreInst>(zero_init(node.type),
-                                                       addr);
-                    }
-            }
+            cur_bb->create_inst<StoreInst>(zero_const, var);
         }
         // assign initial value to variable
-        for (auto [off, val] : init_vals) {
+        for (auto [off, val] : init_var) {
             Value *addr;
             if (node.dims.empty()) {
                 addr = var;
@@ -669,7 +710,7 @@ any IRBuilderImpl::visit(const LValExpr &node) { // return the value of the var
     }
     return var;
 }
-//(,tofloat)
+
 any IRBuilderImpl::visit(const BinaryExpr &node) {
     Value *lhs, *rhs;
     switch (node.op) {

@@ -1,11 +1,15 @@
 #pragma once
 
+#include <cstddef>
 #include <iomanip>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "err.hh"
+#include "hash.hh"
 #include "type.hh"
 #include "utils.hh"
 #include "value.hh"
@@ -99,7 +103,37 @@ class ConstArray : public Constant {
 
     std::vector<Constant *> &array() { return _array; }
 };
+class ConstZero : public Constant {
+  private:
+    std::vector<size_t> _dims;
 
+    static Type *_deduce_type(const std::vector<size_t> &dims,
+                              Type *basic_type) {
+        Type *ret_type = basic_type;
+        for (int i = dims.size() - 1; i >= 0; i--) {
+            ret_type = Types::get().array_type(ret_type, dims[i]);
+        }
+        return ret_type;
+    }
+    static std::string _gen_name(Type *type) {
+        if (!type->is_basic_type()) {
+            return "zeroinitializer";
+        } else if (type->is<IntType>()) {
+            return "0";
+        } else if (type->is<FloatType>()) {
+            double v = 0;
+            std::stringstream hex_s;
+            hex_s << "0x" << std::hex << std::uppercase
+                  << *reinterpret_cast<uint64_t *>(&v);
+            return hex_s.str();
+        } else {
+            throw std::logic_error{"ConstZero type is " + type->print()};
+        }
+    }
+
+  public:
+    ConstZero(Type *type) : Constant(type, _gen_name(type)) {}
+};
 // manage memory for consts, each const has to survive longer than its last use
 // here for simplicity, just never delete consts
 class Constants {
@@ -119,6 +153,9 @@ class Constants {
         for (auto &&[_, con] : _array_hash) {
             delete con;
         }
+        for (auto &&[_, con] : _zero_hash) {
+            delete con;
+        }
     }
 
     std::unordered_map<bool, ConstBool *> _bool_hash;
@@ -126,6 +163,7 @@ class Constants {
     std::unordered_map<float, ConstFloat *> _float_hash;
     std::unordered_map<std::vector<Constant *>, ConstArray *, VectorHash>
         _array_hash;
+    std::unordered_map<Type *, ConstZero *> _zero_hash;
 
   public:
     static Constants &get() {
@@ -159,6 +197,13 @@ class Constants {
             _array_hash.insert({array, new ConstArray{std::move(array)}});
         }
         return _array_hash[array];
+    }
+
+    ConstZero *zero_const(Type *type) {
+        if (not contains(_zero_hash, type)) {
+            _zero_hash.insert({type, new ConstZero{type}});
+        }
+        return _zero_hash[type];
     }
 };
 
