@@ -4,6 +4,7 @@
 #include "constant.hh"
 #include "err.hh"
 #include "function.hh"
+#include "global_variable.hh"
 #include "instruction.hh"
 #include "module.hh"
 #include "type.hh"
@@ -321,11 +322,11 @@ class IRBuilderImpl : public ast::ASTVisitor {
 
     // combine low-dimensional constant into high-dimensional constarray or
     // constzero
-    // FIXME: this method may overflow the stack in extreme cases(int
+    // this method may overflow the stack in extreme cases(int
     // a[1][1][1]......) and have low performance in sparse initial value array.
-    Constant *gen_initializer(Type *type, size_t off,
-                              map<size_t, Constant *>::const_iterator &iter,
-                              map<size_t, Constant *>::const_iterator &end) {
+    Constant *const_initializer(Type *type, size_t off,
+                                map<size_t, Constant *>::const_iterator &iter,
+                                map<size_t, Constant *>::const_iterator &end) {
         auto left_is_all_zero = iter == end;
         if (left_is_all_zero) { // no more init value left, all should be zero
             return constants.get().zero_const(type);
@@ -349,7 +350,7 @@ class IRBuilderImpl : public ast::ASTVisitor {
         vector<Constant *> sub_consts;
         for (size_t i = 0; i < arr_type->get_elem_cnt(); ++i) {
             auto sub_const =
-                gen_initializer(arr_type->get_elem_type(), off, iter, end);
+                const_initializer(arr_type->get_elem_type(), off, iter, end);
             sub_consts.push_back(sub_const);
             off += step;
             all_zero &= sub_const->is<ConstZero>();
@@ -377,6 +378,32 @@ class IRBuilderImpl : public ast::ASTVisitor {
         } else {
             return con;
         }
+    }
+
+    pair<map<size_t, Value *>, Constant *>
+    get_initializer(const std::optional<std::map<size_t, Ptr<Expr>>> &init_vals,
+                    Type *type) {
+        map<size_t, Value *> init_var;
+        map<size_t, Constant *> init_const;
+        if (init_vals.has_value()) {
+            for (auto &[off, init_val] : init_vals.value()) {
+                auto init = any_cast<Value *>(visit(*init_val));
+                if (init->is<Constant>()) {
+                    // init_const[off] = init->as<Constant>();
+                    init_const[off] = const_type_convert(
+                        init->as<Constant>(),
+                        type->is_basic_type()
+                            ? type
+                            : type->as<ArrayType>()->get_base_type());
+                } else
+                    init_var[off] = init;
+            }
+        }
+        // const-initialization is requcired for unassigned
+        auto begin_iter = init_const.cbegin();
+        auto end_iter = init_const.cend();
+        auto const_inits = const_initializer(type, 0, begin_iter, end_iter);
+        return {init_var, const_inits};
     }
 
     /* visit for super class pointer */
@@ -485,21 +512,18 @@ std::any IRBuilderImpl::visit(const VarDefGlobal &node) {
         scope.push(suc_node.var_name, init);
         const_table.insert(init);
     } else { // define array
-        // calculate initial values
-        vector<pair<size_t, Constant *>> init_vals;
-        if (suc_node.init_vals.has_value()) {
-            for (auto &[off, init_val] : suc_node.init_vals.value()) {
-                auto init = any_cast<Value *>(visit(*init_val));
-                init_vals.push_back({off, init->as<Constant>()});
-            }
-        }
-
-        // create global value
         auto type = ast2ir_ty(suc_node.type, type_of::Variant, suc_node.dims);
-        Value *var;
-        string name = suc_node.var_name;
-        var = _m->create_global_var(type, std::move(name), init_vals);
+        // calculate the initial values
+        auto [init_vars, const_inits] =
+            get_initializer(suc_node.init_vals, type);
 
+        if (!init_vars.empty())
+            throw logic_error{"Initialization values for global variables "
+                              "should have compile-time constants"};
+
+        // define variable
+        auto name = suc_node.var_name;
+        auto var = _m->create_global_var(type, std::move(name), const_inits);
         scope.push(suc_node.var_name, var);
         if (suc_node.is_const) {
             const_table.insert(var);
@@ -636,32 +660,15 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
         scope.push(node.var_name, init);
         const_table.insert(init);
     } else {
-        // calculate the initial values
-        map<size_t, Value *> init_var;
-        map<size_t, Constant *> init_const;
-        auto base_type = ast2ir_ty(node.type, type_of::Variant);
-        if (node.init_vals.has_value()) {
-            for (auto &[off, init_val] : node.init_vals.value()) {
-                auto init = any_cast<Value *>(visit(*init_val));
-                if (init->is<Constant>()) {
-                    init_const[off] =
-                        const_type_convert(init->as<Constant>(), base_type);
-                } else
-                    init_var[off] = init;
-            }
-        }
+        auto type = ast2ir_ty(node.type, type_of::Variant, node.dims);
+        auto [init_vars, const_inits] = get_initializer(node.init_vals, type);
 
         // define variable
-        auto type = ast2ir_ty(node.type, type_of::Variant, node.dims);
         const auto begin = cur_func->get_entry_bb().insts().begin();
         auto var =
             cur_func->get_entry_bb().insert_inst<AllocaInst>(begin, type);
         scope.push(node.var_name, var);
 
-        // const-initialization is required for unassigned
-        auto begin_iter = init_const.cbegin();
-        auto end_iter = init_const.cend();
-        auto const_inits = gen_initializer(type, 0, begin_iter, end_iter);
         if (node.init_vals.has_value()) {
             cur_bb->create_inst<StoreInst>(const_inits, var);
         }
@@ -669,7 +676,7 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
             const_table.insert(var);
         }
         // assign initial value to variable
-        for (auto [off, val] : init_var) {
+        for (auto [off, val] : init_vars) {
             Value *addr;
             if (node.dims.empty()) {
                 addr = var;

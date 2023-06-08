@@ -105,16 +105,6 @@ class ConstArray : public Constant {
 };
 class ConstZero : public Constant {
   private:
-    std::vector<size_t> _dims;
-
-    static Type *_deduce_type(const std::vector<size_t> &dims,
-                              Type *basic_type) {
-        Type *ret_type = basic_type;
-        for (int i = dims.size() - 1; i >= 0; i--) {
-            ret_type = Types::get().array_type(ret_type, dims[i]);
-        }
-        return ret_type;
-    }
     static std::string _gen_name(Type *type) {
         if (!type->is_basic_type()) {
             return "zeroinitializer";

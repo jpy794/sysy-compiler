@@ -10,76 +10,15 @@
 using namespace ir;
 using namespace std;
 
-GlobalVariable::GlobalVariable(Type *type, string &&name,
-                               const vector<pair<size_t, Constant *>> &init)
-    : Value(Types::get().ptr_type(type), "@" + name) {
-    for (auto &[idx, val] : init)
-        _init[idx] = val;
-}
-
-string str_of_const_0(Type *type) {
-    assert(type->is_basic_type());
-    return type->print() + " " +
-           (type->is<IntType>() ? Constants::get().int_const(0)->get_name()
-                                : Constants::get().float_const(0)->get_name());
-}
-
-pair<bool, string> GlobalVariable::_gen_initializer(
-    Type *type, size_t off,
-    map<size_t, Constant *>::const_iterator &iter) const {
-    auto left_is_all_zero = iter == _init.end();
-    if (left_is_all_zero) { // no more init value left, all should be zero
-        if (type->is_basic_type()) {
-            return {true, str_of_const_0(type)};
-        } else
-            return {true, type->print() + " zeroinitializer"};
-    }
-
-    // leaf node
-    if (type->is_basic_type()) {
-        assert(off <= iter->first);
-        if (off == iter->first) {
-            auto str = type->print() + " " + iter->second->get_name();
-            ++iter;
-            return {false, str};
-        } else {
-            return {true, str_of_const_0(type)};
-        }
-    }
-
-    // FIXME: this approach may has low performance
-    // array type
-    auto arr_type = type->as<ArrayType>();
-    bool all_zero = true;
-    size_t step = arr_type->get_total_cnt() / arr_type->get_elem_cnt();
-    string str{""};
-    for (size_t i = 0; i < arr_type->get_elem_cnt(); ++i) {
-        auto [is_zero, sub_str] =
-            _gen_initializer(arr_type->get_elem_type(), off, iter);
-        off += step;
-
-        str += sub_str + ", ";
-        all_zero &= is_zero;
-    }
-
-    if (all_zero) {
-        str = type->print() + " zeroinitializer";
-        return {true, str};
-    } else {
-        str = type->print() + " [" + str.substr(0, str.size() - 2) + "]";
-        return {false, str};
+GlobalVariable::GlobalVariable(Type *type, string &&name, Constant *init)
+    : Value(Types::get().ptr_type(type), "@" + name), _init(init) {
+    if (init == nullptr) {
+        init = Constants::get().zero_const(type);
     }
 }
 
 string GlobalVariable::print() const {
-    string init_ir;
-    auto elem_type = get_type()->as<PointerType>()->get_elem_type();
-    if (elem_type->is_basic_type()) {
-        return get_name() + " = global " + elem_type->print() + " " +
-               get_init(0)->get_name();
-    } else {
-        auto iter = _init.begin();
-        auto [_, str] = _gen_initializer(elem_type, 0, iter);
-        return get_name() + " = global " + str;
-    }
+    return get_name() + " = global " +
+           get_type()->as<PointerType>()->get_elem_type()->print() + " " +
+           _init->get_name();
 }
