@@ -21,6 +21,7 @@ function(ir_builder_test BASE CASE)
         ${SYSY_TESTS}/out/${BASE}
         ${SYSY_TESTS}/lib/sylib.c
     )
+    set_tests_properties(test_ir_builder_${CASE} PROPERTIES TIMEOUT 60) 
 endfunction()
 
 function(ir_builder_test_path BASE)
@@ -36,6 +37,8 @@ function(ir_builder_test_path BASE)
 endfunction()
 
 ir_builder_test_path(2022/func)
+ir_builder_test_path(2022/func_hidden)
+ir_builder_test_path(2022/perf)
 
 add_custom_target(
     check_ir_builder

@@ -1,0 +1,2 @@
+test/sysy_tests/in/2022/perf/03_sort2.in filter=lfs diff=lfs merge=lfs -text
+test/sysy_tests/in/2022/perf/shuffle2.in filter=lfs diff=lfs merge=lfs -text
