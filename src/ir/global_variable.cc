@@ -13,7 +13,7 @@ using namespace std;
 GlobalVariable::GlobalVariable(Type *type, string &&name, Constant *init)
     : Value(Types::get().ptr_type(type), "@" + name), _init(init) {
     if (init == nullptr) {
-        init = Constants::get().zero_const(type);
+        _init = Constants::get().zero_const(type);
     }
 }
 
