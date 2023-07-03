@@ -113,6 +113,14 @@ class IRBuilderImpl : public ast::ASTVisitor {
                 Types::get().func_type(
                     void_type, {int_type, Types::get().ptr_type(float_type)}),
                 "putfarray", external));
+        scope.push(
+            "_sysy_starttime",
+            _m->create_func(Types::get().func_type(void_type, {int_type}),
+                            "_sysy_starttime", external));
+        scope.push(
+            "_sysy_stoptime",
+            _m->create_func(Types::get().func_type(void_type, {int_type}),
+                            "_sysy_stoptime", external));
     }
 
     /* variables that tansform information */

@@ -3,6 +3,7 @@
 #include "sysyLexer.h"
 #include "sysyVisitor.h"
 #include <fstream>
+#include <sstream>
 
 using namespace std;
 using namespace ast;
@@ -383,10 +384,31 @@ any RawASTBuilder::visitGlobalDef(sysyParser::GlobalDefContext *ctx) {
     return ret;
 }
 
+void replace_all(string &s, const string &search, const string &replace) {
+    size_t pos{0};
+    while ((pos = s.find(search)) != string::npos) {
+        s.replace(pos, search.size(), replace);
+        pos += replace.size();
+    }
+}
+
+void macro_replace(string &s) {
+    vector<pair<string, string>> macros = {
+        {"starttime()", "_sysy_starttime(0)"},
+        {"stoptime()", "_sysy_stoptime(0)"}};
+    for (auto &&[search, replace] : macros) {
+        replace_all(s, search, replace);
+    }
+}
+
 RawAST::RawAST(const string &src) {
     ifstream src_s{src};
+    ostringstream src_ss;
+    src_ss << src_s.rdbuf();
+    auto src_str = src_ss.str();
+    macro_replace(src_str);
 
-    antlr4::ANTLRInputStream input_s{src_s};
+    antlr4::ANTLRInputStream input_s{src_str};
     sysyLexer lexer{&input_s};
     antlr4::CommonTokenStream token_s{&lexer};
     sysyParser parser{&token_s};
