@@ -543,8 +543,13 @@ std::any IRBuilderImpl::visit(const VarDefGlobal &node) {
 /* stmt */
 any IRBuilderImpl::visit(const BlockStmt &node) {
     scope.enter();
-    for (auto &stmt : node.stmts)
+    for (auto &stmt : node.stmts) {
         visit(*stmt);
+        // for break / continue / return
+        if (cur_bb->is_terminated()) {
+            break;
+        }
+    }
     scope.exit();
     return {};
 }

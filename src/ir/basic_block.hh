@@ -18,13 +18,11 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
 
     template <typename Inst, typename... Args>
     Inst *create_inst(Args &&...args) {
-        // check for RetInst
-        if constexpr (std::is_same<RetInst, Inst>::value) {
-            assert(not is_terminated());
-        }
+        // whenever append inst to bb, bb should not be terminated
+        assert(not is_terminated());
+
         // check for BrInst
         if constexpr (std::is_same<BrInst, Inst>::value) {
-            assert(not is_terminated());
             _link(std::forward<Args>(args)...);
         }
 
