@@ -47,8 +47,8 @@ int main(int argc, char **argv) {
     ir << module->print();
     ir.close();
 
-    auto clang_cmd = "clang -Wno-override-module " + tmp(".ll").string() + " " +
-                     lib_file.string() + " -o " + tmp("").string();
+    auto clang_cmd = "clang -O2 -Wno-override-module " + tmp(".ll").string() +
+                     " " + lib_file.string() + " -o " + tmp("").string();
     auto clang_exit_code = std::system(clang_cmd.c_str());
 
     if (clang_exit_code != 0) {

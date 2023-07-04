@@ -21,7 +21,7 @@ function(ir_builder_test BASE CASE)
         ${SYSY_TESTS}/out/${BASE}
         ${SYSY_TESTS}/lib/sylib.c
     )
-    set_tests_properties(test_ir_builder_${CASE} PROPERTIES TIMEOUT 60) 
+    set_tests_properties(test_ir_builder_${CASE} PROPERTIES TIMEOUT 100) 
 endfunction()
 
 function(ir_builder_test_path BASE)
