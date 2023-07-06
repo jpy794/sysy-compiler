@@ -33,6 +33,16 @@ class Module {
 
     std::string print() const;
 
+    // non-const
+    ilist<GlobalVariable> &global_vars() { return _global_vars; }
+    ilist<Function> &functions() { return _funcs; }
+
+    // const
+    const ilist<GlobalVariable> &get_global_vars() const {
+        return _global_vars;
+    }
+    const ilist<Function> &get_functions() const { return _funcs; }
+
   private:
     std::string _name;
 

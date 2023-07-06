@@ -28,6 +28,9 @@ class Function : public Value, public ilist<Function>::node {
     Type *get_return_type() const {
         return dynamic_cast<FuncType *>(get_type())->get_result_type();
     };
+
+    ilist<BasicBlock> &bbs() { return _bbs; }
+
     const ilist<BasicBlock> &get_bbs() const { return _bbs; }
     const std::vector<Argument *> &get_args() { return _args; }
     BasicBlock &get_entry_bb() {
