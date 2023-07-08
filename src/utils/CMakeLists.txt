@@ -5,6 +5,8 @@ add_library(
     utils.hh
     utils.cc
     hash.hh
+    log.hh
+    log.cc
 )
 
 # currently there's no source file in utils
