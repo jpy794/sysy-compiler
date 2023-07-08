@@ -35,3 +35,5 @@ bool contains(const Container &con, const Elem &elem) {
     static_assert(std::is_same<typename Container::value_type, Elem>::value);
     return std::find(con.begin(), con.end(), elem) != con.end();
 }
+
+std::string demangle(const char *mangled_name);

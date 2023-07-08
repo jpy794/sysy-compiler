@@ -20,7 +20,6 @@ class Mem2reg final : public pass::TransformPass {
         AU.set_kill_type(KillType::All);
         AU.add_require<pass::Dominator>();
         AU.add_require<pass::UseDefChain>();
-        AU.add_kill<pass::UseDefChain>();
     }
     virtual void run(pass::PassManager *mgr) override;
 

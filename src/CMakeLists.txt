@@ -10,4 +10,11 @@ add_executable(sysyc main.cc)
 
 target_link_libraries(
     sysyc
+    PRIVATE ast
+    PRIVATE ir
+    PRIVATE ir_builder
+    PRIVATE utils
+    PRIVATE pass
+    PRIVATE transform
+    PRIVATE analysis
 )

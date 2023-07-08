@@ -121,7 +121,7 @@ class PassManager {
     PassOrder _order;
 
   public:
-    PassManager(ir::Module *m) : _m(m) {}
+    PassManager(Ptr<ir::Module> &&m) : _m(std::move(m)) {}
 
     // for an instance of PassManager, each pass should be added at most once
     // This function must be defined in header.
@@ -157,13 +157,15 @@ class PassManager {
     // FIXME: how to return a const Module* for AnalysisPass?
     ir::Module *get_module() { return _m.get(); }
 
+    Ptr<ir::Module> release_module() { return std::move(_m); }
+
   private:
     PassInfo &at(PassIDType id) {
         try {
             PassInfo &info = _passes.at(id);
             return info;
         } catch (const std::out_of_range &) {
-            std::string pass_name = std::string(id.name());
+            std::string pass_name = demangle(id.name());
             throw std::logic_error{"Pass " + pass_name +
                                    " is not added, make sure add_pass<" +
                                    pass_name + ">() has been called"};

@@ -3,6 +3,7 @@ add_library(
     err.hh
     ilist.hh
     utils.hh
+    utils.cc
     hash.hh
 )
 

@@ -47,15 +47,15 @@ int main(int argc, char **argv) {
     ast::AST ast{ast::RawAST{test(sysy_path, ".sy")}};
     IRBuilder builder{ast};
     auto module = builder.release_module();
-    auto m = module.release();
-    pass::PassManager pm(m);
+    pass::PassManager pm(std::move(module));
     pm.add_pass<pass::RmUnreachBB>();
     pm.add_pass<pass::Dominator>();
     pm.add_pass<pass::UseDefChain>();
     pm.add_pass<pass::Mem2reg>();
     pm.run();
+    module = pm.release_module();
     ofstream ir{tmp(".ll")};
-    ir << m->print();
+    ir << module->print();
     ir.close();
 
     auto clang_cmd = "clang -O2 -Wno-override-module " + tmp(".ll").string() +
