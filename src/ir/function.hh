@@ -32,7 +32,7 @@ class Function : public Value, public ilist<Function>::node {
     ilist<BasicBlock> &bbs() { return _bbs; }
 
     const ilist<BasicBlock> &get_bbs() const { return _bbs; }
-    const std::vector<Argument *> &get_args() { return _args; }
+    const std::vector<Argument *> &get_args() const { return _args; }
     BasicBlock &get_entry_bb() {
         // FIXME: shoule we have a bb pointer that points to the entry
         // instead of using _bbs.front() as default entry ?
