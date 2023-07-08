@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -124,6 +125,10 @@ class ConstZero : public Constant {
   public:
     ConstZero(Type *type) : Constant(type, _gen_name(type)) {}
 };
+class Undef : public Constant {
+  public:
+    Undef(Type *type) : Constant(type, "undef") {}
+};
 // manage memory for consts, each const has to survive longer than its last use
 // here for simplicity, just never delete consts
 class Constants {
@@ -154,6 +159,9 @@ class Constants {
     std::unordered_map<std::vector<Constant *>, ConstArray *, VectorHash>
         _array_hash;
     std::unordered_map<Type *, ConstZero *> _zero_hash;
+    std::tuple<Undef *, Undef *, Undef *> _undef{
+        new Undef(Types::get().bool_type()), new Undef(Types::get().int_type()),
+        new Undef(Types::get().float_type())};
 
   public:
     static Constants &get() {
@@ -194,6 +202,19 @@ class Constants {
             _zero_hash.insert({type, new ConstZero{type}});
         }
         return _zero_hash[type];
+    }
+
+    Undef *undef(Value *val) const {
+        if (val->get_type()->is<BoolType>()) {
+            return std::get<0>(_undef);
+        } else if (val->get_type()->is<IntType>()) {
+            return std::get<1>(_undef);
+        } else if (val->get_type()->is<FloatType>()) {
+            return std::get<2>(_undef);
+        } else {
+            throw std::logic_error{val->get_type()->print() +
+                                   " can't be undef"};
+        }
     }
 };
 

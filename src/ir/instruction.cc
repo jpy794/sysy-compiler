@@ -88,34 +88,15 @@ FCmpInst::FCmpInst(BasicBlock *prt, FCmpOp cmp_op, Value *lhs, Value *rhs)
     assert(is_a<FloatType>(rhs->get_type()));
 }
 
-vector<Value *> PhiInst::_get_op(const vector<Value *> &values) {
-    vector<Value *> ret;
-    ret.reserve(values.size() * 2);
-    for (auto v : values) {
-        // push back value
-        ret.push_back(v);
-        // push back bb
-        if (is_a<Instruction>(v)) {
-            ret.push_back(as_a<Instruction>(v)->get_parent());
-        } else if (is_a<Argument>(v)) {
-            // FIXME
-            // for Argument type, we use entry_bb. Is this right?
-            auto &entry_bb = as_a<Argument>(v)->get_function()->get_entry_bb();
-            ret.push_back(&entry_bb);
-
-        } else {
-            throw unreachable_error{};
-        }
-    }
-    return ret;
+void PhiInst::add_phi_param(Value *val, BasicBlock *bb) {
+    assert(this->get_type() == val->get_type());
+    this->add_operand(val);
+    this->add_operand(bb);
 }
 
-PhiInst::PhiInst(BasicBlock *prt, std::vector<Value *> &&values)
-    : Instruction(prt, values[0]->get_type(), _get_op(values)) {
-    // all value should have the same type
-    for (auto v : values)
-        assert(get_type() == v->get_type());
-}
+PhiInst::PhiInst(BasicBlock *prt, Value *base)
+    : Instruction(prt, base->get_type()->as<PointerType>()->get_elem_type(),
+                  {}) {}
 
 CallInst::CallInst(BasicBlock *prt, Function *func, vector<Value *> &&params)
     : Instruction(prt, func->get_return_type(), _mix2vec(func, params)) {
@@ -318,11 +299,13 @@ string FCmpInst::print() const {
 }
 
 string PhiInst::print() const {
-    return this->get_name() + " = phi " + this->get_type()->print() + "[" +
-           this->operands()[0]->get_name() + ", " +
-           this->operands()[1]->get_name() + "]" + "[" +
-           this->operands()[3]->get_name() + ", " +
-           this->operands()[4]->get_name() + "]";
+    string phi = this->get_name() + " = phi " + this->get_type()->print();
+    for (unsigned i = 0; i < operands().size(); i += 2) {
+        phi += " [ " + operands()[i]->get_name() + ", %" +
+               operands()[i + 1]->get_name() + " ],";
+    }
+    phi.erase(phi.length() - 1, 1);
+    return phi;
 }
 
 string CallInst::print() const {

@@ -168,12 +168,9 @@ class FCmpInst : public Instruction {
 class PhiInst : public Instruction {
   public:
     // @values: the definition list.
-    // No bb passed in here, cause the parent bb of can be deduced
-    PhiInst(BasicBlock *prt, std::vector<Value *> &&values);
+    PhiInst(BasicBlock *prt, Value *base);
 
-    template <typename... Args>
-    PhiInst(BasicBlock *bb, Args &&...args)
-        : PhiInst(bb, {static_cast<Value *>(args)...}) {}
+    void add_phi_param(Value *val, BasicBlock *bb);
 
     std::string print() const final;
 

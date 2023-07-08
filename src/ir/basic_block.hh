@@ -35,19 +35,17 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
         // check for RetInst
         if constexpr (std::is_same<RetInst, Inst>::value) {
             assert(not is_terminated());
+            assert(it != _insts.end());
         }
         // check for BrInst
         if constexpr (std::is_same<BrInst, Inst>::value) {
             assert(not is_terminated());
+            assert(it != _insts.end());
             _link(std::forward<Args>(args)...);
         }
-        _insts.push_front(new Inst{
-            this,
-            std::forward<Args>(
-                args)...}); // FIXME: this function need to be able to be
-                            // inserted in any position, but for instructions,
-                            // it can't use emplace member function
-        return as_a<Inst>(&_insts.front());
+        auto inst = new Inst{this, std::forward<Args>(args)...};
+        _insts.insert(it, inst);
+        return inst;
     }
 
     std::vector<BasicBlock *> &pre_bbs() { return _pre_bbs; }
