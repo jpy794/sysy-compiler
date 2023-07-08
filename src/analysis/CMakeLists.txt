@@ -12,4 +12,5 @@ target_link_libraries(
     PRIVATE pass
     PRIVATE utils
     PRIVATE ir
+    PRIVATE transform
 )

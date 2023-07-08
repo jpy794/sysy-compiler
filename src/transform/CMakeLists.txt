@@ -1,14 +1,14 @@
 file(GLOB OPT_SRC_FILES *.cc *.hh)
 
-add_library(opt ${OPT_SRC_FILES})
+add_library(transform ${OPT_SRC_FILES})
 
 target_include_directories(
-    opt
+    transform
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 target_link_libraries(
-    opt
+    transform
     PRIVATE pass
     PRIVATE utils
     PRIVATE ir
