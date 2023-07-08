@@ -80,6 +80,8 @@ class IBinaryInst : public Instruction {
 
     std::string print() const final;
 
+    IBinOp get_icmp_op() const { return _op; }
+
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
     }
@@ -95,6 +97,8 @@ class FBinaryInst : public Instruction {
     FBinaryInst(BasicBlock *prt, FBinOp op, Value *lhs, Value *rhs);
 
     std::string print() const final;
+
+    FBinOp get_fcmp_op() const { return _op; }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
@@ -143,6 +147,8 @@ class ICmpInst : public Instruction {
     ICmpInst(BasicBlock *prt, ICmpOp cmp_op, Value *lhs, Value *rhs);
     std::string print() const final;
 
+    ICmpOp get_icmp_op() const { return _cmp_op; }
+
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
     }
@@ -156,6 +162,8 @@ class FCmpInst : public Instruction {
     enum FCmpOp { FEQ, FNE, FGT, FGE, FLT, FLE };
     FCmpInst(BasicBlock *prt, FCmpOp cmp_op, Value *lhs, Value *rhs);
     std::string print() const final;
+
+    FCmpOp get_Fcmp_op() const { return _cmp_op; }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
