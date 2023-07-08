@@ -12,12 +12,10 @@ namespace ir {
 class User : public Value {
   public:
     User(Type *type, std::string &&name, std::vector<Value *> &&operands)
-        : Value(type, std::move(name)), _operands(operands),
-          _op_num(operands.size()) {}
+        : Value(type, std::move(name)), _operands(operands) {}
 
-    virtual void set_operand(size_t index, Value *value) {
-        throw unreachable_error{"not implemented"};
-        assert(index < _op_num);
+    void set_operand(size_t index, Value *value) {
+        assert(index < _operands.size());
         _operands[index] = value;
     }
 
@@ -25,13 +23,15 @@ class User : public Value {
     const std::vector<Value *> &operands() const { return _operands; }
 
     Value *get_operand(size_t index) const {
-        assert(index < _op_num);
+        assert(index < _operands.size());
         return _operands[index];
     }
 
+  protected:
+    void add_operand(Value *value) { _operands.push_back(value); }
+
   private:
     std::vector<Value *> _operands;
-    const size_t _op_num;
 };
 
 } // namespace ir
