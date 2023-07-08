@@ -1,6 +1,8 @@
 #include "dominator.hh"
 #include "basic_block.hh"
+#include "utils.hh"
 #include <cassert>
+#include <queue>
 
 using namespace ir;
 using namespace pass;
@@ -135,4 +137,21 @@ void Dominator::create_dom_tree_succ(Function *f) {
             _result.dom_tree_succ_blocks[idom].insert(bb);
         }
     }
+}
+
+bool Dominator::ResultType::is_dom(BasicBlock *domer, BasicBlock *domee) const {
+    std::queue<BasicBlock *> bfs{};
+    bfs.push(domer);
+    while (not bfs.empty()) {
+        auto bb = bfs.front();
+        bfs.pop();
+        assert(contains(dom_tree_succ_blocks, bb));
+        for (auto &&suc_bb : dom_tree_succ_blocks.at(bb)) {
+            if (suc_bb == domee) {
+                return true;
+            }
+            bfs.push(suc_bb);
+        }
+    }
+    return false;
 }

@@ -16,6 +16,8 @@ class Dominator final : public pass::AnalysisPass {
         std::map<ir::BasicBlock *, std::set<ir::BasicBlock *>> dom_frontier;
         std::map<ir::BasicBlock *, std::set<ir::BasicBlock *>>
             dom_tree_succ_blocks;
+
+        bool is_dom(ir::BasicBlock *domer, ir::BasicBlock *domee) const;
     };
 
     virtual void get_analysis_usage(pass::AnalysisUsage &AU) const override {

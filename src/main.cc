@@ -14,6 +14,7 @@
 #include "dominator.hh"
 #include "err.hh"
 #include "ir_builder.hh"
+#include "loop_find.hh"
 #include "mem2reg.hh"
 #include "pass.hh"
 #include "raw_ast.hh"
@@ -86,6 +87,7 @@ int main(int argc, char **argv) {
         // analysis
         pm.add_pass<Dominator>();
         pm.add_pass<UseDefChain>();
+        pm.add_pass<LoopFind>();
 
         // transform
         pm.add_pass<RmUnreachBB>();

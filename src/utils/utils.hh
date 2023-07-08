@@ -21,12 +21,12 @@ template <typename Derived, typename Base> Derived *as_a(Base *base) {
 }
 
 template <typename Key, typename... Args>
-bool contains(std::map<Key, Args...> &con, const Key &key) {
+bool contains(const std::map<Key, Args...> &con, const Key &key) {
     return con.find(key) != con.end();
 }
 
 template <typename Key, typename... Args>
-bool contains(std::unordered_map<Key, Args...> &con, const Key &key) {
+bool contains(const std::unordered_map<Key, Args...> &con, const Key &key) {
     return con.find(key) != con.end();
 }
 
