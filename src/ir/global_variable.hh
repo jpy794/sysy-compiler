@@ -16,6 +16,7 @@ class GlobalVariable : public Value, public ilist<GlobalVariable>::node {
   public:
     GlobalVariable(Type *type, std::string &&name, Constant *init = nullptr);
     std::string print() const final;
+    Constant *get_init() const { return _init; }
 
   private:
     // default implicit 0 init

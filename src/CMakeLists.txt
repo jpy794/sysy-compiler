@@ -5,6 +5,9 @@ add_subdirectory(utils)
 add_subdirectory(pass)
 add_subdirectory(transform)
 add_subdirectory(analysis)
+add_subdirectory(codegen)
+add_subdirectory(mir)
+add_subdirectory(mir_builder)
 
 add_executable(sysyc main.cc)
 

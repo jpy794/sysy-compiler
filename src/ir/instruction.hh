@@ -80,7 +80,7 @@ class IBinaryInst : public Instruction {
 
     std::string print() const final;
 
-    IBinOp get_icmp_op() const { return _op; }
+    IBinOp get_ibin_op() const { return _op; }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
@@ -98,7 +98,7 @@ class FBinaryInst : public Instruction {
 
     std::string print() const final;
 
-    FBinOp get_fcmp_op() const { return _op; }
+    FBinOp get_fbin_op() const { return _op; }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
