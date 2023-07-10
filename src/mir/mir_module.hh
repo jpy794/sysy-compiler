@@ -14,7 +14,6 @@
 namespace mir {
 class Module {
     friend class CodeGen;
-    std::string _name{"mir-moduler"};
     std::vector<Function *> _functions;
     std::vector<GlobalObject *> _globals;
 

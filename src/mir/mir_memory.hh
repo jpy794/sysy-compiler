@@ -16,8 +16,6 @@
 
 namespace mir {
 
-// TODO
-
 class MemObject : public Value {
   protected:
     const std::size_t _size;

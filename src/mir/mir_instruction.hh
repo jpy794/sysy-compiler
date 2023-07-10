@@ -10,7 +10,7 @@ namespace mir {
 
 /* RISCV RV64GC Subset
  * - support int operations only for now: RV32I RV64I RV64M
- * - abort instructions: unsigned related, non 32-bit,
+ * - abort instructions: unsigned related, non 32-bit(reserve on ptr calc case)
  */
 enum MIR_INST {
     /* RV32I */
@@ -89,12 +89,8 @@ enum MIR_INST {
 };
 
 class Instruction final : public ilist<Instruction>::node {
-    /* enum class R_IDX : unsigned { DEST, SRC1, SRC2 };
-     * enum class I_IDX : unsigned { DEST, SRC1, IMM };
-     * enum class S_IDX : unsigned { SRC, BASE, IMM };
-     * enum class B_IDX : unsigned { SRC1, SRC2, LABEL };
-     * enum class U_IDX : unsigned { DEST, IMM };
-     * using J_IDX = U_IDX; */
+    friend class Label;
+
   private:
     const MIR_INST _opcode;
     std::vector<Value *> _operands;
@@ -108,8 +104,6 @@ class Instruction final : public ilist<Instruction>::node {
     Value *get_operand(unsigned i) { return _operands.at(i); }
 
     void dump(std::ostream &os, const MIRContext &context) const;
-
-  private:
 };
 
 }; // namespace mir

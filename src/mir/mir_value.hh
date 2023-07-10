@@ -12,7 +12,7 @@ class Value {
     virtual ~Value() {}
 };
 
-// FIXME how to auto release unused value?
+// FIXME how to AUTO release unused value?
 class ValueManager {
     std::unordered_set<Value *> _values;
 

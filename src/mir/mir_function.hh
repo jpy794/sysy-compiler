@@ -15,7 +15,6 @@ namespace mir {
 class Function : public Value {
     friend class ValueManager;
 
-  public:
   private:
     bool _is_def;
     std::string _name;
@@ -24,7 +23,7 @@ class Function : public Value {
     std::vector<Label *> _labels;
     std::vector<StatckObject *> _stack_objects;
 
-  public:
+  private:
     Function(const ir::Function *func)
         : _is_def(!func->is_external), _name(func->get_name().substr(1)) {
         auto ret_type = func->get_return_type();
@@ -50,6 +49,7 @@ class Function : public Value {
     Function(bool def, std::string name, BasicType ret)
         : _is_def(def), _name(name), _ret_type(ret) {}
 
+  public:
     BasicType get_ret_type() const { return _ret_type; }
     VirtualRegister *get_args(size_t idx) { return _args[idx]; }
     bool is_definition() const { return _is_def; }

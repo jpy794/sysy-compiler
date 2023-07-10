@@ -27,11 +27,11 @@ class PhysicalRegister : public Register {
 };
 
 /* int virtual register */
-class IVReg : public VirtualRegister {
+class IVReg final : public VirtualRegister {
     friend class ValueManager;
     static unsigned TOTAL;
 
-  protected:
+  private:
     IVReg() : VirtualRegister(++TOTAL) {}
 
   public:
@@ -47,11 +47,11 @@ class IVReg : public VirtualRegister {
 };
 
 /* float virtual register */
-class FVReg : public VirtualRegister {
+class FVReg final : public VirtualRegister {
     friend class ValueManager;
     static unsigned TOTAL;
 
-  protected:
+  private:
     FVReg() : VirtualRegister(++TOTAL) {}
 
   public:
