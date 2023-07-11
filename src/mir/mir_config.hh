@@ -1,9 +1,7 @@
 #pragma once
 
 #include "constant.hh"
-#include <cstddef>
 #include <variant>
-#include <vector>
 
 namespace mir {
 

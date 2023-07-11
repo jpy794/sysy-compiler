@@ -35,15 +35,16 @@ class Function : public Value {
             _ret_type = BasicType::FLOAT;
         else
             throw unreachable_error{};
-        for (auto &arg : func->get_args()) {
-            auto type = arg->get_type();
-            if (type->is<ir::IntType>() or type->is<ir::PointerType>()) {
-                _args.push_back(ValueManager::get().create<IVReg>());
-            } else if (type->is<ir::FloatType>()) {
-                _args.push_back(ValueManager::get().create<FVReg>());
-            } else
-                throw unreachable_error{};
-        }
+        if (_is_def)
+            for (auto &arg : func->get_args()) {
+                auto type = arg->get_type();
+                if (type->is<ir::IntType>() or type->is<ir::PointerType>()) {
+                    _args.push_back(ValueManager::get().create<IVReg>());
+                } else if (type->is<ir::FloatType>()) {
+                    _args.push_back(ValueManager::get().create<FVReg>());
+                } else
+                    throw unreachable_error{};
+            }
     }
 
     Function(bool def, std::string name, BasicType ret)

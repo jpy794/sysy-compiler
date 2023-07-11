@@ -6,7 +6,6 @@
 #include "mir_function.hh"
 #include "mir_memory.hh"
 
-#include <antlr4-runtime/ConsoleErrorListener.h>
 #include <memory>
 #include <string>
 #include <vector>
