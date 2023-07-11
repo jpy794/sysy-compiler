@@ -9,3 +9,5 @@
 
 # antlr
 .antlr
+
+/**/*.png
