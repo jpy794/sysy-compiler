@@ -3,6 +3,7 @@
 #include "ilist.hh"
 #include "mir_context.hh"
 #include "mir_value.hh"
+#include "utils.hh"
 #include <array>
 #include <vector>
 
@@ -104,6 +105,12 @@ class Instruction final : public ilist<Instruction>::node {
     Value *get_operand(unsigned i) { return _operands.at(i); }
 
     void dump(std::ostream &os, const MIRContext &context) const;
+    bool is_branch_inst() const {
+        static const std::array branch_list = {
+            JAL, JALR, BEQ, BNE, BLT, BGE, Jump,
+        };
+        return contains(branch_list, _opcode);
+    }
 };
 
 }; // namespace mir

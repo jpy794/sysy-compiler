@@ -16,6 +16,7 @@ class Label : public Value {
     std::vector<Label *> _prev_labels;
     std::vector<Label *> _succ_labels;
     ilist<Instruction> _insts;
+    Instruction *_first_branch{nullptr};
 
     Label(std::string name) : _name(name) {}
 
@@ -37,11 +38,21 @@ class Label : public Value {
     }
     void add_prev(Label *prev) { _prev_labels.push_back(prev); }
     void add_succ(Label *succ) { _succ_labels.push_back(succ); }
+    Instruction *get_first_branch() { return _first_branch; }
 
     Instruction &add_inst(MIR_INST inst_type, std::vector<Value *> operands,
                           bool partial = false) {
         _insts.emplace_back(inst_type, operands, partial);
-        return _insts.back();
+        auto &new_inst = _insts.back();
+        if (new_inst.is_branch_inst() and _first_branch == nullptr)
+            _first_branch = &new_inst;
+        return new_inst;
+    }
+
+    Instruction &insert_before(Instruction *inst, MIR_INST inst_type,
+                               std::vector<Value *> operands,
+                               bool partial = false) {
+        return *_insts.emplace(inst, inst_type, operands, partial);
     }
 };
 

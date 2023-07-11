@@ -4,6 +4,7 @@
 #include "instruction.hh"
 #include "mir_config.hh"
 #include "mir_immediate.hh"
+#include "mir_instruction.hh"
 #include "mir_memory.hh"
 #include "mir_register.hh"
 #include "mir_value.hh"
@@ -32,6 +33,7 @@ map<ir::FCmpInst::FCmpOp, ir::FCmpInst::FCmpOp> FCMP_OP_REVERSED = {
 // FIXME
 // - register reuse matters?
 // - reserved instruction: how to deal, and how to mark?
+// - Are all pointer arithmetic operations 64 bit version now?
 
 MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
     : mir_moduler(new Module), ir_module(std::move(mod)),
@@ -51,9 +53,10 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
         value_map[&ir_function] = mir_funtion;
         // argument
         auto &ir_args = ir_function.get_args();
-        for (unsigned i = 0; i < ir_args.size(); ++i) {
-            value_map[ir_args[i]] = mir_funtion->get_args(i);
-        }
+        if (mir_funtion->is_definition())
+            for (unsigned i = 0; i < ir_args.size(); ++i) {
+                value_map[ir_args[i]] = mir_funtion->get_args(i);
+            }
         // Blocks to label
         for (auto &BB : ir_function.get_bbs()) {
             auto label = mir_funtion->add_label(mir_funtion->get_name() + "." +
@@ -310,17 +313,18 @@ void MIRBuilder::phi_elim_at_the_end() {
         auto &operands = instruction->operands();
         for (unsigned i = 0; i < operands.size(); i += 2) {
             auto irvalue = operands[i];
-            auto prev_label = as_a<Label>(value_map.at(operands[i + 1]));
-
             auto imm_result = parse_imm(irvalue);
             if (imm_result.is_undef)
                 continue;
+            auto prev_label = as_a<Label>(value_map.at(operands[i + 1]));
+            auto first_branch = prev_label->get_first_branch();
             if (imm_result.is_const)
-                prev_label->add_inst(
-                    LoadImmediate,
+                prev_label->insert_before(
+                    first_branch, LoadImmediate,
                     {result_reg, create<Imm32bit>(imm_result.val)});
             else
-                prev_label->add_inst(Move, {result_reg, value_map.at(irvalue)});
+                prev_label->insert_before(first_branch, Move,
+                                          {result_reg, value_map.at(irvalue)});
         }
     }
 }
