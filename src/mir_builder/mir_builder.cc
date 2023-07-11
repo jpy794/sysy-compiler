@@ -44,10 +44,12 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
         value_map[&glob_var] = mir_moduler->add_global(&glob_var);
     }
 
-    // generate global(approximate) mir-value first
+    // map each ir-value to mir-value
     for (auto &ir_function : ir_module->get_functions()) {
+        // function
         auto mir_funtion = mir_moduler->add_function(&ir_function);
         value_map[&ir_function] = mir_funtion;
+        // argument
         auto &ir_args = ir_function.get_args();
         for (unsigned i = 0; i < ir_args.size(); ++i) {
             value_map[ir_args[i]] = mir_funtion->get_args(i);
@@ -57,6 +59,24 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
             auto label = mir_funtion->add_label(mir_funtion->get_name() + "." +
                                                 BB.get_name());
             value_map[&BB] = label;
+            for (auto &instruction : BB.get_insts()) {
+                if (not should_save_map(&instruction))
+                    continue;
+                auto type = instruction.get_type();
+                if (type->is<ir::FloatType>())
+                    value_map[&instruction] = create<FVReg>();
+                else if (type->is<ir::IntType>())
+                    value_map[&instruction] = create<IVReg>();
+                else if (type->is<ir::PointerType>()) {
+                    if (is_a<const ir::AllocaInst>(&instruction)) {
+                        auto alloc = as_a<const ir::AllocaInst>(&instruction);
+                        value_map[&instruction] =
+                            alloca_to_stack(alloc, mir_funtion);
+                    } else
+                        value_map[&instruction] = create<IVReg>();
+                } else
+                    throw unreachable_error{};
+            }
         }
     }
 
@@ -73,9 +93,6 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
             // translate ir-instruction to asm-instruction
             for (auto &inst : BB.get_insts()) {
                 auto reg = inst.accept(this);
-                if (should_save_map(&inst)) {
-                    value_map[&inst] = any_cast<Value *>(reg);
-                }
             }
         }
     }
@@ -91,8 +108,11 @@ any MIRBuilder::visit(const ir::RetInst *instruction) {
         break;
     case BasicType::INT: {
         auto v = instruction->get_operand(0);
-        auto [is_imm, imm] = parse_imm(v);
-        if (is_imm) {
+        auto imm_result = parse_imm(v);
+        auto imm = imm_result.val;
+        if (imm_result.is_undef) {
+            cur_label->add_inst(Ret, {});
+        } else if (imm_result.is_const) {
             if (Imm12bit::check_in_range(imm))
                 cur_label->add_inst(Ret, {create<Imm12bit>(imm)}, true);
             else {
@@ -189,14 +209,19 @@ pair<ir::Instruction *, bool> MIRBuilder::backtrace_i1(ir::Value *i1) {
 
 any MIRBuilder::visit(const ir::ZextInst *instruction) {
     auto i1_src = instruction->operands()[0];
-    auto [is_imm, imm] = parse_imm(i1_src);
+    auto imm_result = parse_imm(i1_src);
+    if (imm_result.is_undef) {
+        // FIXME if zext is on an undef value, there will be no asm instruction
+        return {};
+    }
 
-    if (is_imm) {
-        return to_base_type(load_imm(as_a<ir::ConstInt>(i1_src)->val()));
+    auto ret_reg = value_map.at(instruction);
+    if (imm_result.is_const) {
+        load_imm(as_a<ir::ConstInt>(i1_src)->val(), as_a<IVReg>(ret_reg));
+        return {};
     }
     auto [i1, reversed] = backtrace_i1(i1_src);
 
-    auto ret_reg = create<IVReg>();
     auto tmp_reg = create<IVReg>(); // FIXME unused maybe
 
     if (is_a<ir::ICmpInst>(i1)) {
@@ -237,21 +262,23 @@ any MIRBuilder::visit(const ir::ZextInst *instruction) {
     else
         throw unreachable_error{};
 
-    return to_base_type(ret_reg);
+    return {};
 }
 
 any MIRBuilder::visit(const ir::IBinaryInst *instruction) {
     static const auto have_imm_version = {ir::IBinaryInst::ADD,
                                           ir::IBinaryInst::XOR};
-    auto result_reg = create<IVReg>();
-    auto operands = instruction->operands();
-    auto cmp_op = instruction->get_ibin_op();
-    if (cmp_op == ir::IBinaryInst::XOR)
-        return {};
-    auto res = binary_helper(operands[0], operands[1],
-                             contains(have_imm_version, cmp_op));
 
-    switch (instruction->get_ibin_op()) {
+    auto ibin_op = instruction->get_ibin_op();
+    if (ibin_op == ir::IBinaryInst::XOR)
+        return {};
+
+    auto result_reg = value_map.at(instruction);
+    auto operands = instruction->operands();
+    auto res = binary_helper(operands[0], operands[1],
+                             contains(have_imm_version, ibin_op));
+
+    switch (ibin_op) {
     case ir::IBinaryInst::ADD:
         cur_label->add_inst(res.op2_is_imm ? ADDIW : ADDW,
                             {result_reg, res.op1, res.op2});
@@ -270,12 +297,10 @@ any MIRBuilder::visit(const ir::IBinaryInst *instruction) {
         break;
     case ir::IBinaryInst::XOR:
         // xor use i1 and generate i1, leave for zext
-        /* cur_label->add_inst(res.op2_is_imm ? XORI : XOR,
-         *                     {result_reg, res.op1, res.op2}); */
         break;
     }
 
-    return to_base_type(result_reg);
+    return {};
 }
 
 // FIXME bug here
@@ -283,14 +308,17 @@ void MIRBuilder::phi_elim_at_the_end() {
     for (auto instruction : phi_list) {
         auto result_reg = value_map.at(instruction);
         auto &operands = instruction->operands();
-        for (unsigned i = 0; i <= operands.size(); i += 2) {
+        for (unsigned i = 0; i < operands.size(); i += 2) {
             auto irvalue = operands[i];
             auto prev_label = as_a<Label>(value_map.at(operands[i + 1]));
 
-            auto [is_imm, imm] = parse_imm(irvalue);
-            if (is_imm)
-                prev_label->add_inst(LoadImmediate,
-                                     {result_reg, create<Imm32bit>(imm)});
+            auto imm_result = parse_imm(irvalue);
+            if (imm_result.is_undef)
+                continue;
+            if (imm_result.is_const)
+                prev_label->add_inst(
+                    LoadImmediate,
+                    {result_reg, create<Imm32bit>(imm_result.val)});
             else
                 prev_label->add_inst(Move, {result_reg, value_map.at(irvalue)});
         }
@@ -300,39 +328,17 @@ void MIRBuilder::phi_elim_at_the_end() {
 // append phi info at the end
 any MIRBuilder::visit(const ir::PhiInst *instruction) {
     phi_list.push_back(instruction);
-    if (instruction->get_type()->is<ir::IntType>())
-        return to_base_type(create<IVReg>());
-    else if (instruction->get_type()->is<ir::FloatType>())
-        return to_base_type(create<FVReg>());
-    else
-        throw unreachable_error{};
+    return {};
 }
 
-any MIRBuilder::visit(const ir::AllocaInst *instruction) {
-    size_t size = 0;
-    size_t alignment = 0;
-    auto alloca_type =
-        as_a<ir::PointerType>(instruction->get_type())->get_elem_type();
-
-    if (alloca_type->is_basic_type()) {
-        size = BASIC_TYPE_SIZE;
-        alignment = BASIC_TYPE_ALIGN;
-    } else if (alloca_type->is<ir::ArrayType>()) {
-        size =
-            BASIC_TYPE_SIZE * as_a<ir::ArrayType>(alloca_type)->get_total_cnt();
-        alignment = BASIC_TYPE_ALIGN;
-    } else
-        throw unreachable_error{};
-
-    auto stack_object = cur_func->add_stack_object(size, alignment);
-    return to_base_type(stack_object);
-}
+// already parsed at first scan
+any MIRBuilder::visit(const ir::AllocaInst *instruction) { return {}; }
 
 // @reserved: address is partial
 any MIRBuilder::visit(const ir::LoadInst *instruction) {
     if (not instruction->get_type()->is<ir::IntType>())
         throw not_implemented_error{};
-    auto result_reg = create<IVReg>();
+    auto result_reg = value_map.at(instruction);
     auto [complete, address] = parse_address(instruction->operands()[0]);
 
     if (complete)
@@ -340,7 +346,7 @@ any MIRBuilder::visit(const ir::LoadInst *instruction) {
     else
         cur_label->add_inst(LW, {result_reg, address}, true);
 
-    return to_base_type(result_reg);
+    return {};
 }
 
 any MIRBuilder::visit(const ir::StoreInst *instruction) {
@@ -349,8 +355,11 @@ any MIRBuilder::visit(const ir::StoreInst *instruction) {
     auto [complete, address] = parse_address(irptr);
 
     if (value->get_type()->is<ir::IntType>()) {
-        auto [is_imm, imm] = parse_imm(value);
-        auto value_reg = is_imm ? load_imm(imm) : value_map.at(value);
+        auto imm_result = parse_imm(value);
+        if (imm_result.is_undef) // do nothing for undef-store
+            return {};
+        auto value_reg = imm_result.is_const ? load_imm(imm_result.val)
+                                             : value_map.at(value);
         if (complete)
             cur_label->add_inst(SW, {value_reg, create<Imm12bit>(0), address});
         else
@@ -402,12 +411,11 @@ any MIRBuilder::visit(const ir::StoreInst *instruction) {
 // `call [r] function arg1 arg2...`
 // r is the virtual register for return value
 any MIRBuilder::visit(const ir::CallInst *instruction) {
-    VirtualRegister *ret_reg = nullptr;
+    Value *ret_reg = nullptr;
     auto ret_type = instruction->get_type();
-    if (ret_type->is<ir::IntType>()) {
-        ret_reg = create<IVReg>();
-    } else if (ret_type->is<ir::FloatType>())
-        throw not_implemented_error{};
+    if (not ret_type->is<ir::VoidType>()) {
+        ret_reg = value_map.at(instruction);
+    }
 
     auto operands = instruction->operands();
     auto mir_function = value_map.at(operands[0]);
@@ -418,14 +426,23 @@ any MIRBuilder::visit(const ir::CallInst *instruction) {
     ops.push_back(mir_function);
     for (auto i = 1; i < operands.size(); ++i) {
         auto value = operands[i];
-        auto [is_imm, imm] = parse_imm(value);
-        auto value_reg = is_imm ? load_imm(imm) : value_map.at(value);
+        auto imm_result = parse_imm(value);
+        Value *value_reg{nullptr};
+        if (imm_result.is_undef) {
+            if (value->get_type()->is<ir::FloatType>())
+                value_reg = create<FVReg>();
+            else
+                value_reg = create<IVReg>();
+        } else if (imm_result.is_const)
+            value_reg = load_imm(imm_result.val);
+        else
+            value_reg = value_map.at(value);
         ops.push_back(value_reg);
     }
 
     cur_label->add_inst(Call, ops, true);
 
-    return to_base_type(ret_reg);
+    return {};
 }
 
 any MIRBuilder::visit(const ir::GetElementPtrInst *instruction) {
@@ -434,9 +451,10 @@ any MIRBuilder::visit(const ir::GetElementPtrInst *instruction) {
         as_a<ir::PointerType>(operands[0]->get_type())->get_elem_type();
     IVReg *offset_reg{nullptr}, *tmp_reg{nullptr};
     // first dim offset
-    auto [is_imm, imm] = parse_imm(operands[1]);
-    if (is_imm)
-        offset_reg = load_imm(imm);
+    auto imm_result = parse_imm(operands[1]);
+    assert(imm_result.is_undef == false);
+    if (imm_result.is_const)
+        offset_reg = load_imm(imm_result.val);
     else
         offset_reg = as_a<IVReg>(value_map.at(operands[1]));
 
@@ -446,9 +464,10 @@ any MIRBuilder::visit(const ir::GetElementPtrInst *instruction) {
         tmp_reg = load_imm(arr_type->get_elem_cnt());
         cur_label->add_inst(MUL, {offset_reg, offset_reg, tmp_reg});
 
-        auto [is_imm, imm] = parse_imm(operands[i]);
-        if (is_imm)
-            tmp_reg = load_imm(imm);
+        auto imm_result = parse_imm(operands[1]);
+        assert(imm_result.is_undef == false);
+        if (imm_result.is_const)
+            tmp_reg = load_imm(imm_result.val);
         else
             tmp_reg = as_a<IVReg>(value_map.at(operands[i]));
         cur_label->add_inst(ADD, {offset_reg, offset_reg, tmp_reg});
@@ -465,10 +484,10 @@ any MIRBuilder::visit(const ir::GetElementPtrInst *instruction) {
     cur_label->add_inst(MUL, {offset_reg, offset_reg, tmp_reg});
 
     auto [complete, address] = parse_address(operands[0]);
-    auto result_reg = create<IVReg>();
+    auto result_reg = value_map.at(instruction);
     cur_label->add_inst(ADD, {result_reg, address, offset_reg}, complete);
 
-    return to_base_type(result_reg);
+    return {};
 }
 
 any MIRBuilder::visit(const ir::FBinaryInst *instruction) {

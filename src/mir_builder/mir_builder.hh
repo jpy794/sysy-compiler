@@ -98,33 +98,56 @@ class MIRBuilder : public ir::InstructionVisitor {
     binary_helper_result binary_helper(ir::Value *op1, ir::Value *op2,
                                        bool RIMODE = true) {
         binary_helper_result res;
-        auto [op1_const, op1_imm] = parse_imm(op1);
-        auto [op2_const, op2_imm] = parse_imm(op2);
-        bool op1_can_be_imm = Imm12bit::check_in_range(op1_imm);
-        bool op2_can_be_imm = Imm12bit::check_in_range(op2_imm);
+        // auto [op1_const, op1_imm] = parse_imm(op1);
+        // auto [op2_const, op2_imm] = parse_imm(op2);
+        auto op1_imm_result = parse_imm(op1);
+        auto op2_imm_result = parse_imm(op2);
+        bool op1_can_be_imm = Imm12bit::check_in_range(op1_imm_result.val);
+        bool op2_can_be_imm = Imm12bit::check_in_range(op2_imm_result.val);
 
-        res.op2_is_imm = RIMODE and ((op1_const and op1_can_be_imm) or
-                                     (op2_const and op2_can_be_imm));
-        res.is_reversed = res.op2_is_imm and not(op2_const and op2_can_be_imm);
+        res.op2_is_imm =
+            RIMODE and ((op1_imm_result.is_const and op1_can_be_imm) or
+                        (op2_imm_result.is_const and op2_can_be_imm));
+        res.is_reversed =
+            res.op2_is_imm and not(op2_imm_result.is_const and op2_can_be_imm);
 
-        if (not op1_const)
+        if (not op1_imm_result.is_const)
             res.op1 = value_map.at(op1);
         else if (res.is_reversed)
-            res.op1 = create<Imm12bit>(op1_imm);
+            res.op1 = create<Imm12bit>(op1_imm_result.val);
         else
-            res.op1 = load_imm(op1_imm);
+            res.op1 = load_imm(op1_imm_result.val);
 
-        if (not op2_const)
+        if (not op2_imm_result.is_const)
             res.op2 = value_map.at(op2);
         else if (res.op2_is_imm and not res.is_reversed)
-            res.op2 = create<Imm12bit>(op2_imm);
+            res.op2 = create<Imm12bit>(op2_imm_result.val);
         else
-            res.op2 = load_imm(op2_imm);
+            res.op2 = load_imm(op2_imm_result.val);
 
         if (res.is_reversed)
             std::swap(res.op1, res.op2);
 
         return res;
+    }
+
+    StatckObject *alloca_to_stack(const ir::AllocaInst *instruction,
+                                  Function *func) {
+        size_t size = 0;
+        size_t alignment = 0;
+        auto alloca_type =
+            as_a<ir::PointerType>(instruction->get_type())->get_elem_type();
+        if (alloca_type->is_basic_type()) {
+            size = BASIC_TYPE_SIZE;
+            alignment = BASIC_TYPE_ALIGN;
+        } else if (alloca_type->is<ir::ArrayType>()) {
+            size = BASIC_TYPE_SIZE *
+                   as_a<ir::ArrayType>(alloca_type)->get_total_cnt();
+            alignment = BASIC_TYPE_ALIGN;
+        } else
+            throw unreachable_error{};
+
+        return func->add_stack_object(size, alignment);
     }
 
     std::pair<bool, Value *> parse_address(ir::Value *irptr) {
@@ -140,23 +163,29 @@ class MIRBuilder : public ir::InstructionVisitor {
             throw unreachable_error{};
     }
 
+    struct parse_imm_result {
+        bool is_undef{false};
+        bool is_const{true};
+        int val{-1};
+    };
     // @brief: return immediate value with flag
     // FIXME integer for now
-    static std::pair<bool, int> parse_imm(ir::Value *v) {
+    static parse_imm_result parse_imm(ir::Value *v) {
+        parse_imm_result result;
         if (is_a<ir::Constant>(v)) {
-            int value;
             if (is_a<ir::ConstInt>(v)) {
-                value = as_a<ir::ConstInt>(v)->val();
+                result.val = as_a<ir::ConstInt>(v)->val();
             } else if (is_a<ir::ConstBool>(v)) {
-                value = as_a<ir::ConstBool>(v)->val();
+                result.val = as_a<ir::ConstBool>(v)->val();
             } else if (is_a<ir::ConstZero>(v)) {
-                value = 0;
+                result.val = 0;
+            } else if (is_a<ir::Undef>(v)) {
+                result.is_undef = true;
             } else
                 throw unreachable_error{"does float imm exist?"};
-            return {true, value};
-
         } else
-            return {false, 0};
+            result.is_const = false;
+        return result;
     }
 
     // save specific instruction-register map

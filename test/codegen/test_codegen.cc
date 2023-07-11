@@ -1,6 +1,12 @@
+#include "ast.hh"
 #include "codegen.hh"
+#include "dominator.hh"
 #include "ir_builder.hh"
+#include "mem2reg.hh"
+#include "pass.hh"
 #include "raw_ast.hh"
+#include "remove_unreach_bb.hh"
+#include "usedef_chain.hh"
 #include <filesystem>
 #include <ostream>
 
@@ -30,7 +36,15 @@ int main(int argc, char **argv) {
 
     ast::AST ast{ast::RawAST{test(sysy_path, ".sy")}};
     IRBuilder builder{ast};
-    codegen::CodeGen codegen{builder.release_module()};
+    auto module = builder.release_module();
+    pass::PassManager pm(std::move(module));
+    pm.add_pass<pass::RmUnreachBB>();
+    pm.add_pass<pass::Dominator>();
+    pm.add_pass<pass::UseDefChain>();
+    pm.add_pass<pass::Mem2reg>();
+    pm.run();
+
+    codegen::CodeGen codegen{pm.release_module()};
 
     ofstream asm_output{output_path / (test_case + ".s")};
     asm_output << codegen;

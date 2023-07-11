@@ -8,6 +8,9 @@ target_link_libraries(
     PRIVATE mir
     PRIVATE mir_builder
     PRIVATE codegen
+    PRIVATE pass
+    PRIVATE analysis
+    PRIVATE transform
     PRIVATE utils
 )
 
