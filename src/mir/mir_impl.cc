@@ -1,9 +1,6 @@
-#include "constant.hh"
-#include "err.hh"
 #include "mir_config.hh"
-#include "mir_context.hh"
+#include "mir_function.hh"
 #include "mir_instruction.hh"
-#include "mir_value.hh"
 
 #include <map>
 #include <string_view>
@@ -42,19 +39,19 @@ void mir::flatten_array(ir::ConstArray *const_arr, InitPairs &inits,
 
 const map<MIR_INST, string_view> MIR_INST_NAME = {
     // start
-    {LUI, "lui"},
-    {AUIPC, "auipc"},
+    // {LUI, "lui"},
+    // {AUIPC, "auipc"},
     {JAL, "jal"},
     {JALR, "jalr"},
     {BEQ, "beq"},
     {BNE, "bne"},
     {BLT, "blt"},
     {BGE, "bge"},
-    {LB, "lb"},
-    {LH, "lh"},
+    // {LB, "lb"},
+    // {LH, "lh"},
     {LW, "lw"},
-    {SB, "sb"},
-    {SH, "sh"},
+    // {SB, "sb"},
+    // {SH, "sh"},
     {SW, "sw"},
     {SLTI, "slti"},
     {XORI, "xori"},
@@ -92,6 +89,16 @@ const map<MIR_INST, string_view> MIR_INST_NAME = {
     {Ret, "ret"}
     // end
 };
+
+bool Instruction::will_write_register() const {
+    if (_opcode >= MIR_INST::Jump)
+        return false;
+    if (_opcode == MIR_INST::Call)
+        return not is_a<Function>(_operands[0]);
+    return true;
+}
+
+/* prints */
 
 void Instruction::dump(std::ostream &os, const MIRContext &context) const {
     MIRContext op_context{context.stage, Role::NameOnly};

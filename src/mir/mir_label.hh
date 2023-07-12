@@ -39,6 +39,9 @@ class Label : public Value {
     void add_prev(Label *prev) { _prev_labels.push_back(prev); }
     void add_succ(Label *succ) { _succ_labels.push_back(succ); }
     Instruction *get_first_branch() { return _first_branch; }
+    const ilist<Instruction> &get_insts() const { return _insts; }
+    const std::vector<Label *> &get_prev() const { return _prev_labels; }
+    const std::vector<Label *> &get_succ() const { return _succ_labels; }
 
     Instruction &add_inst(MIR_INST inst_type, std::vector<Value *> operands,
                           bool partial = false) {

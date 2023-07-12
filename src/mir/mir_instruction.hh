@@ -9,59 +9,28 @@
 
 namespace mir {
 
+class Function;
+
 /* RISCV RV64GC Subset
  * - support int operations only for now: RV32I RV64I RV64M
  * - abort instructions: unsigned related, non 32-bit(reserve on ptr calc case)
+ * - order matters!
  */
 enum MIR_INST {
     /* RV32I */
-    LUI,
-    AUIPC,
-    JAL,
-    JALR,
-    BEQ,
-    BNE,
-    BLT,
-    BGE,
-    // BLTU,
-    // BGEU,
-    LB,
-    LH,
     LW,
-    // LBU,
-    // LHU,
-    SB,
-    SH,
-    SW,
-    // ADDI,
     SLTI,
-    // SLTIU,
     XORI,
     ORI,
     ANDI,
-    // SLLI,
-    // SRLI,
-    // SRAI,
     ADD,
     SUB,
-    // SLL,
     SLT,
-    // SLTU,
     XOR,
-    // SRL,
-    // SRA,
     OR,
     AND,
-    // FENCE,
-    // ECALL,
-    // EBREAK,
     /* RV64I */
-    // LWU,
     LD,
-    SD,
-    // SLLI,
-    // SRLI,
-    // SRAI,
     ADDIW,
     SLLIW,
     SRLIW,
@@ -75,18 +44,25 @@ enum MIR_INST {
     MUL,
     MULW,
     DIVW,
-    // DIVUW,
     REMW,
-    // REMUW,
     /* pseudo instruction */
     Move,
-    Jump,
     LoadAddress,
     LoadImmediate,
     SetEQZ,
     SetNEQZ,
     Call,
+    Jump,
     Ret,
+    /* instructions that will not write register */
+    BEQ,
+    BNE,
+    BLT,
+    BGE,
+    JAL,
+    JALR,
+    SW,
+    SD,
 };
 
 class Instruction final : public ilist<Instruction>::node {
@@ -103,8 +79,12 @@ class Instruction final : public ilist<Instruction>::node {
 
     const Value *get_operand(unsigned i) const { return _operands.at(i); }
     Value *get_operand(unsigned i) { return _operands.at(i); }
+    const size_t get_operand_num() const { return _operands.size(); }
 
     void dump(std::ostream &os, const MIRContext &context) const;
+    // each instruction writes 1 register(def) at most
+    // the orther operands are use
+    bool will_write_register() const;
     bool is_branch_inst() const {
         static const std::array branch_list = {
             JAL, JALR, BEQ, BNE, BLT, BGE, Jump,

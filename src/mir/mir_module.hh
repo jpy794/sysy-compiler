@@ -31,6 +31,7 @@ class Module {
             global->dump(os, context);
         }
     }
+    const std::vector<Function *> &get_functions() const { return _functions; }
 
     template <typename... Args> Function *add_function(Args... args) {
         _functions.push_back(ValueManager::get().create<Function>(args...));

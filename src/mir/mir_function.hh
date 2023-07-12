@@ -20,7 +20,7 @@ class Function : public Value {
     std::string _name;
     BasicType _ret_type;
     std::vector<VirtualRegister *> _args;
-    std::vector<Label *> _labels;
+    std::vector<Label *> _labels; // FIXME the label at 0 is the entry label
     std::vector<StatckObject *> _stack_objects;
 
   private:
@@ -56,6 +56,7 @@ class Function : public Value {
     bool is_definition() const { return _is_def; }
 
     std::string get_name() const { return _name; }
+    const std::vector<Label *> &get_labels() const { return _labels; }
     void dump(std::ostream &os, const MIRContext &context) const final {
         switch (context.stage) {
         case Stage::stage1: {

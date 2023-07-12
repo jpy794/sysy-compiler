@@ -6,22 +6,25 @@
 namespace mir {
 
 class Register : public Value {
+  public:
+    using RegIDType = unsigned;
+
   protected:
-    unsigned _id;
-    explicit Register(unsigned id) : _id(id) {}
+    RegIDType _id;
+    explicit Register(RegIDType id) : _id(id) {}
 
   public:
-    unsigned get_id() const { return _id; }
+    RegIDType get_id() const { return _id; }
 };
 
 class VirtualRegister : public Register {
   protected:
-    VirtualRegister(unsigned id) : Register(id) {}
+    VirtualRegister(Register::RegIDType id) : Register(id) {}
 };
 
 class PhysicalRegister : public Register {
   protected:
-    PhysicalRegister(unsigned id) : Register(id) {
+    PhysicalRegister(Register::RegIDType id) : Register(id) {
         throw not_implemented_error();
     }
 };
@@ -29,7 +32,7 @@ class PhysicalRegister : public Register {
 /* int virtual register */
 class IVReg final : public VirtualRegister {
     friend class ValueManager;
-    static unsigned TOTAL;
+    static Register::RegIDType TOTAL;
 
   private:
     IVReg() : VirtualRegister(++TOTAL) {}
@@ -49,7 +52,7 @@ class IVReg final : public VirtualRegister {
 /* float virtual register */
 class FVReg final : public VirtualRegister {
     friend class ValueManager;
-    static unsigned TOTAL;
+    static Register::RegIDType TOTAL;
 
   private:
     FVReg() : VirtualRegister(++TOTAL) {}
@@ -66,7 +69,7 @@ class FVReg final : public VirtualRegister {
     }
 };
 
-inline unsigned IVReg::TOTAL = 0;
-inline unsigned FVReg::TOTAL = 0;
+inline Register::RegIDType IVReg::TOTAL = 0;
+inline Register::RegIDType FVReg::TOTAL = 0;
 
 }; // namespace mir
