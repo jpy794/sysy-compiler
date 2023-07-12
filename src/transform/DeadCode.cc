@@ -1,4 +1,5 @@
 #include "DeadCode.hh"
+#include "func_info.hh"
 #include "function.hh"
 #include "instruction.hh"
 #include "utils.hh"
@@ -7,6 +8,7 @@ using namespace pass;
 using namespace ir;
 
 void DeadCode::run(PassManager *mgr) {
+    _func_info = &mgr->get_result<FuncInfo>();
     auto m = mgr->get_module();
     for (auto &f_r : m->functions()) {
         auto f = &f_r;
@@ -73,8 +75,10 @@ void DeadCode::sweep(Function *func) {
 bool DeadCode::is_critical(Instruction *inst) {
     if (is_a<RetInst>(inst) || is_a<StoreInst>(inst) || is_a<BrInst>(inst))
         return true;
-    if (is_a<CallInst>(inst)) // TODO: if inst is a call inst and it calls a
-                              // pure function, it returns false
+    if (is_a<CallInst>(inst) &&
+        not _func_info->is_pure_function(as_a<Function>(inst->operands()[0])))
         return true;
+    // if (is_a<CallInst>(inst))
+    //     return true;
     return false;
 }

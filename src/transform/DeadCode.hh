@@ -1,4 +1,5 @@
 #pragma once
+#include "func_info.hh"
 #include "function.hh"
 #include "instruction.hh"
 #include "pass.hh"
@@ -14,7 +15,7 @@ class DeadCode final : public pass::TransformPass {
     virtual void get_analysis_usage(pass::AnalysisUsage &AU) const override {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
-        AU.add_require<pass::UseDefChain>();
+        AU.add_require<pass::FuncInfo>();
         AU.add_kill<pass::UseDefChain>();
     }
     virtual void run(pass::PassManager *mgr) override;
@@ -24,6 +25,8 @@ class DeadCode final : public pass::TransformPass {
     void mark();
     void sweep(ir::Function *);
     bool is_critical(ir::Instruction *);
+
+    const pass::FuncInfo::ResultType *_func_info;
 
     std::deque<ir::Instruction *> work_list{};
     std::unordered_map<ir::Instruction *, bool> marked{};
