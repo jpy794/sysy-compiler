@@ -28,7 +28,7 @@ template <typename T> class ilist {
         node &operator=(const node &) = delete;
     };
 
-    template <typename elem> class raw_iterator {
+    template <typename elem, bool reverse = false> class raw_iterator {
         friend class ilist<T>;
 
       public:
@@ -52,11 +52,11 @@ template <typename T> class ilist {
 
         // --it & ++it
         raw_iterator &operator--() {
-            _ptr = _ptr->_prev;
+            _ptr = (reverse ? _ptr->_next : _ptr->_prev);
             return *this;
         }
         raw_iterator &operator++() {
-            _ptr = _ptr->_next;
+            _ptr = (reverse ? _ptr->_prev : _ptr->_next);
             return *this;
         }
 
@@ -65,7 +65,9 @@ template <typename T> class ilist {
     };
 
     using iterator = raw_iterator<T>;
+    using reverse_iterator = raw_iterator<T, true>;
     using const_iterator = raw_iterator<const T>;
+    using const_reverse_iterator = raw_iterator<const T, true>;
 
   private:
     T *_head{nullptr}, *_tail{nullptr};
@@ -102,6 +104,8 @@ template <typename T> class ilist {
 
     iterator begin() { return iterator{_head->_next}; }
     iterator end() { return iterator{_tail}; }
+    reverse_iterator rbegin() { return reverse_iterator{_tail->_prev}; }
+    reverse_iterator rend() { return reverse_iterator{_head}; }
 
     size_t size() const { return _size; }
 
@@ -209,6 +213,13 @@ template <typename T> class ilist {
 
     const_iterator begin() const { return cbegin(); }
     const_iterator end() const { return cend(); }
+
+    const_reverse_iterator rbegin() const {
+        return const_reverse_iterator{_tail->_prev};
+    }
+    const_reverse_iterator rend() const {
+        return const_reverse_iterator{_head};
+    }
 
     const T &front() const {
         assert(_size);
