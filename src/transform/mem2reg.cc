@@ -1,10 +1,12 @@
 #include "mem2reg.hh"
+#include "basic_block.hh"
 #include "constant.hh"
 #include "dominator.hh"
 #include "global_variable.hh"
 #include "instruction.hh"
 #include "usedef_chain.hh"
 #include "utils.hh"
+#include "value.hh"
 #include <cassert>
 #include <stdexcept>
 
@@ -66,6 +68,7 @@ void Mem2reg::generate_phi(Function *f) {
     }
 }
 void Mem2reg::re_name(BasicBlock *bb) {
+    map<BasicBlock *, set<Instruction *>> wait_delete{};
     // for each phi in bb _var_new_name[var].push_back(phi)
     for (auto &inst_r : bb->insts()) {
         if (is_a<PhiInst>(&inst_r)) {
@@ -88,15 +91,19 @@ void Mem2reg::re_name(BasicBlock *bb) {
                     _usedef_chain->replace_all_use_with(
                         inst, Constants::get().undef(inst));
                 }
+                wait_delete[bb].insert(inst);
             }
         }
         // for storeinst, update the newest value of the allocated var
         else if (is_a<StoreInst>(inst)) {
+            auto val = inst->operands()[0];
             auto l_val = inst->operands()[1];
             if (!is_a<GlobalVariable>(l_val) &&
-                !is_a<GetElementPtrInst>(l_val)) {
+                !is_a<GetElementPtrInst>(l_val) &&
+                val->get_type()->is_basic_type()) {
                 _var_new_name[inst->operands()[1]].push_back(
                     inst->operands()[0]);
+                wait_delete[bb].insert(inst);
             }
         }
     }
@@ -137,6 +144,13 @@ void Mem2reg::re_name(BasicBlock *bb) {
                 throw logic_error{
                     "In mem2reg, the newest value of phi pop error"};
             }
+        }
+    }
+    // delete redundant store/load instructions produced by mem2reg
+    for (auto bb_inst_pair : wait_delete) {
+        auto bb = bb_inst_pair.first;
+        for (auto inst : bb_inst_pair.second) {
+            bb->insts().erase(inst);
         }
     }
 }
