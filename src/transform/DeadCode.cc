@@ -43,17 +43,12 @@ void DeadCode::mark() {
         for (unsigned i = 0; i < inst->operands().size(); i++) {
             auto op = inst->get_operand(i);
             if (not is_a<Instruction>(op) || marked[as_a<Instruction>(op)])
-                continue; // FIXME:For bb, it's requirable to be
-                          // processed
+                continue;
             auto op_inst = as_a<Instruction>(op);
             marked[op_inst] = true;
             work_list.push_back(op_inst);
         }
-        /*TODO:
-        for each b ∈ RDF(block(i))
-            mark the block-ending branch in b
-            add it to WorkList
-        */
+        // TODO: elimate useless control flow
     }
 }
 
@@ -66,7 +61,6 @@ void DeadCode::sweep(Function *func) {
                 ++iter;
                 continue;
             }
-            // FIXME: inst may be a branch
             iter = insts.erase(iter);
         }
     }
@@ -78,7 +72,5 @@ bool DeadCode::is_critical(Instruction *inst) {
     if (is_a<CallInst>(inst) &&
         not _func_info->is_pure_function(as_a<Function>(inst->operands()[0])))
         return true;
-    // if (is_a<CallInst>(inst))
-    //     return true;
     return false;
 }
