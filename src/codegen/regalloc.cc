@@ -120,7 +120,7 @@ LivenessAnalysis::LivenessAnalysis(const ControlFlowInfo &cfg_info,
                     }
                 }
                 LiveVarSet use; // deal with use
-                for (auto i = (inst->will_write_register() ? 2 : 1);
+                for (auto i = (inst->will_write_register() ? 1 : 0);
                      i < inst->get_operand_num(); ++i) {
                     auto op = inst->get_operand(i);
                     if (integer and is_a<const IVReg>(op)) {

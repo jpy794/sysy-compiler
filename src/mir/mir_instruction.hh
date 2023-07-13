@@ -76,6 +76,7 @@ class Instruction final : public ilist<Instruction>::node {
     Instruction(MIR_INST opcode, std::vector<Value *> oprands, bool partial)
         : _opcode(opcode), _operands(oprands), _partial(partial) {}
 
+    // start from 0
     const Value *get_operand(unsigned i) const { return _operands.at(i); }
     Value *get_operand(unsigned i) { return _operands.at(i); }
     const size_t get_operand_num() const { return _operands.size(); }
