@@ -1,3 +1,19 @@
+add_executable(simple-test simple_test.cc)
+
+target_link_libraries(
+    simple-test
+    PRIVATE ast
+    PRIVATE ir
+    PRIVATE ir_builder
+    PRIVATE mir
+    PRIVATE mir_builder
+    PRIVATE codegen
+    PRIVATE pass
+    PRIVATE analysis
+    PRIVATE transform
+    PRIVATE utils
+)
+
 add_executable(test_codegen test_codegen.cc)
 
 target_link_libraries(
