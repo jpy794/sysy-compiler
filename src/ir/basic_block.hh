@@ -54,7 +54,7 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
 
     Function *get_func() const { return _func; }
     const std::vector<BasicBlock *> &get_pre_bbs() const { return _pre_bbs; }
-    const std::vector<BasicBlock *> &get_suc_bbs() const { return _pre_bbs; }
+    const std::vector<BasicBlock *> &get_suc_bbs() const { return _suc_bbs; }
     const ilist<Instruction> &get_insts() const { return _insts; }
 
     bool is_terminated() const {
