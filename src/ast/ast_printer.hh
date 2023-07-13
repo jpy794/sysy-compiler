@@ -47,7 +47,7 @@ class ASTPrinter : public ASTVisitor {
         return surround(s, STP::Array);
     }
 
-    template <typename T> string visitArrayLike(const PtrList<T> &array) {
+    template <typename T> string visitArrayLike(const T &array) {
         string value{};
         for (auto &elem : array) {
             value += any_string(elem->accept(*this)) + ",";

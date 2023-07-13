@@ -10,6 +10,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <list>
 
 namespace ast {
 
@@ -250,7 +251,7 @@ struct VarDefStmt : Stmt {
 };
 
 struct BlockStmt : Stmt {
-    PtrList<Stmt> stmts;
+    std::list<std::unique_ptr<Stmt>> stmts;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
     }

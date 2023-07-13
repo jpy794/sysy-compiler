@@ -493,7 +493,7 @@ any ASTBuilder::visit(const BlockStmt &node) {
         for (auto &def : vardefs) {
             auto new_stmt = static_cast<Stmt *>(def.release());
             it = n.stmts.insert(it, Ptr<Stmt>{new_stmt});
-            it += 1;
+            it++;
         }
     }
     _const_table.pop();
