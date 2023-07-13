@@ -1,6 +1,7 @@
 #include "context.hh"
 #include "mir_memory.hh"
 #include "mir_module.hh"
+#include "regalloc.hh"
 
 #include <map>
 #include <string_view>
@@ -8,6 +9,12 @@
 using namespace std;
 using namespace mir;
 using namespace context;
+
+auto TAB = Context::TAB;
+void resolve_indent(std::ostream &os, const Context &context) {
+    for (unsigned i = 0; i < context.indent_level; ++i)
+        os << TAB;
+}
 
 void mir::flatten_array(ir::ConstArray *const_arr, InitPairs &inits,
                         const size_t start) {
@@ -149,13 +156,12 @@ void Function::dump(std::ostream &os, const Context &context) const {
 }
 
 void Label::dump(std::ostream &os, const Context &context) const {
+    auto indent_context{context.indent()};
     switch (context.role) {
     case Role::Full: {
         os << _name << ":\n";
         for (auto &inst : _insts) {
-            os << "\t";
-            inst.dump(os, context);
-            os << "\n";
+            inst.dump(os, indent_context);
         }
     } break;
     case Role::NameOnly:
@@ -166,18 +172,37 @@ void Label::dump(std::ostream &os, const Context &context) const {
 
 void Instruction::dump(std::ostream &os, const Context &context) const {
     Context name_only_context{context.name_only()};
-    auto inst_id =
-        context.allocator.get_cfg_info(context.cur_function).instid.at(this);
+
+    auto cur_func = context.cur_function;
+    auto inst_id = context.allocator.get_cfg_info(cur_func).instid.at(this);
+    auto &live_var_set = context.allocator.get_liveness_int(cur_func).live_info;
+
+    auto indent = [&]() { resolve_indent(os, context); };
 
     switch (context.stage) {
     case Stage::stage1:
-        os << "\t" << inst_id << ". " << (_partial ? "*" : "")
+        // live_var in set
+        indent();
+        os << "# in-set: ";
+        for (auto live_var_id : live_var_set.at(codegen::IN_POINT(inst_id)))
+            os << live_var_id << " ";
+        os << "\n";
+        // instruction content
+        indent();
+        os << inst_id << ". " << (_partial ? "*" : "")
            << MIR_INST_NAME.at(_opcode) << " ";
         for (unsigned i = 0; i < _operands.size(); i++) {
             _operands[i]->dump(os, name_only_context);
             if (i != _operands.size() - 1)
                 os << ", ";
         }
+        os << "\n";
+        // live_var out set
+        indent();
+        os << "# out-set: ";
+        for (auto live_var_id : live_var_set.at(codegen::OUT_POINT(inst_id)))
+            os << live_var_id << " ";
+        os << "\n";
         break;
     case Stage::stage2:
         throw not_implemented_error{};
@@ -203,18 +228,18 @@ void GlobalObject::dump(std::ostream &os, const Context &context) const {
         size_t off = 0; // byte offset
         for (auto [idx, value] : _inits) {
             if (off < idx * BASIC_TYPE_SIZE) {
-                os << "\t.zero " << std::to_string(idx * BASIC_TYPE_SIZE - off)
-                   << "\n";
+                os << TAB << ".zero "
+                   << std::to_string(idx * BASIC_TYPE_SIZE - off) << "\n";
             }
             switch (_type) {
             case BasicType::VOID:
                 throw unreachable_error{};
             case BasicType::INT:
-                os << "\t.word " << std::get<int>(value) << "\n";
+                os << TAB << ".word " << std::get<int>(value) << "\n";
                 break;
             case BasicType::FLOAT: {
                 float v = std::get<float>(value);
-                os << "\t.word 0x" << std::hex << std::uppercase
+                os << TAB << ".word 0x" << std::hex << std::uppercase
                    << *reinterpret_cast<uint32_t *>(&v) << " # float " << v
                    << "\n";
                 break;
@@ -224,7 +249,7 @@ void GlobalObject::dump(std::ostream &os, const Context &context) const {
         }
         assert(off <= _size);
         if (off != _size)
-            os << "\t.zero " << std::to_string(_size - off) << "\n";
+            os << TAB << ".zero " << std::to_string(_size - off) << "\n";
     } break;
     case Role::NameOnly:
         os << _name;
