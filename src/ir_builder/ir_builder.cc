@@ -6,6 +6,7 @@
 #include "function.hh"
 #include "global_variable.hh"
 #include "instruction.hh"
+#include "log.hh"
 #include "module.hh"
 #include "type.hh"
 #include "utils.hh"
@@ -13,6 +14,7 @@
 
 #include <any>
 #include <cstddef>
+#include <iostream>
 #include <map>
 #include <set>
 #include <stdexcept>
@@ -126,6 +128,7 @@ class IRBuilderImpl : public ast::ASTVisitor {
     /* variables that tansform information */
     Function *cur_func;
     BasicBlock *cur_bb;
+    Value *ret_addr;
 
     vector<BasicBlock *> true_bb;  // and or while if use
     vector<BasicBlock *> false_bb; // and or while if use
@@ -470,6 +473,7 @@ any IRBuilderImpl::visit(const FunDefGlobal &node) {
     // initialize params;
     scope.enter();
     cur_bb = cur_func->create_bb(); // create entry_bb
+    cur_func->create_bb();          // create exit_bb
     for (unsigned i = 0; i < node.params.size(); i++)
         if (node.params[i]
                 .dims.empty()) { // If the parameter is a basic variable, it is
@@ -483,27 +487,23 @@ any IRBuilderImpl::visit(const FunDefGlobal &node) {
             scope.push(node.params[i].name, cur_func->get_args()[i]);
         }
 
+    if (node.ret_type != BaseType::VOID) { // create return value
+        ret_addr = cur_func->get_entry_bb()->create_inst<AllocaInst>(ret_type);
+
+        if (cur_func->get_name() == "@main") { // for the function except main,
+                                               // it returns undef value
+            cur_func->get_entry_bb()->create_inst<StoreInst>(
+                zero_init(node.ret_type), ret_addr);
+        }
+        auto ret_val = cur_func->get_exit_bb()->create_inst<LoadInst>(ret_addr);
+        cur_func->get_exit_bb()->create_inst<RetInst>(ret_val);
+    } else {
+        cur_func->get_exit_bb()->create_inst<RetInst>();
+    }
+
     visit(*node.body);
     if (not cur_bb->is_terminated())
-        switch (node.ret_type) {
-        case ast::BaseType::INT:
-        case ast::BaseType::FLOAT:
-            // for the function except main, it returns undef value
-            if (cur_func->get_name() == "@main") {
-                cur_bb->create_inst<RetInst>(zero_init(node.ret_type));
-            } else {
-                const auto begin = cur_func->get_entry_bb().insts().begin();
-                auto type = ast2ir_ty(node.ret_type, type_of::Variant);
-                auto addr = cur_func->get_entry_bb().insert_inst<AllocaInst>(
-                    begin, type);
-                auto undef_var = cur_bb->create_inst<LoadInst>(addr);
-                cur_bb->create_inst<RetInst>(undef_var);
-            }
-            break;
-        case ast::BaseType::VOID:
-            cur_bb->create_inst<RetInst>();
-            break;
-        }
+        cur_bb->create_inst<BrInst>(cur_func->get_exit_bb());
     scope.exit();
     return {};
 }
@@ -592,8 +592,7 @@ any IRBuilderImpl::visit(const IfStmt &node) {
 any IRBuilderImpl::visit(const WhileStmt &node) {
     // Step1 Check whether cur_bb is empty
     BasicBlock *cond_bb = cur_bb;
-    if (cur_bb->get_insts().size() != 0 ||
-        cur_bb == &cur_func->get_entry_bb()) {
+    if (cur_bb->get_insts().size() != 0 || cur_bb == cur_func->get_entry_bb()) {
         cond_bb = cur_func->create_bb();
         cur_bb->create_inst<BrInst>(cond_bb); // cond_bb
         cur_bb = cond_bb;
@@ -644,10 +643,9 @@ any IRBuilderImpl::visit(const ReturnStmt &node) {
         Type *ret_type =
             cur_func->get_type()->as<FuncType>()->get_result_type();
         type_convert(ret_val, ret_type);
-        cur_bb->create_inst<RetInst>(ret_val);
-    } else {
-        cur_bb->create_inst<RetInst>();
+        cur_bb->create_inst<StoreInst>(ret_val, ret_addr);
     }
+    cur_bb->create_inst<BrInst>(cur_func->get_exit_bb());
     return {};
 }
 
@@ -677,9 +675,9 @@ any IRBuilderImpl::visit(const VarDefStmt &node) {
         auto [init_vars, const_inits] = get_initializer(node.init_vals, type);
 
         // define variable
-        const auto begin = cur_func->get_entry_bb().insts().begin();
+        const auto begin = cur_func->get_entry_bb()->insts().begin();
         auto var =
-            cur_func->get_entry_bb().insert_inst<AllocaInst>(begin, type);
+            cur_func->get_entry_bb()->insert_inst<AllocaInst>(begin, type);
         scope.push(node.var_name, var);
 
         if (node.init_vals.has_value()) {

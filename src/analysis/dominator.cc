@@ -33,7 +33,7 @@ void Dominator::create_depth_priority_order(Function *f) {
     _depth_priority_order.clear();
     _post_order_id.clear();
     std::set<BasicBlock *> visited;
-    post_order_visit(&f->get_entry_bb(), visited);
+    post_order_visit(f->get_entry_bb(), visited);
     _depth_priority_order.reverse();
 }
 
@@ -49,7 +49,7 @@ void Dominator::post_order_visit(BasicBlock *bb,
 }
 
 void Dominator::create_idom(Function *f) {
-    auto root = &f->get_entry_bb();
+    auto root = f->get_entry_bb();
     _idom[root] = root;
 
     bool changed = true;

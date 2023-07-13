@@ -21,7 +21,7 @@ void Mem2reg::run(PassManager *mgr) {
     for (auto &f : m->functions()) {
         if (f.bbs().size() >= 1) {
             generate_phi(&f);
-            re_name(&f.get_entry_bb());
+            re_name(f.get_entry_bb());
         }
         // to remove_alloca? dead_code_elmination can do it, i think
     }

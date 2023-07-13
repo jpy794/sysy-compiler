@@ -5,6 +5,7 @@
 #include "type.hh"
 #include "value.hh"
 
+#include <cassert>
 #include <memory>
 #include <string>
 
@@ -33,10 +34,13 @@ class Function : public Value, public ilist<Function>::node {
 
     const ilist<BasicBlock> &get_bbs() const { return _bbs; }
     const std::vector<Argument *> &get_args() const { return _args; }
-    BasicBlock &get_entry_bb() {
-        // FIXME: shoule we have a bb pointer that points to the entry
-        // instead of using _bbs.front() as default entry ?
-        return _bbs.front();
+    BasicBlock *get_entry_bb() {
+        assert(_bbs.size() >= 1);
+        return &_bbs.front();
+    }
+    BasicBlock *get_exit_bb() {
+        assert(_bbs.size() >= 2);
+        return &*++_bbs.begin();
     }
 
     // for inst name %op123
