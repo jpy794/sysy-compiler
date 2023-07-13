@@ -15,6 +15,9 @@ using InstIDMap = std::map<const mir::Instruction *, InstructionID>;
 // register info
 using RegisterMap = std::map<mir::Register::RegIDType, mir::PhysicalRegister *>;
 
+inline ProgramPoint IN_POINT(InstructionID id) { return 2 * id; }
+inline ProgramPoint OUT_POINT(InstructionID id) { return 2 * id + 1; }
+
 struct ControlFlowInfo {
     LabelOrder label_order;
     InstIDMap instid;
@@ -69,10 +72,11 @@ class RegAlloc {
     const ControlFlowInfo &get_cfg_info(const mir::Function *func) const {
         return _cfg_info.at(func);
     }
-    const LivenessAnalysis &get_ireg_map(const mir::Function *func) const {
+    const LivenessAnalysis &get_liveness_int(const mir::Function *func) const {
         return _liveness_int.at(func);
     }
-    const LivenessAnalysis &get_freg_map(const mir::Function *func) const {
+    const LivenessAnalysis &
+    get_liveness_float(const mir::Function *func) const {
         return _liveness_float.at(func);
     }
 

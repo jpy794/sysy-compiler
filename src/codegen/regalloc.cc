@@ -63,9 +63,6 @@ LiveVarSet make_intersection(const vector<LiveVarSet> &sets) {
     return result;
 }
 
-inline ProgramPoint IN_POINT(InstructionID id) { return 2 * id; }
-inline ProgramPoint OUT_POINT(InstructionID id) { return 2 * id + 1; }
-
 LivenessAnalysis::LivenessAnalysis(const ControlFlowInfo &cfg_info,
                                    bool integer) {
     auto &inst_id = cfg_info.instid;
