@@ -1,14 +1,19 @@
 #pragma once
 
-#include "mir_context.hh"
 #include <iostream>
 #include <unordered_set>
 
+namespace context {
+struct Context;
+}
+
 namespace mir {
+
+using context::Context;
 
 class Value {
   public:
-    virtual void dump(std::ostream &os, const MIRContext &context) const = 0;
+    virtual void dump(std::ostream &os, const Context &context) const = 0;
     virtual ~Value() {}
 };
 

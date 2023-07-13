@@ -14,7 +14,7 @@ class Immediate : public Value {
 
   public:
     int get_imm() { return _value; }
-    void dump(std::ostream &os, const MIRContext &context) const {
+    void dump(std::ostream &os, const Context &context) const {
         os << _value;
     }
 };

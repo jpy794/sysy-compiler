@@ -1,12 +1,13 @@
-#include "mir_config.hh"
-#include "mir_function.hh"
-#include "mir_instruction.hh"
+#include "context.hh"
+#include "mir_memory.hh"
+#include "mir_module.hh"
 
 #include <map>
 #include <string_view>
 
 using namespace std;
 using namespace mir;
+using namespace context;
 
 void mir::flatten_array(ir::ConstArray *const_arr, InitPairs &inits,
                         const size_t start) {
@@ -98,21 +99,135 @@ bool Instruction::will_write_register() const {
     return true;
 }
 
-/* prints */
+/* implemention of dumps */
 
-void Instruction::dump(std::ostream &os, const MIRContext &context) const {
-    MIRContext op_context{context.stage, Role::NameOnly};
+void Module::dump(std::ostream &os, const Context &context) const {
+    for (auto func : _functions) {
+        if (not func->is_definition())
+            continue;
+        func->dump(os, context);
+    }
+    // output global at the end
+    for (auto global : _globals) {
+        global->dump(os, context);
+    }
+}
+
+void Function::dump(std::ostream &os, const Context &context) const {
+    auto func_context{context};
+    func_context.cur_function = this;
+    auto name_only_context{func_context.name_only()};
+
+    switch (context.stage) {
+    case Stage::stage1: {
+        switch (context.role) {
+        case Role::Full: {
+            os << _name << ":\n";
+
+            auto &cfg_info = context.allocator.get_cfg_info(this);
+            os << "# =========DFS ORDER=========\n";
+            os << "# ";
+            for (auto label : cfg_info.label_order) {
+                label->dump(os, name_only_context);
+                os << " ";
+            }
+            os << "\n";
+
+            for (auto label : _labels)
+                label->dump(os, func_context);
+        } break;
+        case Role::NameOnly:
+            os << _name;
+            break;
+        }
+    } break;
+    case Stage::stage2:
+        // add stack alloc and related stack offset map
+        throw not_implemented_error{};
+        break;
+    }
+}
+
+void Label::dump(std::ostream &os, const Context &context) const {
+    switch (context.role) {
+    case Role::Full: {
+        os << _name << ":\n";
+        for (auto &inst : _insts) {
+            os << "\t";
+            inst.dump(os, context);
+            os << "\n";
+        }
+    } break;
+    case Role::NameOnly:
+        os << _name;
+        break;
+    }
+}
+
+void Instruction::dump(std::ostream &os, const Context &context) const {
+    Context name_only_context{context.name_only()};
+    auto inst_id =
+        context.allocator.get_cfg_info(context.cur_function).instid.at(this);
+
     switch (context.stage) {
     case Stage::stage1:
-        os << "\t" << (_partial ? "*" : "") << MIR_INST_NAME.at(_opcode) << " ";
+        os << "\t" << inst_id << ". " << (_partial ? "*" : "")
+           << MIR_INST_NAME.at(_opcode) << " ";
         for (unsigned i = 0; i < _operands.size(); i++) {
-            _operands[i]->dump(os, op_context);
+            _operands[i]->dump(os, name_only_context);
             if (i != _operands.size() - 1)
                 os << ", ";
         }
         break;
     case Stage::stage2:
         throw not_implemented_error{};
+        break;
+    }
+}
+
+void StatckObject::dump(std::ostream &os, const Context &context) const {
+    switch (context.stage) {
+    case Stage::stage1: {
+        os << "@stack-object";
+        break;
+    }
+    case Stage::stage2:
+        throw not_implemented_error{};
+    }
+}
+
+void GlobalObject::dump(std::ostream &os, const Context &context) const {
+    switch (context.role) {
+    case Role::Full: {
+        os << _name << ":\n";
+        size_t off = 0; // byte offset
+        for (auto [idx, value] : _inits) {
+            if (off < idx * BASIC_TYPE_SIZE) {
+                os << "\t.zero " << std::to_string(idx * BASIC_TYPE_SIZE - off)
+                   << "\n";
+            }
+            switch (_type) {
+            case BasicType::VOID:
+                throw unreachable_error{};
+            case BasicType::INT:
+                os << "\t.word " << std::get<int>(value) << "\n";
+                break;
+            case BasicType::FLOAT: {
+                float v = std::get<float>(value);
+                os << "\t.word 0x" << std::hex << std::uppercase
+                   << *reinterpret_cast<uint32_t *>(&v) << " # float " << v
+                   << "\n";
+                break;
+            }
+            }
+            off = (idx + 1) * BASIC_TYPE_SIZE;
+        }
+        assert(off <= _size);
+        if (off != _size)
+            os << "\t.zero " << std::to_string(_size - off) << "\n";
+    } break;
+    case Role::NameOnly:
+        os << _name;
         break;
     }
 }

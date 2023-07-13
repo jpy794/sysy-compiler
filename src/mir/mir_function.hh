@@ -57,26 +57,7 @@ class Function : public Value {
 
     std::string get_name() const { return _name; }
     const std::vector<Label *> &get_labels() const { return _labels; }
-    void dump(std::ostream &os, const MIRContext &context) const final {
-        switch (context.stage) {
-        case Stage::stage1: {
-            switch (context.role) {
-            case Role::Full:
-                os << _name << ":\n";
-                for (auto label : _labels)
-                    label->dump(os, context);
-                break;
-            case Role::NameOnly:
-                os << _name;
-                break;
-            }
-        } break;
-        case Stage::stage2:
-            // add stack alloc and related stack offset map
-            throw not_implemented_error{};
-            break;
-        }
-    }
+    void dump(std::ostream &os, const Context &context) const override final;
 
     template <typename... Args> Label *add_label(Args... args) {
         _labels.push_back(ValueManager::get().create<Label>(args...));

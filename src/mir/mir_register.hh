@@ -38,14 +38,8 @@ class IVReg final : public VirtualRegister {
     IVReg() : VirtualRegister(++TOTAL) {}
 
   public:
-    void dump(std::ostream &os, const MIRContext &context) const final {
-        switch (context.stage) {
-        case Stage::stage1:
-            os << "ireg" << std::to_string(_id);
-            break;
-        case Stage::stage2:
-            throw not_implemented_error{};
-        }
+    void dump(std::ostream &os, const Context &context) const final {
+        os << "ireg" << std::to_string(_id);
     }
 };
 
@@ -58,14 +52,8 @@ class FVReg final : public VirtualRegister {
     FVReg() : VirtualRegister(++TOTAL) {}
 
   public:
-    void dump(std::ostream &os, const MIRContext &context) const final {
-        switch (context.stage) {
-        case Stage::stage1:
-            os << "freg" << std::to_string(_id);
-            break;
-        case Stage::stage2:
-            throw not_implemented_error{};
-        }
+    void dump(std::ostream &os, const Context &context) const final {
+        os << "freg" << std::to_string(_id);
     }
 };
 

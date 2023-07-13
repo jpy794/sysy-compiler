@@ -2,7 +2,6 @@
 
 #include "err.hh"
 #include "mir_config.hh"
-#include "mir_context.hh"
 #include "mir_function.hh"
 #include "mir_memory.hh"
 
@@ -19,18 +18,7 @@ class Module {
   public:
     Module() = default;
 
-    void dump(std::ostream &os, Stage stage) const {
-        MIRContext context{stage, Role::Full};
-        for (auto func : _functions) {
-            if (not func->is_definition())
-                continue;
-            func->dump(os, context);
-        }
-        // output global at the end
-        for (auto global : _globals) {
-            global->dump(os, context);
-        }
-    }
+    void dump(std::ostream &os, const Context &context) const;
     const std::vector<Function *> &get_functions() const { return _functions; }
 
     template <typename... Args> Function *add_function(Args... args) {

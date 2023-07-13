@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ilist.hh"
-#include "mir_context.hh"
 #include "mir_value.hh"
 #include "utils.hh"
 #include <array>
@@ -81,7 +80,7 @@ class Instruction final : public ilist<Instruction>::node {
     Value *get_operand(unsigned i) { return _operands.at(i); }
     const size_t get_operand_num() const { return _operands.size(); }
 
-    void dump(std::ostream &os, const MIRContext &context) const;
+    void dump(std::ostream &os, const Context &context) const;
     // each instruction writes 1 register(def) at most
     // the orther operands are use
     bool will_write_register() const;

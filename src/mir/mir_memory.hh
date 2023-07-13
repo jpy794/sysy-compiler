@@ -37,16 +37,7 @@ class StatckObject : public MemObject {
         : MemObject(size), _align(align) {}
 
   public:
-    void dump(std::ostream &os, const MIRContext &context) const final {
-        switch (context.stage) {
-        case Stage::stage1: {
-            os << "@stack-object";
-            break;
-        }
-        case Stage::stage2:
-            throw not_implemented_error{};
-        }
-    }
+    void dump(std::ostream &os, const Context &context) const override final;
     std::size_t get_align() const { return _align; }
 };
 
@@ -107,41 +98,7 @@ class GlobalObject : public MemObject {
     }
 
   public:
-    void dump(std::ostream &os, const MIRContext &context) const final {
-        switch (context.role) {
-        case Role::Full: {
-            os << _name << ":\n";
-            size_t off = 0; // byte offset
-            for (auto [idx, value] : _inits) {
-                if (off < idx * BASIC_TYPE_SIZE) {
-                    os << "\t.zero "
-                       << std::to_string(idx * BASIC_TYPE_SIZE - off) << "\n";
-                }
-                switch (_type) {
-                case BasicType::VOID:
-                    throw unreachable_error{};
-                case BasicType::INT:
-                    os << "\t.word " << std::get<int>(value) << "\n";
-                    break;
-                case BasicType::FLOAT: {
-                    float v = std::get<float>(value);
-                    os << "\t.word 0x" << std::hex << std::uppercase
-                       << *reinterpret_cast<uint32_t *>(&v) << " # float " << v
-                       << "\n";
-                    break;
-                }
-                }
-                off = (idx + 1) * BASIC_TYPE_SIZE;
-            }
-            assert(off <= _size);
-            if (off != _size)
-                os << "\t.zero " << std::to_string(_size - off) << "\n";
-        } break;
-        case Role::NameOnly:
-            os << _name;
-            break;
-        }
-    }
+    void dump(std::ostream &os, const Context &context) const override final;
     const InitPairs &get_init() const { return _inits; }
     BasicType get_type() const { return _type; }
 };
