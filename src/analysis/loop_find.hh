@@ -16,10 +16,9 @@ class LoopFind final : public pass::AnalysisPass {
             std::vector<ir::BasicBlock *> latches;
             std::set<ir::BasicBlock *> bbs;
         };
+        using FuncLoopInfo = std::unordered_map<ir::BasicBlock *, LoopInfo>;
         // ((func, ((header, loop_info)...))...)
-        std::unordered_map<ir::Function *,
-                           std::unordered_map<ir::BasicBlock *, LoopInfo>>
-            loop_info;
+        std::unordered_map<ir::Function *, FuncLoopInfo> loop_info;
     };
 
     virtual void get_analysis_usage(pass::AnalysisUsage &AU) const final {

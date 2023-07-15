@@ -15,6 +15,7 @@
 #include "err.hh"
 #include "ir_builder.hh"
 #include "loop_find.hh"
+#include "loop_invariant.hh"
 #include "mem2reg.hh"
 #include "pass.hh"
 #include "raw_ast.hh"
@@ -92,8 +93,9 @@ int main(int argc, char **argv) {
         // transform
         pm.add_pass<RmUnreachBB>();
         pm.add_pass<Mem2reg>();
+        pm.add_pass<LoopInvariant>();
 
-        pm.run(false, {PassID<Mem2reg>()});
+        pm.run({PassID<Mem2reg>(), PassID<LoopInvariant>()}, false);
 
         module = pm.release_module();
     }

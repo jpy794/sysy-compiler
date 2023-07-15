@@ -14,6 +14,17 @@
 #include <optional>
 #include <vector>
 
+#define INST_CLONE(INST)                                                       \
+  private:                                                                     \
+    INST(BasicBlock *prt, const INST &other)                                   \
+        : Instruction(prt, other.get_type(),                                   \
+                      {other.operands().begin(), other.operands().end()}) {}   \
+                                                                               \
+  public:                                                                      \
+    Instruction *clone(BasicBlock *prt) const final {                          \
+        return new INST{prt, *this};                                           \
+    }
+
 namespace ir {
 
 class Function;
@@ -24,6 +35,9 @@ class InstructionVisitor;
 // to parent BB's instruction list.
 class Instruction : public User, public ilist<Instruction>::node {
 
+    // a workaround for move_inst, which requires modify parent bb
+    friend BasicBlock;
+
   public:
     Instruction(BasicBlock *prt, Type *type, std::vector<Value *> &&operands);
     Instruction(const Instruction &) = delete;
@@ -32,6 +46,7 @@ class Instruction : public User, public ilist<Instruction>::node {
     BasicBlock *get_parent() { return _parent; }
 
     virtual std::any accept(InstructionVisitor *visitor) const = 0;
+    virtual Instruction *clone(BasicBlock *prt) const = 0;
 
   protected:
     static std::vector<Value *> _mix2vec(Value *first,
@@ -57,6 +72,8 @@ class RetInst : public Instruction {
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
     }
+
+    INST_CLONE(RetInst)
 };
 
 class BrInst : public Instruction {
@@ -70,6 +87,8 @@ class BrInst : public Instruction {
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
     }
+
+    INST_CLONE(BrInst)
 };
 
 class IBinaryInst : public Instruction {
@@ -88,6 +107,8 @@ class IBinaryInst : public Instruction {
 
   private:
     IBinOp _op;
+
+    INST_CLONE(IBinaryInst)
 };
 
 class FBinaryInst : public Instruction {
@@ -106,6 +127,8 @@ class FBinaryInst : public Instruction {
 
   private:
     FBinOp _op;
+
+    INST_CLONE(FBinaryInst)
 };
 
 class AllocaInst : public Instruction {
@@ -116,6 +139,8 @@ class AllocaInst : public Instruction {
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
     }
+
+    INST_CLONE(AllocaInst)
 };
 
 class LoadInst : public Instruction {
@@ -129,6 +154,8 @@ class LoadInst : public Instruction {
 
   private:
     static Type *_deduce_type(Value *ptr);
+
+    INST_CLONE(LoadInst)
 };
 
 class StoreInst : public Instruction {
@@ -139,6 +166,8 @@ class StoreInst : public Instruction {
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
     }
+
+    INST_CLONE(StoreInst)
 };
 
 class ICmpInst : public Instruction {
@@ -155,6 +184,8 @@ class ICmpInst : public Instruction {
 
   private:
     ICmpOp _cmp_op;
+
+    INST_CLONE(ICmpInst)
 };
 
 class FCmpInst : public Instruction {
@@ -171,6 +202,8 @@ class FCmpInst : public Instruction {
 
   private:
     FCmpOp _cmp_op;
+
+    INST_CLONE(FCmpInst)
 };
 
 class PhiInst : public Instruction {
@@ -180,6 +213,27 @@ class PhiInst : public Instruction {
 
     void add_phi_param(Value *val, BasicBlock *bb);
 
+    using Pair = std::pair<Value *, BasicBlock *>;
+
+    std::vector<Pair> to_pairs() const {
+        std::vector<Pair> ret;
+        for (auto it = operands().begin(); it != operands().end(); it += 2) {
+            auto op = *it;
+            auto bb = *(it + 1);
+            ret.emplace_back(op, bb->as<BasicBlock>());
+        }
+        return ret;
+    }
+
+    void from_pairs(const std::vector<Pair> &pairs) {
+        operands() = {};
+        for (auto [op, bb] : pairs) {
+            assert(op->get_type() == get_type());
+            operands().emplace_back(op);
+            operands().emplace_back(bb);
+        }
+    }
+
     std::string print() const final;
 
     virtual std::any accept(InstructionVisitor *visitor) const {
@@ -188,6 +242,8 @@ class PhiInst : public Instruction {
 
   private:
     static std::vector<Value *> _get_op(const std::vector<Value *> &values);
+
+    INST_CLONE(PhiInst)
 };
 
 class CallInst : public Instruction {
@@ -207,6 +263,8 @@ class CallInst : public Instruction {
   private:
     static Type *_deduce_type(BasicBlock *prt,
                               const std::vector<Value *> &operands);
+
+    INST_CLONE(CallInst)
 };
 
 class Fp2siInst : public Instruction {
@@ -217,6 +275,8 @@ class Fp2siInst : public Instruction {
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
     }
+
+    INST_CLONE(Fp2siInst)
 };
 
 class Si2fpInst : public Instruction {
@@ -227,6 +287,8 @@ class Si2fpInst : public Instruction {
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
     }
+
+    INST_CLONE(Si2fpInst)
 };
 
 class GetElementPtrInst : public Instruction {
@@ -247,6 +309,8 @@ class GetElementPtrInst : public Instruction {
   private:
     static Type *_deduce_type(BasicBlock *prt, Value *baseptr,
                               const std::vector<Value *> &offs);
+
+    INST_CLONE(GetElementPtrInst)
 };
 
 class ZextInst : public Instruction {
@@ -257,6 +321,8 @@ class ZextInst : public Instruction {
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
     }
+
+    INST_CLONE(ZextInst)
 };
 
 } // namespace ir

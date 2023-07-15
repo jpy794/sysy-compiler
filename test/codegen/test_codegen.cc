@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     pm.add_pass<pass::Dominator>();
     pm.add_pass<pass::UseDefChain>();
     pm.add_pass<pass::Mem2reg>();
-    pm.run();
+    pm.run({pass::PassID<pass::Mem2reg>()});
 
     codegen::CodeGen codegen{pm.release_module()};
 

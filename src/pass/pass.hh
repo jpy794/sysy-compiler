@@ -141,13 +141,13 @@ class PassManager {
         auto ID = PassID<PassName, AnalysisPass>();
         PassInfo &info = at(ID);
         if (info.need_run()) {
-            run(false, {ID});
+            run({ID}, false);
         }
         auto reuslt_ptr = as_a<const AnalysisPass>(info.get())->get_result();
         return *std::any_cast<const ResultType *>(reuslt_ptr);
     }
 
-    void run(bool post = true, const PassOrder &o = {});
+    void run(const PassOrder &o, bool post = true);
 
     void reset() {
         for (auto &[_, info] : _passes)

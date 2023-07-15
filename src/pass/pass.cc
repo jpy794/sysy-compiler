@@ -5,9 +5,10 @@
 using namespace std;
 using namespace pass;
 
-void PassManager::run(bool post, const PassOrder &o) {
-    // if the user doesn't define an order, just use the previous order
-    const PassOrder &order = (o.size() ? o : _order);
+void PassManager::run(const PassOrder &o, bool post) {
+    // ignore _order and always use order provided by user
+    // or it could be confusing when user tries to provide an empty order list
+    const PassOrder &order = o;
 
     for (auto passid : order) {
         PassInfo &info = at(passid);
@@ -20,7 +21,7 @@ void PassManager::run(bool post, const PassOrder &o) {
         // recursively run relied pass
         for (auto relyid : AU._relys) {
             if (at(relyid).need_run())
-                run(false, {relyid});
+                run({relyid}, false);
         }
 
         ptr->run(this);
@@ -44,7 +45,7 @@ void PassManager::run(bool post, const PassOrder &o) {
 
         if (post)
             for (auto postid : AU._posts)
-                run(true, {postid});
+                run({postid}, true);
 
         info.mark_valid();
     }

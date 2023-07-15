@@ -131,17 +131,13 @@ int main() {
     pm.add_pass<Dominator>();
     pm.add_pass<Mem2reg>();
 
-    // default case, use add order
-    cout << "===Test1===" << endl;
-    pm.run();
-
     // we don't want a suggested post pass to run now
     pm.reset();
     cout << "===Test2===" << endl;
-    pm.run(false);
+    pm.run({PassID<Mem2reg>()}, false);
 
     // run the core pass mem2reg, should bring life to Dominator and DCE
     pm.reset();
     cout << "===Test3===" << endl;
-    pm.run(true, {PassID<Mem2reg>()});
+    pm.run({PassID<Mem2reg>()});
 }

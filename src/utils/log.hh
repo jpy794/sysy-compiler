@@ -15,6 +15,7 @@ class DebugStream {
     template <typename T> DebugStream &operator<<(const T &rhs) {
         if constexpr (debug) {
             of << rhs;
+            of.flush();
         }
         return *this;
     }

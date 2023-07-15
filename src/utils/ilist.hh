@@ -74,6 +74,7 @@ template <typename T> class ilist {
     size_t _size{0}, _tag{0};
 
     void _mark_node(T *p) { p->_tag = _tag; }
+    void _unmark_node(T *p) { p->_tag = 0; }
 
     bool _is_node(T *p) { return p->_tag == _tag; }
 
@@ -171,6 +172,21 @@ template <typename T> class ilist {
         delete p;
         _size -= 1;
         return ret;
+    }
+
+    T *release(const iterator &it) {
+        auto p = it._ptr;
+        if (p == _head || p == _tail) {
+            throw std::logic_error{"trying to release head or tail"};
+        } else if (not _is_node(p)) {
+            // TODO: impl stricter check
+            throw std::logic_error{"trying to release a node not in the list"};
+        }
+        p->_prev->_next = p->_next;
+        p->_next->_prev = p->_prev;
+        _unmark_node(p);
+        _size -= 1;
+        return dynamic_cast<T *>(p);
     }
 
     // insert p before pos

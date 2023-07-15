@@ -21,6 +21,7 @@ class User : public Value {
 
     // const method
     const std::vector<Value *> &operands() const { return _operands; }
+    std::vector<Value *> &operands() { return _operands; }
 
     Value *get_operand(size_t index) const {
         assert(index < _operands.size());

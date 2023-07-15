@@ -48,6 +48,30 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
         return inst;
     }
 
+    // clone a inst, be careful when cloning from another function as this could
+    // invalidate all operands
+    Instruction *clone_inst(const ilist<Instruction>::iterator &it,
+                            Instruction *other) {
+        if (other->is<BrInst>() || other->is<RetInst>()) {
+            assert(not is_terminated() && it == _insts.end());
+        }
+        auto inst = other->clone(this);
+        _insts.insert(it, inst);
+        return inst;
+    }
+
+    // move inst within the same function
+    void move_inst(const ilist<Instruction>::iterator &it, Instruction *other) {
+        auto other_bb = other->get_parent();
+        assert(other_bb->get_func() == _func);
+        if (other->is<BrInst>() || other->is<RetInst>()) {
+            assert(not is_terminated() && it == _insts.end());
+        }
+        auto inst = other_bb->insts().release(other);
+        inst->_parent = this;
+        _insts.insert(it, inst);
+    }
+
     std::vector<BasicBlock *> &pre_bbs() { return _pre_bbs; }
     std::vector<BasicBlock *> &suc_bbs() { return _suc_bbs; }
     ilist<Instruction> &insts() { return _insts; }
