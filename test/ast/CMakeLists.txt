@@ -5,7 +5,7 @@ target_link_libraries(
     PRIVATE ast
 )
 
-set(TESTCASES_BASE ${CMAKE_SOURCE_DIR}/test/sysy_tests/cases)
+set(TESTCASES_BASE ${CMAKE_SOURCE_DIR}/test/cases)
 
 function(ast_test BASE CASE)
     add_test(
@@ -28,7 +28,7 @@ function(ast_test_path BASE)
     endforeach()
 endfunction()
 
-ast_test_path(2022/func)
+ast_test_path(func)
 ast_test_path(ast)
 
 add_custom_target(
