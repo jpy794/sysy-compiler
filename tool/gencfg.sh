@@ -1,20 +1,26 @@
 #!/bin/sh
 
-# usage: ./tool/gencfg.sh test.sy func_name [-O1]
+# usage: ./tool/gencfg.sh [test.sy|test.ll] func_name [-O1]
 
-sy=$(realpath $1)
+source=$(realpath $1)
 func=$2
-extra_flag=$3
+sysyc_args=${@:3}
 
 proj=$(pwd)
 tmp=$(mktemp -d)
 
-sy_base=$(echo $(basename $sy) | sed -e 's/\.sy//')
-png=$sy_base.$func.png
-
-make -C $proj/build -j$(nproc)
+source_base=$(echo $(basename $source) | sed -E 's/\..*//')
+source_suffix=$(echo $(basename $source) | grep -oE '\..*')
+png=$source_base.$func.png
 
 cd $tmp
-$proj/build/src/sysyc -S -emit-llvm $extra_flag $sy | opt --dot-cfg --disable-output
+if [ $source_suffix == '.sy' ]; then
+    $proj/build/src/sysyc -S -emit-llvm $sysyc_args $source | opt --dot-cfg --disable-output
+elif [ $source_suffix == '.ll' ]; then
+    cat $source | opt --dot-cfg --disable-output
+else
+    echo 'expect *.ll or *.sy input'
+    exit 1
+fi
 dot -Tpng .$func.dot -o $png
 cp $png $proj/
