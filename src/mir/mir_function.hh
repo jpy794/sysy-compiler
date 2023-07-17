@@ -52,8 +52,9 @@ class Function : public Value {
 
   public:
     BasicType get_ret_type() const { return _ret_type; }
-    VirtualRegister *get_args(size_t idx) { return _args[idx]; }
     bool is_definition() const { return _is_def; }
+    const std::vector<VirtualRegister *> &get_args() { return _args; }
+    VirtualRegister *get_args(size_t idx) { return _args[idx]; }
 
     std::string get_name() const { return _name; }
     const std::vector<Label *> &get_labels() const { return _labels; }
