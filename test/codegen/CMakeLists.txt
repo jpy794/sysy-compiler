@@ -1,19 +1,3 @@
-add_executable(simple-test simple_test.cc)
-
-target_link_libraries(
-    simple-test
-    PRIVATE ast
-    PRIVATE ir
-    PRIVATE ir_builder
-    PRIVATE mir
-    PRIVATE mir_builder
-    PRIVATE codegen
-    PRIVATE pass
-    PRIVATE analysis
-    PRIVATE transform
-    PRIVATE utils
-)
-
 add_executable(test_codegen test_codegen.cc)
 
 target_link_libraries(
@@ -30,37 +14,31 @@ target_link_libraries(
     PRIVATE utils
 )
 
-set(SYSY_TESTS ${CMAKE_SOURCE_DIR}/test/sysy_tests)
+set(SYSY_TESTS ${CMAKE_SOURCE_DIR}/test/cases)
 
-function(add_codegen_test BASE CASE)
+function(add_codegen_test CASE_FULL_PATH)
+    get_filename_component(CASE ${CASE_FULL_PATH} NAME_WE)
     add_test(
         test_codegen_${CASE}
         test_codegen
-        ${CASE}
-        out
-        ${SYSY_TESTS}/cases/${BASE}
-        ${SYSY_TESTS}/in/${BASE}
-        ${SYSY_TESTS}/out/${BASE}
-        ${SYSY_TESTS}/lib/sylib.c
+        ${CASE_FULL_PATH}
     )
     set_tests_properties(test_codegen_${CASE} PROPERTIES TIMEOUT 100) 
 endfunction()
 
-function(add_codegen_test_path BASE)
+function(add_codegen_test_path CATEGORY)
     file(
         GLOB CASES_SY
-        RELATIVE ${SYSY_TESTS}/cases/${BASE}
-        ${SYSY_TESTS}/cases/${BASE}/*.sy
+        ${SYSY_TESTS}/${CATEGORY}/*.sy
     )
     foreach(CASE_SY ${CASES_SY})
-        get_filename_component(CASE ${CASE_SY} NAME_WE) 
-        add_codegen_test(${BASE} ${CASE}) 
+        add_codegen_test(${CASE_SY}) 
     endforeach()
 endfunction()
 
-add_codegen_test_path(2022/func)
-add_codegen_test_path(2022/func_hidden)
-add_codegen_test_path(2022/perf)
+add_codegen_test_path(func)
+add_codegen_test_path(func_hidden)
+add_codegen_test_path(perf)
 
 add_custom_target(
     check_codegen

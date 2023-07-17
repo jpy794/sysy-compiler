@@ -1,7 +1,11 @@
+#include "DeadCode.hh"
 #include "ast.hh"
 #include "codegen.hh"
 #include "dominator.hh"
+#include "func_info.hh"
 #include "ir_builder.hh"
+#include "loop_find.hh"
+#include "loop_invariant.hh"
 #include "mem2reg.hh"
 #include "pass.hh"
 #include "raw_ast.hh"
@@ -12,43 +16,51 @@
 
 using namespace std;
 using namespace filesystem;
+using namespace pass;
 
 int main(int argc, char **argv) {
-    if (argc < 7) {
+    if (argc != 2) {
         throw std::runtime_error{"wrong arguement"};
     }
 
-    auto test_case = string{argv[1]};
+    auto case_full_path = path{argv[1]};
 
-    // tmp folder for binary and output
-    auto output_path = path{argv[2]};
+    auto name_without_extension = string(case_full_path.stem());
+    auto category = case_full_path.parent_path().stem();
+
+    auto output_path = path{path("output") / category};
     create_directories(output_path);
 
-    // paths that store the testcases
-    auto sysy_path = path{argv[3]};
-    auto test = [&](const path &base, const string &suffix) {
-        return base / (test_case + suffix);
-    };
-
-    if (not is_regular_file(test(sysy_path, ".sy"))) {
+    if (not exists(case_full_path)) {
         throw runtime_error{"sysy source not exist"};
     }
 
-    ast::AST ast{ast::RawAST{test(sysy_path, ".sy")}};
+    ast::AST ast{ast::RawAST{case_full_path}};
     IRBuilder builder{ast};
-    auto module = builder.release_module();
-    pass::PassManager pm(std::move(module));
-    pm.add_pass<pass::RmUnreachBB>();
-    pm.add_pass<pass::Dominator>();
-    pm.add_pass<pass::UseDefChain>();
-    pm.add_pass<pass::Mem2reg>();
-    pm.run({pass::PassID<pass::Mem2reg>()});
 
+    // optimize
+    pass::PassManager pm(builder.release_module());
+    // analysis
+    pm.add_pass<Dominator>();
+    pm.add_pass<UseDefChain>();
+    pm.add_pass<LoopFind>();
+    pm.add_pass<FuncInfo>();
+    // transform
+    pm.add_pass<RmUnreachBB>();
+    pm.add_pass<Mem2reg>();
+    pm.add_pass<LoopInvariant>();
+    pm.add_pass<DeadCode>();
+
+    pm.run({PassID<Mem2reg>(), PassID<LoopInvariant>(), PassID<DeadCode>()},
+           false);
+
+    // codegen
     codegen::CodeGen codegen{pm.release_module()};
-
-    ofstream asm_output{output_path / (test_case + ".s")};
+    ofstream asm_output{output_path / (name_without_extension + ".s")};
     asm_output << codegen;
     asm_output.close();
+
+    cout << codegen;
 
     return 0;
 }
