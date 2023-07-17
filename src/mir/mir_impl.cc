@@ -4,6 +4,7 @@
 #include "regalloc.hh"
 
 #include <map>
+#include <ostream>
 #include <string_view>
 
 using namespace std;
@@ -108,6 +109,12 @@ bool Instruction::will_write_register() const {
 
 /* implemention of dumps */
 
+ostream &operator<<(ostream &os, const codegen::LiveInterVal &interval) {
+    os << "{" << interval.vreg_id << ",<" << interval.start << ","
+       << interval.end << ">}";
+    return os;
+}
+
 void Module::dump(std::ostream &os, const Context &context) const {
     for (auto func : _functions) {
         if (not func->is_definition())
@@ -130,12 +137,31 @@ void Function::dump(std::ostream &os, const Context &context) const {
         switch (context.role) {
         case Role::Full: {
             os << _name << ":\n";
+            auto &allocator = context.allocator;
 
-            auto &cfg_info = context.allocator.get_cfg_info(this);
+            auto &cfg_info = allocator.get_cfg_info(this);
             os << "# =========DFS ORDER=========\n";
             os << "# ";
             for (auto label : cfg_info.label_order) {
                 label->dump(os, name_only_context);
+                os << " ";
+            }
+            os << "\n";
+
+            auto &intervals = allocator.get_live_ints(this, false);
+            os << "# =========Live Interval=========\n";
+            os << "# ";
+            for (auto &interval : intervals) {
+                os << interval << " ";
+            }
+            os << "\n";
+
+            auto &regmap = allocator.get_reg_map(this, false);
+            os << "# =========Register Map=========\n";
+            os << "# ";
+            for (auto &[vid, reginfo] : regmap) {
+                os << vid << "~";
+                reginfo.reg->dump(os, name_only_context);
                 os << " ";
             }
             os << "\n";
@@ -175,7 +201,7 @@ void Instruction::dump(std::ostream &os, const Context &context) const {
 
     auto cur_func = context.cur_function;
     auto inst_id = context.allocator.get_cfg_info(cur_func).instid.at(this);
-    auto &live_var_set = context.allocator.get_liveness_int(cur_func).live_info;
+    auto &live_var_set = context.allocator.get_liveness(cur_func, false);
 
     auto indent = [&]() { resolve_indent(os, context); };
 
