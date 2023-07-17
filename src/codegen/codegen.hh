@@ -17,7 +17,6 @@
 namespace codegen {
 
 class CodeGen {
-
     context::Stage _stage{context::Stage::stage1};
     std::unique_ptr<mir::Module> _mir_module{nullptr};
 
@@ -28,12 +27,14 @@ class CodeGen {
         mir::MIRBuilder builder(std::move(ir_module));
         _mir_module.reset(builder.release());
         _allocator.run(_mir_module.get());
+        // upgrade();
     }
 
     friend std::ostream &operator<<(std::ostream &os, const CodeGen &c);
 
   private:
     void construct_mir(ir::Module *);
+    void upgrade();
 };
 
 }; // namespace codegen
