@@ -83,26 +83,19 @@ class FPReg final : public PhysicalRegister {
 
 class PhysicalRegisterManager {
   public:
-    using IPRegPtr = std::shared_ptr<IPReg>;
+    using IPRegPtr = IPReg *;
+    using ConstIPRegPtr = const IPReg *;
     enum Saver { None, Caller, Callee };
 
   private:
-    template <typename... Args> static IPRegPtr createIPReg(Args... args) {
-        return IPRegPtr(new IPReg(args...));
-    }
-
-    std::array<IPRegPtr, 32> _int_registers{
-        createIPReg(0, "zero"), createIPReg(1, "ra"),  createIPReg(2, "sp"),
-        createIPReg(3, "gp"),   createIPReg(4, "tp"),  createIPReg(5, "t0"),
-        createIPReg(6, "t1"),   createIPReg(7, "t2"),  createIPReg(8, "s0"),
-        createIPReg(9, "s1"),   createIPReg(10, "a0"), createIPReg(11, "a1"),
-        createIPReg(12, "a2"),  createIPReg(13, "a3"), createIPReg(14, "a4"),
-        createIPReg(15, "a5"),  createIPReg(16, "a6"), createIPReg(17, "a7"),
-        createIPReg(18, "s2"),  createIPReg(19, "s3"), createIPReg(20, "s4"),
-        createIPReg(21, "s5"),  createIPReg(22, "s6"), createIPReg(23, "s7"),
-        createIPReg(24, "s8"),  createIPReg(25, "s9"), createIPReg(26, "s10"),
-        createIPReg(27, "s11"), createIPReg(28, "t3"), createIPReg(29, "t4"),
-        createIPReg(30, "t5"),  createIPReg(31, "t6"),
+    std::array<IPReg, 32> _int_registers{
+        IPReg{0, "zero"}, {1, "ra"},   {2, "sp"},   {3, "gp"},  {4, "tp"},
+        {5, "t0"},        {6, "t1"},   {7, "t2"},   {8, "s0"},  {9, "s1"},
+        {10, "a0"},       {11, "a1"},  {12, "a2"},  {13, "a3"}, {14, "a4"},
+        {15, "a5"},       {16, "a6"},  {17, "a7"},  {18, "s2"}, {19, "s3"},
+        {20, "s4"},       {21, "s5"},  {22, "s6"},  {23, "s7"}, {24, "s8"},
+        {25, "s9"},       {26, "s10"}, {27, "s11"}, {28, "t3"}, {29, "t4"},
+        {30, "t5"},       {31, "t6"},
     };
     // const std::array<FPReg *, 32> _float_registers{};
 
@@ -121,38 +114,43 @@ class PhysicalRegisterManager {
             return Callee;
         return Caller;
     }
-    IPRegPtr zero() const { return _int_registers[0]; }
-    IPRegPtr ra() const { return _int_registers[1]; }
-    IPRegPtr sp() const { return _int_registers[2]; }
+    IPRegPtr zero() { return &_int_registers[0]; }
+    IPRegPtr ra() { return &_int_registers[1]; }
+    IPRegPtr sp() { return &_int_registers[2]; }
 
-    IPRegPtr temp(unsigned i) const {
+    IPRegPtr temp(unsigned i) {
         assert(i <= 6);
         if (i <= 2)
-            return _int_registers[i + 5];
+            return &_int_registers[i + 5];
         else
-            return _int_registers[i + 25];
+            return &_int_registers[i + 25];
     }
-    IPRegPtr saved(unsigned i) const {
+    IPRegPtr saved(unsigned i) {
         assert(i <= 11);
         if (i <= 1)
-            return _int_registers[i + 8];
+            return &_int_registers[i + 8];
         else
-            return _int_registers[i + 16];
+            return &_int_registers[i + 16];
     }
 
-    IPRegPtr arg(unsigned i) const {
+    IPRegPtr arg(unsigned i) {
         assert(i <= 7);
-        return _int_registers[i + 10];
+        return &_int_registers[i + 10];
     }
 
-    IPRegPtr a(unsigned i) const {
+    IPRegPtr a(unsigned i) {
         assert(i <= 7);
-        return _int_registers[i + 10];
+        return &_int_registers[i + 10];
     }
 
-    IPRegPtr ret_val_i(unsigned i) const {
+    IPRegPtr ret_val_i(unsigned i) {
         assert(i <= 2);
-        return _int_registers[i + 10];
+        return &_int_registers[i + 10];
+    }
+
+    IPRegPtr get_int_reg(unsigned i) {
+        assert(i < 32);
+        return &_int_registers[i];
     }
 };
 
