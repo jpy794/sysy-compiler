@@ -1,5 +1,7 @@
 #pragma once
 #include "basic_block.hh"
+#include "depth_order.hh"
+#include "function.hh"
 #include "module.hh"
 #include "pass.hh"
 #include "remove_unreach_bb.hh"
@@ -16,7 +18,6 @@ class Dominator final : public pass::AnalysisPass {
         std::map<ir::BasicBlock *, std::set<ir::BasicBlock *>> dom_frontier;
         std::map<ir::BasicBlock *, std::set<ir::BasicBlock *>>
             dom_tree_succ_blocks;
-
         bool is_dom(ir::BasicBlock *domer, ir::BasicBlock *domee) const;
     };
 
@@ -24,6 +25,7 @@ class Dominator final : public pass::AnalysisPass {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::None);
         AU.add_require<RmUnreachBB>();
+        AU.add_require<DepthOrder>();
     }
 
     virtual void run(pass::PassManager *mgr) override;
@@ -38,15 +40,13 @@ class Dominator final : public pass::AnalysisPass {
   private:
     ResultType _result;
 
-    std::list<ir::BasicBlock *> _depth_priority_order{};
-    std::map<ir::BasicBlock *, int> _post_order_id{};
+    const pass::DepthOrder::ResultType *_depth_order;
+
+    ir::Function *f;
+
     std::map<ir::BasicBlock *, ir::BasicBlock *> _idom{};
 
-    void post_order_visit(ir::BasicBlock *bb,
-                          std::set<ir::BasicBlock *> &visited);
     ir::BasicBlock *intersect(ir::BasicBlock *b1, ir::BasicBlock *b2);
-
-    void create_depth_priority_order(ir::Function *f);
     void create_idom(ir::Function *f);
     void create_dominance_frontier(ir::Function *f);
     void create_dom_tree_succ(ir::Function *f);

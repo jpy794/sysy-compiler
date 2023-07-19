@@ -3,16 +3,16 @@
 #include "utils.hh"
 #include <cassert>
 #include <queue>
-
 using namespace ir;
 using namespace pass;
 
 void Dominator::run(PassManager *mgr) {
+    _depth_order = &mgr->get_result<DepthOrder>();
     clear();
     auto m = mgr->get_module();
     for (auto &f_r : m->functions()) {
-        auto f = &f_r;
-        if (f->bbs().size() == 0)
+        f = &f_r;
+        if (f->is_external)
             continue;
         // init
         for (auto &bb_r : f->bbs()) {
@@ -22,30 +22,10 @@ void Dominator::run(PassManager *mgr) {
             _result.dom_tree_succ_blocks.insert({bb, {}});
         }
 
-        create_depth_priority_order(f);
         create_idom(f);
         create_dominance_frontier(f);
         create_dom_tree_succ(f);
     }
-}
-
-void Dominator::create_depth_priority_order(Function *f) {
-    _depth_priority_order.clear();
-    _post_order_id.clear();
-    std::set<BasicBlock *> visited;
-    post_order_visit(f->get_entry_bb(), visited);
-    _depth_priority_order.reverse();
-}
-
-void Dominator::post_order_visit(BasicBlock *bb,
-                                 std::set<BasicBlock *> &visited) {
-    visited.insert(bb);
-    for (auto b : bb->suc_bbs()) {
-        if (visited.find(b) == visited.end())
-            post_order_visit(b, visited);
-    }
-    _post_order_id[bb] = _depth_priority_order.size();
-    _depth_priority_order.push_back(bb);
 }
 
 void Dominator::create_idom(Function *f) {
@@ -64,7 +44,7 @@ void Dominator::create_idom(Function *f) {
             // FIXME:after testing, this can be deleted.
         }
         changed = false;
-        for (auto bb : this->_depth_priority_order) {
+        for (auto bb : _depth_order->_depth_priority_order.at(f)) {
             if (bb == root) {
                 continue;
             }
@@ -102,11 +82,13 @@ BasicBlock *Dominator::intersect(BasicBlock *b1, BasicBlock *b2) {
         return b1;
     while (b1 != b2) {
         // bb with a lower post_order_id is a deeper or equal depth node in CFG
-        while (_post_order_id[b1] < _post_order_id[b2]) {
+        while (_depth_order->_post_order_id.at(f).at(b1) <
+               _depth_order->_post_order_id.at(f).at(b2)) {
             assert(_idom[b1]);
             b1 = _idom[b1];
         }
-        while (_post_order_id[b2] < _post_order_id[b1]) {
+        while (_depth_order->_post_order_id.at(f).at(b2) <
+               _depth_order->_post_order_id.at(f).at(b1)) {
             assert(_idom[b2]);
             b2 = _idom[b2];
         }
@@ -121,6 +103,7 @@ void Dominator::create_dominance_frontier(Function *f) {
             for (auto p : bb->pre_bbs()) {
                 auto runner = p;
                 while (runner != _idom[bb]) {
+                    assert(runner);
                     _result.dom_frontier[runner].insert(bb);
                     runner = _idom[runner];
                 }
