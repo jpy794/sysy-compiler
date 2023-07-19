@@ -4,6 +4,7 @@
 #include "pass.hh"
 #include "user.hh"
 #include "value.hh"
+#include <functional>
 #include <list>
 #include <map>
 
@@ -24,6 +25,19 @@ class UseDefChain final : public pass::AnalysisPass {
                                   ir::Value *new_val) const {
             for (auto use : users.at(old_val)) {
                 use.user->set_operand(use.op_idx, new_val);
+            }
+        }
+        void replace_use_when(ir::Value *old_val, ir::Value *new_val,
+                              std::function<bool(ir::User *)> pred) const {
+            auto &_users = users.at(old_val);
+            for (auto it = _users.begin(); it != _users.end();) {
+                auto use = *it;
+                auto user = use.user;
+                ++it;
+                if (not pred(user)) {
+                    continue;
+                }
+                user->set_operand(use.op_idx, new_val);
             }
         }
     };
