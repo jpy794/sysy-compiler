@@ -16,14 +16,14 @@
 
 namespace codegen {
 
-using ConstIPRegPtr = mir::PhysicalRegisterManager::ConstIPRegPtr;
+using ConstRegPtr = mir::PhysicalRegisterManager::ConstRegPtr;
 
 // secondary packaging, add priority info
 struct RegInfo {
     unsigned priority; // the smaller, the better
-    ConstIPRegPtr reg;
+    ConstRegPtr reg;
 
-    RegInfo(unsigned p, ConstIPRegPtr r) : priority(p), reg(r) {}
+    RegInfo(unsigned p, ConstRegPtr r) : priority(p), reg(r) {}
     RegInfo(const RegInfo &info) : priority(info.priority), reg(info.reg) {}
     void operator=(const RegInfo &other) {
         priority = other.priority;

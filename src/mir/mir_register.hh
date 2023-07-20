@@ -101,6 +101,7 @@ class FPReg final : public PhysicalRegister {
 class PhysicalRegisterManager {
   public:
     using RegPtr = PhysicalRegister *;
+    using ConstRegPtr = PhysicalRegister *;
     using IPRegPtr = IPReg *;
     using ConstIPRegPtr = const IPReg *;
     using FPRegPtr = FPReg *;

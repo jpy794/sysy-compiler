@@ -156,7 +156,12 @@ RegAlloc::RegAlloc() {
         _reg_pool_int.emplace(2, reg_mgr.temp(i));
     _reg_pool_int.push({3, reg_mgr.ra()}); // ra
 
-    // TODO float reg pool
+    for (unsigned i = 0; i <= 7; ++i) // fa{}
+        _reg_pool_float.emplace(0, reg_mgr.fa(i));
+    for (unsigned i = 0; i <= 11; ++i) // fs{}
+        _reg_pool_float.emplace(1, reg_mgr.fsaved(i));
+    for (unsigned i = 0; i <= 11; ++i) // ft{}
+        _reg_pool_float.emplace(2, reg_mgr.ftemp(i));
 }
 
 void RegAlloc::run(const mir::Module *m) {
