@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ilist.hh"
+#include "mir_memory.hh"
 #include "mir_register.hh"
 #include "mir_value.hh"
 #include "utils.hh"
@@ -32,6 +33,7 @@ enum MIR_INST {
     AND,
     /* RV64I */
     LD,
+    ADDI,
     ADDIW,
     SLLIW,
     SRLIW,
@@ -74,8 +76,8 @@ enum MIR_INST {
     BNE,
     BLT,
     BGE,
-    JAL,
-    JALR,
+    /* JAL,
+     * JALR, */
     SW,
     SD,
 };
@@ -86,6 +88,8 @@ class Instruction final : public ilist<Instruction>::node {
   private:
     const MIR_INST _opcode;
     std::vector<Value *> _operands;
+
+    // NOTE: aborted attribute
     bool _partial; // incomplete, or to say reserved for stage 2
 
   public:
@@ -93,11 +97,14 @@ class Instruction final : public ilist<Instruction>::node {
         : _opcode(opcode), _operands(oprands), _partial(partial) {}
 
     // start from 0
+    decltype(_operands) &operands() { return _operands; }
     const Value *get_operand(unsigned i) const { return _operands.at(i); }
     Value *get_operand(unsigned i) { return _operands.at(i); }
     const size_t get_operand_num() const { return _operands.size(); }
-    void set_operand(unsigned i, PhysicalRegister *reg) {
+    MIR_INST get_opcode() const { return _opcode; }
+    void set_operand(unsigned i, Value *reg) {
         assert(i < _operands.size());
+        assert(is_a<PhysicalRegister>(reg) or is_a<StatckObject>(reg));
         _operands[i] = reg;
     }
 
@@ -107,9 +114,13 @@ class Instruction final : public ilist<Instruction>::node {
     bool will_write_register() const;
     bool is_branch_inst() const {
         static const std::array branch_list = {
-            JAL, JALR, BEQ, BNE, BLT, BGE, Jump,
+            BEQ, BNE, BLT, BGE, Jump,
         };
         return contains(branch_list, _opcode);
+    }
+    bool is_load_store() const {
+        static const std::array load_store_list = {SD, SW, LD, LW};
+        return contains(load_store_list, _opcode);
     }
 };
 

@@ -1,6 +1,8 @@
 #include "context.hh"
+#include "err.hh"
 #include "mir_memory.hh"
 #include "mir_module.hh"
+#include "mir_register.hh"
 #include "regalloc.hh"
 
 #include <map>
@@ -50,8 +52,8 @@ const map<MIR_INST, string_view> MIR_INST_NAME = {
     // start
     // {LUI, "lui"},
     // {AUIPC, "auipc"},
-    {JAL, "jal"},
-    {JALR, "jalr"},
+    /* {JAL, "jal"},
+     * {JALR, "jalr"}, */
     {BEQ, "beq"},
     {BNE, "bne"},
     {BLT, "blt"},
@@ -74,6 +76,7 @@ const map<MIR_INST, string_view> MIR_INST_NAME = {
     {AND, "and"},
     {LD, "ld"},
     {SD, "sd"},
+    {ADDI, "addi"},
     {ADDIW, "addiw"},
     {SLLIW, "slliw"},
     {SRLIW, "srliw"},
@@ -145,51 +148,51 @@ void Function::dump(std::ostream &os, const Context &context) const {
     func_context.cur_function = this;
     auto name_only_context{func_context.name_only()};
 
+    if (context.role == Role::NameOnly) {
+        os << _name;
+        return;
+    }
+
     switch (context.stage) {
     case Stage::stage1: {
-        switch (context.role) {
-        case Role::Full: {
-            os << _name << ":\n";
-            auto &allocator = context.allocator;
+        os << _name << ":\n";
+        auto &allocator = context.allocator;
 
-            auto &cfg_info = allocator.get_cfg_info(this);
-            os << "# =========DFS ORDER=========\n";
-            os << "# ";
-            for (auto label : cfg_info.label_order) {
-                label->dump(os, name_only_context);
-                os << " ";
-            }
-            os << "\n";
-
-            auto &intervals = allocator.get_live_ints(this, false);
-            os << "# =========Live Interval=========\n";
-            os << "# ";
-            for (auto &interval : intervals) {
-                os << interval << " ";
-            }
-            os << "\n";
-
-            auto &regmap = allocator.get_reg_map(this, false);
-            os << "# =========Register Map=========\n";
-            os << "# ";
-            for (auto &[vid, reginfo] : regmap) {
-                os << vid << "~";
-                reginfo.reg->dump(os, name_only_context);
-                os << " ";
-            }
-            os << "\n";
-
-            for (auto label : _labels)
-                label->dump(os, func_context);
-        } break;
-        case Role::NameOnly:
-            os << _name;
-            break;
+        auto &cfg_info = allocator.get_cfg_info(this);
+        os << "# =========DFS ORDER=========\n";
+        os << "# ";
+        for (auto label : cfg_info.label_order) {
+            label->dump(os, name_only_context);
+            os << " ";
         }
+        os << "\n";
+
+        auto &intervals = allocator.get_live_ints(this, false);
+        os << "# =========Live Interval=========\n";
+        os << "# ";
+        for (auto &interval : intervals) {
+            os << interval << " ";
+        }
+        os << "\n";
+
+        auto &regmap = allocator.get_reg_map(this, false);
+        os << "# =========Register Map=========\n";
+        os << "# ";
+        for (auto &[vid, reginfo] : regmap) {
+            os << vid << "~";
+            reginfo.reg->dump(os, name_only_context);
+            os << " ";
+        }
+        os << "\n";
+
+        for (auto label : _labels)
+            label->dump(os, func_context);
     } break;
     case Stage::stage2:
         // add stack alloc and related stack offset map
-        throw not_implemented_error{};
+        os << _name << ":\n";
+        for (auto label : _labels)
+            label->dump(os, func_context);
         break;
     }
 }
@@ -198,7 +201,8 @@ void Label::dump(std::ostream &os, const Context &context) const {
     auto indent_context{context.indent()};
     switch (context.role) {
     case Role::Full: {
-        os << _name << ":\n";
+        if (this != context.cur_function->get_labels()[0])
+            os << _name << ":\n";
         for (auto &inst : _insts) {
             inst.dump(os, indent_context);
         }
@@ -213,13 +217,13 @@ void Instruction::dump(std::ostream &os, const Context &context) const {
     Context name_only_context{context.name_only()};
 
     auto cur_func = context.cur_function;
-    auto inst_id = context.allocator.get_cfg_info(cur_func).instid.at(this);
-    auto &live_var_set = context.allocator.get_liveness(cur_func, false);
 
     auto indent = [&]() { resolve_indent(os, context); };
 
     switch (context.stage) {
-    case Stage::stage1:
+    case Stage::stage1: {
+        auto inst_id = context.allocator.get_cfg_info(cur_func).instid.at(this);
+        auto &live_var_set = context.allocator.get_liveness(cur_func, false);
         // live_var in set
         indent();
         os << "# in-set: ";
@@ -242,21 +246,41 @@ void Instruction::dump(std::ostream &os, const Context &context) const {
         for (auto live_var_id : live_var_set.at(codegen::OUT_POINT(inst_id)))
             os << live_var_id << " ";
         os << "\n";
-        break;
+    } break;
     case Stage::stage2:
-        throw not_implemented_error{};
+        // instruction content
+        // TODO special case for instructions with offset
+        indent();
+        os << MIR_INST_NAME.at(_opcode) << " ";
+        if (is_load_store()) {
+            assert(get_operand_num() == 3);
+            _operands[0]->dump(os, name_only_context);
+            os << ", ";
+            _operands[1]->dump(os, name_only_context);
+            os << "(";
+            _operands[2]->dump(os, name_only_context);
+            os << ")";
+
+        } else {
+            for (unsigned i = 0; i < _operands.size(); i++) {
+                _operands[i]->dump(os, name_only_context);
+                if (i != _operands.size() - 1)
+                    os << ", ";
+            }
+        }
+        os << "\n";
         break;
     }
 }
 
 void StatckObject::dump(std::ostream &os, const Context &context) const {
     switch (context.stage) {
-    case Stage::stage1: {
+    case Stage::stage1:
+        os << "@stack-object[" << _size << "," << _align << "]";
+        break;
+    case Stage::stage2:
         os << "@stack-object";
         break;
-    }
-    case Stage::stage2:
-        throw not_implemented_error{};
     }
 }
 
@@ -292,6 +316,25 @@ void GlobalObject::dump(std::ostream &os, const Context &context) const {
     } break;
     case Role::NameOnly:
         os << _name;
+        break;
+    }
+}
+
+void CalleeSave::dump(std::ostream &os, const Context &context) const {
+    auto name_only_context = context.name_only();
+    resolve_indent(os, context);
+    switch (context.stage) {
+    case Stage::stage1:
+        throw unreachable_error{};
+        break;
+    case Stage::stage2:
+        os << "@DEBUG-ONLY: callee-save, ";
+        if (is_float_reg())
+            throw not_implemented_error{};
+        else
+            PhysicalRegisterManager::get().get_int_reg(_regid)->dump(
+                os, name_only_context);
+        os << "\n";
         break;
     }
 }
