@@ -45,6 +45,8 @@ int main(int argc, char **argv) {
     pm.add_pass<UseDefChain>();
     pm.add_pass<LoopFind>();
     pm.add_pass<FuncInfo>();
+    pm.add_pass<DepthOrder>();
+
     // transform
     pm.add_pass<RmUnreachBB>();
     pm.add_pass<Mem2reg>();

@@ -50,7 +50,6 @@ enum MIR_INST {
     REMW,
     /* RV32F */
     FLW,   // flw f0, 0(x0)
-    FSW,   // fsw f0, 0(x0)
     FADDS, // fadd.s f0, f1, f2
     FSUBS,
     FMULS,
@@ -80,6 +79,7 @@ enum MIR_INST {
      * JALR, */
     SW,
     SD,
+    FSW, // fsw f0, 0(x0)
 };
 
 class Instruction final : public ilist<Instruction>::node {
@@ -119,7 +119,7 @@ class Instruction final : public ilist<Instruction>::node {
         return contains(branch_list, _opcode);
     }
     bool is_load_store() const {
-        static const std::array load_store_list = {SD, SW, LD, LW};
+        static const std::array load_store_list = {SD, SW, LD, LW, FLW, FSW};
         return contains(load_store_list, _opcode);
     }
 };
