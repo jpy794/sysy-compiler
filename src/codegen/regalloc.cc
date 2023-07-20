@@ -69,7 +69,7 @@ LiveVarSet make_intersection(const vector<LiveVarSet> &sets) {
 }
 
 LivenessAnalysis::LivenessAnalysis(const ControlFlowInfo &cfg_info,
-                                   bool integer) {
+                                   bool want_float) {
     auto &inst_id = cfg_info.instid;
     auto &label_order = cfg_info.label_order;
 
@@ -118,9 +118,9 @@ LivenessAnalysis::LivenessAnalysis(const ControlFlowInfo &cfg_info,
                 auto new_in = OUT_OF_INST(inst);
                 if (inst->will_write_register()) { // deal with def
                     auto op0 = inst->get_operand(0);
-                    if (integer and is_a<const IVReg>(op0)) {
+                    if (not want_float and is_a<const IVReg>(op0)) {
                         new_in.erase(as_a<const IVReg>(op0)->get_id());
-                    } else if (not integer and is_a<const FVReg>(op0)) {
+                    } else if (want_float and is_a<const FVReg>(op0)) {
                         new_in.erase(as_a<const FVReg>(op0)->get_id());
                     }
                 }
@@ -128,9 +128,9 @@ LivenessAnalysis::LivenessAnalysis(const ControlFlowInfo &cfg_info,
                 for (auto i = (inst->will_write_register() ? 1 : 0);
                      i < inst->get_operand_num(); ++i) {
                     auto op = inst->get_operand(i);
-                    if (integer and is_a<const IVReg>(op)) {
+                    if (not want_float and is_a<const IVReg>(op)) {
                         use.insert(as_a<const IVReg>(op)->get_id());
-                    } else if (not integer and is_a<const FVReg>(op)) {
+                    } else if (want_float and is_a<const FVReg>(op)) {
                         use.insert(as_a<const FVReg>(op)->get_id());
                     }
                 }
@@ -167,16 +167,19 @@ void RegAlloc::run(const mir::Module *m) {
         // liveness analysis
         _cfg_info.insert({func, ControlFlowInfo(func)});
         _liveness_int.insert(
-            {func, LivenessAnalysis(_cfg_info.at(func), true)});
-        _liveness_float.insert(
             {func, LivenessAnalysis(_cfg_info.at(func), false)});
+        _liveness_float.insert(
+            {func, LivenessAnalysis(_cfg_info.at(func), true)});
 
         // reg alloction
         auto impl_int =
             new LinearScanImpl{_reg_pool_int, make_interval(func, false)};
         impl_int->run();
         _impl_int[func].reset(impl_int);
-        // TODO float case
+        auto impl_float =
+            new LinearScanImpl{_reg_pool_float, make_interval(func, true)};
+        impl_float->run();
+        _impl_float[func].reset(impl_float);
     }
 }
 
@@ -184,6 +187,14 @@ LinearScanImpl::LiveInts RegAlloc::make_interval(mir::Function *func,
                                                  bool for_float) {
     map<Register::RegIDType, LiveInterVal> ints; // vreg's id start from 1
     auto &liveness = get_liveness(func, for_float);
+    for (auto arg : func->get_args()) {
+        if ((for_float and is_a<FVReg>(arg)) or
+            (not for_float and is_a<IVReg>(arg))) {
+            auto vreg_id = arg->get_id();
+            ints.emplace(vreg_id, vreg_id);
+            ints.at(vreg_id).update(0);
+        }
+    }
     for (ProgramPoint i = 0; i < liveness.size(); ++i) {
         for (auto vreg_id : liveness[i]) {
             if (not contains(ints, vreg_id))

@@ -39,7 +39,7 @@ struct RegInfo {
 };
 
 // liveness info
-using LiveVarSet = std::unordered_set<mir::Register::RegIDType>;
+using LiveVarSet = std::set<mir::Register::RegIDType>;
 using LivenessInfo = std::vector<LiveVarSet>;
 // control flow info
 using LabelOrder = std::vector<const mir::Label *>;
@@ -49,7 +49,7 @@ using InstIDMap = std::map<const mir::Instruction *, InstructionID>;
 // register info
 using RegisterPool = std::priority_queue<RegInfo>;
 using RegisterMap = std::map<mir::Register::RegIDType, RegInfo>;
-using SpilledSet = std::unordered_set<mir::Register::RegIDType>;
+using SpilledSet = std::set<mir::Register::RegIDType>;
 // allocation result, all result is function level
 template <class T> using FuncResultMap = std::map<const mir::Function *, T>;
 
@@ -75,7 +75,7 @@ struct ControlFlowInfo {
 struct LivenessAnalysis {
     LivenessInfo live_info;
 
-    LivenessAnalysis(const ControlFlowInfo &cfg_info, bool integer);
+    LivenessAnalysis(const ControlFlowInfo &cfg_info, bool want_float);
     LivenessAnalysis(const LivenessAnalysis &) = delete;
     LivenessAnalysis(LivenessAnalysis &&) = default;
 
@@ -97,12 +97,12 @@ struct LiveInterVal {
         start = std::min(start, p);
         end = std::max(end, p);
     }
-    bool check() {
+    bool check() { // sanity check only for now
         if (start < end)
             return true;
         if (start == end) {
             assert(start == 0);
-            return false;
+            return true; // valid case: arg used only once at start
         }
         throw unreachable_error{};
     }
