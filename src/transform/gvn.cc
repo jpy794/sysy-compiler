@@ -314,7 +314,7 @@ shared_ptr<GVN::Expression> GVN::valueExpr(Value *val, partitions &pin) {
         auto op = ::as_a<ICmpInst>(val)->get_icmp_op();
         return create_BinOperExpr<ICmpExpr, ICmpInst>(op, val, pin);
     } else if (::is_a<FCmpInst>(val)) {
-        auto op = ::as_a<FCmpInst>(val)->get_Fcmp_op();
+        auto op = ::as_a<FCmpInst>(val)->get_fcmp_op();
         return create_BinOperExpr<FCmpExpr, FCmpInst>(op, val, pin);
     } else if (::is_a<GetElementPtrInst>(val)) {
         auto gep = ::as_a<GetElementPtrInst>(val);

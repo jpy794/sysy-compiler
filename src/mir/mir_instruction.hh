@@ -15,7 +15,7 @@ class Function;
 /* RISCV RV64GC Subset
  * - support int operations only for now: RV32I RV64I RV64M
  * - abort instructions: unsigned related, non 32-bit(reserve on ptr calc case)
- * - order matters!
+ * - order matters, used in will_write_register()
  */
 enum MIR_INST {
     /* RV32I */
@@ -46,6 +46,20 @@ enum MIR_INST {
     MULW,
     DIVW,
     REMW,
+    /* RV32F */
+    FLW,   // flw f0, 0(x0)
+    FSW,   // fsw f0, 0(x0)
+    FADDS, // fadd.s f0, f1, f2
+    FSUBS,
+    FMULS,
+    FDIVS,
+    FCVTSW, // fcvt.s.w f0, x0
+    FCVTWS, // fcvt.w.s x0, f0
+    FMVXW,  // fmv.x.w x0, f0
+    FMVWX,  // fmv.w.x f0, x0
+    FLTS,   // flt.s x0, f0, f1
+    FLES,
+    FEQS,
     /* pseudo instruction */
     Move,
     LoadAddress,

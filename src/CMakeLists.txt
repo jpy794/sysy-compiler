@@ -20,4 +20,7 @@ target_link_libraries(
     PRIVATE pass
     PRIVATE transform
     PRIVATE analysis
+    PRIVATE mir
+    PRIVATE mir_builder
+    PRIVATE codegen
 )

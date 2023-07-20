@@ -62,6 +62,7 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
 
     // move inst within the same function
     void move_inst(const ilist<Instruction>::iterator &it, Instruction *other) {
+        assert(other->get_parent()->get_func() == get_func());
         auto other_bb = other->get_parent();
         assert(other_bb->get_func() == _func);
         if (other->is<BrInst>() || other->is<RetInst>()) {

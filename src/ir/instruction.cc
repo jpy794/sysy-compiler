@@ -210,9 +210,6 @@ string FBinaryInst::print() const {
     case FDIV:
         OpName = "fdiv";
         break;
-    case FREM:
-        OpName = "frem";
-        break;
     default:
         throw unreachable_error{};
     }

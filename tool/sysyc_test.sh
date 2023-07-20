@@ -25,7 +25,7 @@ case_path=$(dirname $case_full)
 case_name=$(basename $case_full)
 case_name=${case_name%.*}
 
-if [ $emit_llvm ]; then
+if [ $emit_llvm == true ]; then
     sysyc_out=$out_path/$case_name.ll
 else
     sysyc_out=$out_path/$case_name.s
@@ -38,37 +38,29 @@ if [ $? != 0 ]; then
     echo 'sysyc compile error'
     exit 1
 fi
+
+if [ $emit_llvm ]; then
     
-clang -Wno-override-module $sysyc_out ./test/lib/sylib.c -o $out_path/$case_name
+    clang -Wno-override-module $sysyc_out ./test/lib/sylib.c -o $out_path/$case_name
 
-if [ $? != 0 ]; then
-    echo -e "\033[31m$case_full failed\033[0m"
-    echo 'clang compile error'
-    echo "see sysyc output file $sysyc_out"
-    exit 1
-fi
+    if [ $? != 0 ]; then
+        echo -e "\033[31m$case_full failed\033[0m"
+        echo 'clang compile error'
+        echo "see sysyc output file $sysyc_out"
+        exit 1
+    fi
 
-# avoid stack overflow due to recursion (perf/median2.sy)
-ulimit -s unlimited
+    ./tool/bin_test.sh $case_path $out_path $case_name
 
-if [ -f $case_path/$case_name.in ]; then
-    $out_path/$case_name < $case_path/$case_name.in 1> $out_path/$case_name.stdout 2> $out_path/$case_name.stderr
 else
-    $out_path/$case_name 1> $out_path/$case_name.stdout 2> $out_path/$case_name.stderr
+
+    riscv64-linux-gnu-gcc $sysyc_out ./test/lib/sylib.c -o $out_path/$case_name
+
+    docker run --rm --platform=linux/riscv64 \
+        -v $(realpath $out_path):/test/out \
+        -v $(realpath $case_path):/test/case \
+        -v $(pwd)/tool:/test/tool \
+        debain:unstable \
+        /bin/bash -c "/test/tool/bin_test.sh /test/case /test/out $case_name" 
+
 fi
-
-ret=$?
-
-# append \n to stdout if missing
-sed -e '$a\' $out_path/$case_name.stdout | cat > $out_path/$case_name.out
-echo $ret >> $out_path/$case_name.out
-diff -u --color $out_path/$case_name.out $case_path/$case_name.out &> /dev/null
-
-if [ $? != 0 ]; then
-    echo -e "\033[31m$case_full failed\033[0m"
-    echo 'output is different'
-    echo "see $out_path/$case_name.out, $case_path/$case_name.out for difference"
-    exit 1
-fi
-
-echo -e "\033[32m$case_full passed\033[0m"

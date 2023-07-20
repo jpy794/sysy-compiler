@@ -86,6 +86,38 @@ class MIRBuilder : public ir::InstructionVisitor {
         return target_reg;
     }
 
+    FVReg *cast_i2f(IVReg *ireg, FVReg *freg = nullptr) {
+        if (freg == nullptr) {
+            freg = create<FVReg>();
+        }
+        cur_label->add_inst(FCVTSW, {freg, ireg});
+        return freg;
+    }
+
+    FVReg *reinterpret_i2f(IVReg *ireg, FVReg *freg = nullptr) {
+        if (freg == nullptr) {
+            freg = create<FVReg>();
+        }
+        cur_label->add_inst(FMVWX, {freg, ireg});
+        return freg;
+    }
+
+    IVReg *cast_f2i(FVReg *freg, IVReg *ireg = nullptr) {
+        if (ireg == nullptr) {
+            ireg = create<IVReg>();
+        }
+        cur_label->add_inst(FCVTWS, {ireg, freg});
+        return ireg;
+    }
+
+    IVReg *reinterpret_f2i(FVReg *freg, IVReg *ireg = nullptr) {
+        if (ireg == nullptr) {
+            ireg = create<IVReg>();
+        }
+        cur_label->add_inst(FMVXW, {ireg, freg});
+        return ireg;
+    }
+
     struct binary_helper_result {
         Value *op1{nullptr};
         Value *op2{nullptr};
@@ -163,9 +195,21 @@ class MIRBuilder : public ir::InstructionVisitor {
             throw unreachable_error{};
     }
 
+    /*
+    if is_undef
+        undef
+    else if is_const
+        if is_float
+            float
+        else
+            int
+    else
+        other ir value
+    */
     struct parse_imm_result {
         bool is_undef{false};
         bool is_const{true};
+        bool is_float{false};
         int val{-1};
     };
     // @brief: return immediate value with flag
@@ -181,10 +225,16 @@ class MIRBuilder : public ir::InstructionVisitor {
                 result.val = 0;
             } else if (is_a<ir::Undef>(v)) {
                 result.is_undef = true;
-            } else
-                throw unreachable_error{"does float imm exist?"};
-        } else
+            } else if (is_a<ir::ConstFloat>(v)) {
+                auto fval = as_a<ir::ConstFloat>(v)->val();
+                result.val = reinterpret_cast<int &>(fval);
+                result.is_float = true;
+            } else {
+                throw unreachable_error{};
+            }
+        } else {
             result.is_const = false;
+        }
         return result;
     }
 

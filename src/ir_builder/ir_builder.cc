@@ -296,8 +296,7 @@ class IRBuilderImpl : public ast::ASTVisitor {
             {BinOp::ADD, FBinaryInst::FADD},
             {BinOp::SUB, FBinaryInst::FSUB},
             {BinOp::MUL, FBinaryInst::FMUL},
-            {BinOp::DIV, FBinaryInst::FDIV},
-            {BinOp::MOD, FBinaryInst::FREM}};
+            {BinOp::DIV, FBinaryInst::FDIV}};
         if (lhs->get_type()->is<FloatType>() or
             rhs->get_type()->is<FloatType>()) {
             type_convert(lhs, types.float_type());

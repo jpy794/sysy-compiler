@@ -15,13 +15,13 @@
 using namespace std;
 using namespace mir;
 
-map<ir::ICmpInst::ICmpOp, ir::ICmpInst::ICmpOp> ICMP_OP_REVERSED = {
+const map<ir::ICmpInst::ICmpOp, ir::ICmpInst::ICmpOp> ICMP_OP_REVERSED = {
     {ir::ICmpInst::EQ, ir::ICmpInst::NE}, {ir::ICmpInst::NE, ir::ICmpInst::EQ},
     {ir::ICmpInst::GT, ir::ICmpInst::LE}, {ir::ICmpInst::LE, ir::ICmpInst::GT},
     {ir::ICmpInst::GE, ir::ICmpInst::LT}, {ir::ICmpInst::LT, ir::ICmpInst::GE},
 };
 
-map<ir::FCmpInst::FCmpOp, ir::FCmpInst::FCmpOp> FCMP_OP_REVERSED = {
+const map<ir::FCmpInst::FCmpOp, ir::FCmpInst::FCmpOp> FCMP_OP_REVERSED = {
     {ir::FCmpInst::FEQ, ir::FCmpInst::FNE},
     {ir::FCmpInst::FNE, ir::FCmpInst::FEQ},
     {ir::FCmpInst::FGT, ir::FCmpInst::FLE},
@@ -109,28 +109,35 @@ any MIRBuilder::visit(const ir::RetInst *instruction) {
     case BasicType::VOID:
         cur_label->add_inst(Ret, {}, true);
         break;
-    case BasicType::INT: {
+    case BasicType::INT:
+    case BasicType::FLOAT: {
         auto v = instruction->get_operand(0);
         auto imm_result = parse_imm(v);
         auto imm = imm_result.val;
         if (imm_result.is_undef) {
             cur_label->add_inst(Ret, {});
         } else if (imm_result.is_const) {
+            // const is float
+            if (imm_result.is_float) {
+                assert(cur_func->get_ret_type() == BasicType::FLOAT);
+                auto reg = load_imm(imm);
+                cur_label->add_inst(Ret, {reinterpret_i2f(reg)}, true);
+                break;
+            }
+            // const is int
             if (Imm12bit::check_in_range(imm))
                 cur_label->add_inst(Ret, {create<Imm12bit>(imm)}, true);
             else {
                 auto reg = load_imm(imm);
                 cur_label->add_inst(Ret, {reg}, true);
             }
-
         } else {
             cur_label->add_inst(Ret, {value_map.at(v)}, true);
         }
         break;
     }
-    case BasicType::FLOAT:
-        throw not_implemented_error{};
-        break;
+    default:
+        throw unreachable_error{};
     }
     return {};
 }
@@ -156,13 +163,14 @@ any MIRBuilder::visit(const ir::BrInst *instruction) {
     if (is_a<ir::ICmpInst>(cond)) {
         auto icmp = as_a<ir::ICmpInst>(cond);
         // let related value in the register
+        // TODO: use x0 if possible
         IVReg *reg1 = is_a<ir::ConstInt>(op1)
                           ? load_imm(as_a<ir::ConstInt>(op1)->val())
                           : as_a<IVReg>(value_map.at(op1));
         IVReg *reg2 = is_a<ir::ConstInt>(op2)
                           ? load_imm(as_a<ir::ConstInt>(op2)->val())
                           : as_a<IVReg>(value_map.at(op2));
-        auto op = reversed ? ICMP_OP_REVERSED[icmp->get_icmp_op()]
+        auto op = reversed ? ICMP_OP_REVERSED.at(icmp->get_icmp_op())
                            : icmp->get_icmp_op();
         switch (op) {
         case ir::ICmpInst::EQ:
@@ -185,10 +193,54 @@ any MIRBuilder::visit(const ir::BrInst *instruction) {
             break;
         }
         cur_label->add_inst(Jump, {FLabel});
-    } else if (is_a<ir::FCmpInst>(cond))
-        throw not_implemented_error{};
-    else
+    } else if (is_a<ir::FCmpInst>(cond)) {
+        auto fcmp = as_a<ir::FCmpInst>(cond);
+        auto fval1 = op1->as<ir::ConstFloat>()->val();
+        auto reg1 =
+            is_a<ir::ConstFloat>(op1)
+                ? reinterpret_i2f(load_imm(reinterpret_cast<int &>(fval1)))
+                : as_a<FVReg>(value_map.at(op1));
+        auto fval2 = op1->as<ir::ConstFloat>()->val();
+        auto reg2 =
+            is_a<ir::ConstFloat>(op1)
+                ? reinterpret_i2f(load_imm(reinterpret_cast<int &>(fval2)))
+                : as_a<FVReg>(value_map.at(op2));
+        auto op = reversed ? FCMP_OP_REVERSED.at(fcmp->get_fcmp_op())
+                           : fcmp->get_fcmp_op();
+        auto cmp_res = create<IVReg>();
+        switch (op) {
+        case ir::FCmpInst::FEQ:
+            cur_label->add_inst(FEQS, {cmp_res, reg1, reg2});
+            break;
+        case ir::FCmpInst::FNE:
+            cur_label->add_inst(FEQS, {cmp_res, reg1, reg2});
+            break;
+        case ir::FCmpInst::FGT:
+            cur_label->add_inst(FLTS, {cmp_res, reg2, reg1});
+            break;
+        case ir::FCmpInst::FGE:
+            cur_label->add_inst(FLES, {cmp_res, reg2, reg1});
+            break;
+        case ir::FCmpInst::FLT:
+            cur_label->add_inst(FLTS, {cmp_res, reg1, reg2});
+            break;
+        case ir::FCmpInst::FLE:
+            cur_label->add_inst(FLES, {cmp_res, reg1, reg2});
+            break;
+        default:
+            throw unreachable_error{};
+        }
+        // TODO: use x0
+        auto zero = load_imm(0);
+        if (op == ir::FCmpInst::FNE) {
+            cur_label->add_inst(BEQ, {zero, cmp_res, TLabel});
+        } else {
+            cur_label->add_inst(BNE, {zero, cmp_res, TLabel});
+        }
+        cur_label->add_inst(Jump, {FLabel});
+    } else {
         throw unreachable_error{};
+    }
 
     return {};
 }
@@ -225,8 +277,6 @@ any MIRBuilder::visit(const ir::ZextInst *instruction) {
     }
     auto [i1, reversed] = backtrace_i1(i1_src);
 
-    auto tmp_reg = create<IVReg>(); // FIXME unused maybe
-
     if (is_a<ir::ICmpInst>(i1)) {
         auto icmp = as_a<ir::ICmpInst>(i1);
         // let related value in the register, use RR mode to decrease complexity
@@ -234,7 +284,7 @@ any MIRBuilder::visit(const ir::ZextInst *instruction) {
             binary_helper(icmp->operands()[0], icmp->operands()[1], false);
         auto reg1 = res.op1;
         auto reg2 = res.op2;
-        auto op = reversed ? ICMP_OP_REVERSED[icmp->get_icmp_op()]
+        auto op = reversed ? ICMP_OP_REVERSED.at(icmp->get_icmp_op())
                            : icmp->get_icmp_op();
         switch (op) {
         case ir::ICmpInst::GT:
@@ -243,27 +293,72 @@ any MIRBuilder::visit(const ir::ZextInst *instruction) {
         case ir::ICmpInst::LT:
             cur_label->add_inst(SLT, {ret_reg, reg1, reg2});
             break;
-        case ir::ICmpInst::GE:
+        case ir::ICmpInst::GE: {
+            auto tmp_reg = create<IVReg>();
             cur_label->add_inst(SLT, {tmp_reg, reg1, reg2});
             cur_label->add_inst(XORI, {ret_reg, tmp_reg, create<Imm12bit>(1)});
             break;
-        case ir::ICmpInst::LE:
+        }
+        case ir::ICmpInst::LE: {
+            auto tmp_reg = create<IVReg>();
             cur_label->add_inst(SLT, {tmp_reg, reg2, reg1});
             cur_label->add_inst(XORI, {ret_reg, tmp_reg, create<Imm12bit>(1)});
             break;
-        case ir::ICmpInst::EQ:
+        }
+        case ir::ICmpInst::EQ: {
+            auto tmp_reg = create<IVReg>();
             cur_label->add_inst(XOR, {tmp_reg, reg1, reg2});
             cur_label->add_inst(SetEQZ, {ret_reg, tmp_reg});
             break;
-        case ir::ICmpInst::NE:
+        }
+        case ir::ICmpInst::NE: {
+            auto tmp_reg = create<IVReg>();
             cur_label->add_inst(XOR, {tmp_reg, reg1, reg2});
             cur_label->add_inst(SetNEQZ, {ret_reg, tmp_reg});
             break;
         }
-    } else if (is_a<ir::FCmpInst>(i1))
-        throw not_implemented_error{};
-    else
+        default:
+            throw unreachable_error{};
+        }
+    } else if (is_a<ir::FCmpInst>(i1)) {
+        auto fcmp = as_a<ir::FCmpInst>(i1);
+        // set register-imm mode to false, so that both operands are loaded into
+        // interger register
+        auto res =
+            binary_helper(fcmp->operands()[0], fcmp->operands()[1], false);
+        auto freg1 = reinterpret_i2f(as_a<IVReg>(res.op1));
+        auto freg2 = reinterpret_i2f(as_a<IVReg>(res.op2));
+        auto op = reversed ? FCMP_OP_REVERSED.at(fcmp->get_fcmp_op())
+                           : fcmp->get_fcmp_op();
+        switch (op) {
+        case ir::FCmpInst::FGT:
+            cur_label->add_inst(FLTS, {ret_reg, freg2, freg1});
+            break;
+        case ir::FCmpInst::FLT:
+            cur_label->add_inst(FLTS, {ret_reg, freg1, freg2});
+            break;
+        case ir::FCmpInst::FGE:
+            cur_label->add_inst(FLES, {ret_reg, freg2, freg1});
+            break;
+        case ir::FCmpInst::FLE:
+            cur_label->add_inst(FLES, {ret_reg, freg1, freg2});
+            break;
+        case ir::FCmpInst::FEQ:
+            cur_label->add_inst(FEQS, {ret_reg, freg1, freg2});
+            break;
+        case ir::FCmpInst::FNE: {
+            auto tmp_reg = create<IVReg>();
+            cur_label->add_inst(FEQS, {tmp_reg, freg1, freg2});
+            // not
+            cur_label->add_inst(XORI, {ret_reg, tmp_reg, create<Imm12bit>(1)});
+            break;
+        }
+        default:
+            throw unreachable_error{};
+        }
+    } else {
         throw unreachable_error{};
+    }
 
     return {};
 }
@@ -340,15 +435,24 @@ any MIRBuilder::visit(const ir::AllocaInst *instruction) { return {}; }
 
 // @reserved: address is partial
 any MIRBuilder::visit(const ir::LoadInst *instruction) {
-    if (not instruction->get_type()->is<ir::IntType>())
-        throw not_implemented_error{};
     auto result_reg = value_map.at(instruction);
     auto [complete, address] = parse_address(instruction->operands()[0]);
 
-    if (complete)
-        cur_label->add_inst(LW, {result_reg, create<Imm12bit>(0), address});
-    else
-        cur_label->add_inst(LW, {result_reg, address}, true);
+    MIR_INST inst_type;
+    if (instruction->get_type()->is<ir::IntType>()) {
+        inst_type = LW;
+    } else if (instruction->get_type()->is<ir::FloatType>()) {
+        inst_type = FLW;
+    } else {
+        throw unreachable_error{};
+    }
+
+    if (complete) {
+        cur_label->add_inst(inst_type,
+                            {result_reg, create<Imm12bit>(0), address});
+    } else {
+        cur_label->add_inst(inst_type, {result_reg, address}, true);
+    }
 
     return {};
 }
@@ -364,19 +468,35 @@ any MIRBuilder::visit(const ir::StoreInst *instruction) {
             return {};
         auto value_reg = imm_result.is_const ? load_imm(imm_result.val)
                                              : value_map.at(value);
+        assert(not(imm_result.is_const and imm_result.is_float));
         if (complete)
             cur_label->add_inst(SW, {value_reg, create<Imm12bit>(0), address});
         else
             cur_label->add_inst(SW, {value_reg, address}, true);
     } else if (value->get_type()->is<ir::FloatType>()) {
-        throw not_implemented_error{};
+        auto imm_result = parse_imm(value);
+        assert(not imm_result.is_undef);
+        Value *value_reg{nullptr};
+        MIR_INST inst_type;
+        if (imm_result.is_const) {
+            assert(imm_result.is_float);
+            inst_type = SW;
+            value_reg = load_imm(imm_result.val);
+        } else {
+            inst_type = FSW;
+            value_reg = value_map.at(value);
+        }
+        if (complete) {
+            cur_label->add_inst(inst_type,
+                                {value_reg, create<Imm12bit>(0), address});
+        } else {
+            cur_label->add_inst(inst_type, {value_reg, address}, true);
+        }
     } else if (value->get_type()->is<ir::ArrayType>()) {
         // store array is init-case
         auto arr_type = as_a<ir::ArrayType>(value->get_type());
         size_t total = arr_type->get_total_cnt();
         bool float_case = arr_type->get_base_type()->is<ir::FloatType>();
-        if (float_case)
-            throw not_implemented_error{};
         // ConstZero is not a ConstArray
         if (is_a<ir::ConstZero>(value)) {
             cur_label->add_inst(
@@ -391,15 +511,21 @@ any MIRBuilder::visit(const ir::StoreInst *instruction) {
         assert(assigns <= total);
         // FIXME we can use fine-grained method to store inits
         if (assigns != total) { // call memset@plt
-            cur_label->add_inst(Call, {address, load_imm(0), load_imm(total)},
-                                true);
+            cur_label->add_inst(
+                Call, {memset_plt_func, address, load_imm(0), load_imm(total)},
+                true);
         }
+        // FIXME: memcpy from rodata section instead of using a loooot of
+        // immediates
         for (auto [pos, v] : inits) {
-            Value *value_reg;
-            if (float_case)
-                throw not_implemented_error{};
-            else
-                value_reg = load_imm(get<int>(v));
+            int ival{0};
+            if (float_case) {
+                float fval = get<float>(v);
+                ival = reinterpret_cast<int &>(fval);
+            } else {
+                ival = get<int>(v);
+            }
+            auto value_reg = load_imm(ival);
             int off = pos * BASIC_TYPE_SIZE;
             cur_label->add_inst(SW, {value_reg, create<Imm12bit>(off), address},
                                 complete);
@@ -495,21 +621,68 @@ any MIRBuilder::visit(const ir::GetElementPtrInst *instruction) {
 }
 
 any MIRBuilder::visit(const ir::FBinaryInst *instruction) {
-    throw not_implemented_error{};
+    auto fbin_op = instruction->get_fbin_op();
+
+    auto result_reg = value_map.at(instruction);
+    auto operands = instruction->operands();
+    // load immediate to integer reg if exists
+    auto res = binary_helper(operands[0], operands[1], false);
+    if (is_a<IVReg>(res.op1)) {
+        res.op1 = reinterpret_i2f(as_a<IVReg>(res.op1));
+    }
+    if (is_a<IVReg>(res.op2)) {
+        res.op2 = reinterpret_i2f(as_a<IVReg>(res.op2));
+    }
+
+    switch (fbin_op) {
+    case ir::FBinaryInst::FADD:
+        cur_label->add_inst(FADDS, {result_reg, res.op1, res.op2});
+        break;
+    case ir::FBinaryInst::FSUB:
+        cur_label->add_inst(FSUBS, {result_reg, res.op1, res.op2});
+        break;
+    case ir::FBinaryInst::FMUL:
+        cur_label->add_inst(FMULS, {result_reg, res.op1, res.op2});
+        break;
+    case ir::FBinaryInst::FDIV:
+        cur_label->add_inst(FDIVS, {result_reg, res.op1, res.op2});
+        break;
+    default:
+        throw unreachable_error{};
+    }
     return {};
 }
 
-any MIRBuilder::visit(const ir::FCmpInst *instruction) {
-    throw not_implemented_error{};
-    return {};
-}
+any MIRBuilder::visit(const ir::FCmpInst *instruction) { return {}; }
 
 any MIRBuilder::visit(const ir::Fp2siInst *instruction) {
-    throw not_implemented_error{};
+    auto fop = instruction->operands()[0];
+    auto imm = parse_imm(fop);
+    assert(not imm.is_undef);
+    auto res_reg = as_a<IVReg>(value_map.at(instruction));
+    if (imm.is_const) {
+        assert(imm.is_float);
+        load_imm(reinterpret_cast<float &>(imm.val), res_reg);
+    } else {
+        auto freg = as_a<FVReg>(value_map.at(fop));
+        cast_f2i(freg, res_reg);
+    }
     return {};
 }
 
 any MIRBuilder::visit(const ir::Si2fpInst *instruction) {
-    throw not_implemented_error{};
+    auto iop = instruction->operands()[0];
+    auto imm = parse_imm(iop);
+    assert(not imm.is_undef);
+    auto res_reg = as_a<FVReg>(value_map.at(instruction));
+    if (imm.is_const) {
+        assert(not imm.is_float);
+        float fval = imm.val;
+        auto tmp_reg = load_imm(reinterpret_cast<int &>(fval));
+        reinterpret_i2f(tmp_reg, res_reg);
+    } else {
+        auto ireg = as_a<IVReg>(value_map.at(iop));
+        cast_i2f(ireg, res_reg);
+    }
     return {};
 }

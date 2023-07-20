@@ -10,9 +10,13 @@
 #include <string>
 #include <vector>
 
+#include "DeadCode.hh"
 #include "ast.hh"
+#include "codegen.hh"
+#include "depth_order.hh"
 #include "dominator.hh"
 #include "err.hh"
+#include "func_info.hh"
 #include "ir_builder.hh"
 #include "loop_find.hh"
 #include "loop_invariant.hh"
@@ -89,13 +93,17 @@ int main(int argc, char **argv) {
         pm.add_pass<Dominator>();
         pm.add_pass<UseDefChain>();
         pm.add_pass<LoopFind>();
+        pm.add_pass<FuncInfo>();
+        pm.add_pass<DepthOrder>();
 
         // transform
         pm.add_pass<RmUnreachBB>();
         pm.add_pass<Mem2reg>();
         pm.add_pass<LoopInvariant>();
+        pm.add_pass<DeadCode>();
 
-        pm.run({PassID<Mem2reg>(), PassID<LoopInvariant>()}, false);
+        pm.run({PassID<Mem2reg>(), PassID<LoopInvariant>(), PassID<DeadCode>()},
+               false);
 
         module = pm.release_module();
     }
@@ -113,8 +121,9 @@ int main(int argc, char **argv) {
         auto ll = module->print();
         *os << ll;
     } else {
-        // TODO: emit asm
-        throw not_implemented_error{};
+        // emit asm
+        codegen::CodeGen codegen{std::move(module)};
+        *os << codegen;
     }
 
     if (cfg.out.has_value()) {

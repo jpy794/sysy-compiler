@@ -113,7 +113,7 @@ class IBinaryInst : public Instruction {
 
 class FBinaryInst : public Instruction {
   public:
-    enum FBinOp { FADD, FSUB, FMUL, FDIV, FREM };
+    enum FBinOp { FADD, FSUB, FMUL, FDIV };
 
     FBinaryInst(BasicBlock *prt, FBinOp op, Value *lhs, Value *rhs);
 
@@ -194,7 +194,7 @@ class FCmpInst : public Instruction {
     FCmpInst(BasicBlock *prt, FCmpOp cmp_op, Value *lhs, Value *rhs);
     std::string print() const final;
 
-    FCmpOp get_Fcmp_op() const { return _cmp_op; }
+    FCmpOp get_fcmp_op() const { return _cmp_op; }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
