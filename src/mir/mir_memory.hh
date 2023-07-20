@@ -18,34 +18,63 @@ namespace mir {
 
 class MemObject : public Value {
   protected:
+    const BasicType _type;
     const std::size_t _size;
 
-    explicit MemObject(std::size_t size) : _size(size) {}
+    explicit MemObject(BasicType type, std::size_t size)
+        : _type(type), _size(size) {}
 
   public:
     std::size_t get_size() const { return _size; }
+    BasicType get_type() const { return _type; }
 };
 
+// local vars
 class StatckObject : public MemObject {
     friend class ValueManager;
 
-  private:
-    const std::size_t _align;
+  public:
+    enum class Reason { Alloca, Spilled, CalleeSave };
 
   private:
-    StatckObject(std::size_t size, std::size_t align)
-        : MemObject(size), _align(align) {}
+    const std::size_t _align;
+    Reason _reason;
+
+  protected:
+    StatckObject(BasicType type, std::size_t size, std::size_t align,
+                 Reason reason)
+        : MemObject(type, size), _align(align), _reason(reason) {
+        assert(type != BasicType::VOID);
+    }
+
+  public:
+    virtual void dump(std::ostream &os, const Context &context) const override;
+    std::size_t get_align() const { return _align; }
+    Reason get_reason() const { return _reason; }
+};
+
+class CalleeSave : public StatckObject {
+    friend class ValueManager;
+
+  private:
+    Register::RegIDType _regid;
+
+  private:
+    CalleeSave(BasicType type, Register::RegIDType id)
+        : StatckObject(type, TARGET_MACHINE_SIZE, TARGET_MACHINE_SIZE,
+                       Reason::CalleeSave),
+          _regid(id) {}
 
   public:
     void dump(std::ostream &os, const Context &context) const override final;
-    std::size_t get_align() const { return _align; }
+    bool is_float_reg() const { return _type == BasicType::FLOAT; }
+    Register::RegIDType saved_reg_id() const { return _regid; }
 };
 
 class GlobalObject : public MemObject {
     friend class ValueManager;
 
   private:
-    BasicType _type;
     std::string _name;
     InitPairs _inits;
 
@@ -75,7 +104,7 @@ class GlobalObject : public MemObject {
     }
 
     GlobalObject(const ir::GlobalVariable *global)
-        : MemObject(_parse_size(global)), _type(_parse_type(global)),
+        : MemObject(_parse_type(global), _parse_size(global)),
           _name(global->get_name().substr(1)) {
         // get init value
         auto init = global->get_init();
@@ -100,7 +129,6 @@ class GlobalObject : public MemObject {
   public:
     void dump(std::ostream &os, const Context &context) const override final;
     const InitPairs &get_init() const { return _inits; }
-    BasicType get_type() const { return _type; }
 };
 
 }; // namespace mir
