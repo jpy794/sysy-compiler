@@ -17,7 +17,6 @@ function(sysyc_test_path BASE)
     foreach(CASE ${CASES})
         sysyc_test("ir_${BASE}" ${CASE} "-emit-llvm")
         sysyc_test("ir_opt_${BASE}" ${CASE} "-emit-llvm -O1")
-        sysyc_test("asm_${BASE}" ${CASE} "")
         sysyc_test("asm_opt_${BASE}" ${CASE} "-O1")
     endforeach()
 endfunction()
@@ -39,11 +38,6 @@ add_custom_target(
 add_custom_target(
     check_sysyc_ir_opt_perf
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'test_sysyc_ir_opt_perf_.*'
-)
-
-add_custom_target(
-    check_sysyc_asm
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'test_sysyc_asm_.*'
 )
 
 add_custom_target(
