@@ -157,8 +157,8 @@ any MIRBuilder::visit(const ir::BrInst *instruction) {
     auto [cond_src, TBB, FBB] =
         tuple(as_a<ir::Instruction>(operands[0]), operands[1], operands[2]);
     auto [TLabel, FLabel] = tuple(value_map.at(TBB), value_map.at(FBB));
-    auto [op1, op2] = tuple(cond_src->operands()[0], cond_src->operands()[1]);
     auto [cond, reversed] = backtrace_i1(cond_src);
+    auto [op1, op2] = tuple(cond->operands()[0], cond->operands()[1]);
 
     if (is_a<ir::ICmpInst>(cond)) {
         auto icmp = as_a<ir::ICmpInst>(cond);
@@ -195,16 +195,20 @@ any MIRBuilder::visit(const ir::BrInst *instruction) {
         cur_label->add_inst(Jump, {FLabel});
     } else if (is_a<ir::FCmpInst>(cond)) {
         auto fcmp = as_a<ir::FCmpInst>(cond);
-        auto fval1 = op1->as<ir::ConstFloat>()->val();
-        auto reg1 =
-            is_a<ir::ConstFloat>(op1)
-                ? reinterpret_i2f(load_imm(reinterpret_cast<int &>(fval1)))
-                : as_a<FVReg>(value_map.at(op1));
-        auto fval2 = op1->as<ir::ConstFloat>()->val();
-        auto reg2 =
-            is_a<ir::ConstFloat>(op1)
-                ? reinterpret_i2f(load_imm(reinterpret_cast<int &>(fval2)))
-                : as_a<FVReg>(value_map.at(op2));
+        FVReg *reg1{nullptr};
+        if (is_a<ir::ConstFloat>(op1)) {
+            auto fval1 = op1->as<ir::ConstFloat>()->val();
+            reg1 = reinterpret_i2f(load_imm(reinterpret_cast<int &>(fval1)));
+        } else {
+            reg1 = as_a<FVReg>(value_map.at(op1));
+        }
+        FVReg *reg2{nullptr};
+        if (is_a<ir::ConstFloat>(op2)) {
+            auto fval2 = op2->as<ir::ConstFloat>()->val();
+            reg2 = reinterpret_i2f(load_imm(reinterpret_cast<int &>(fval2)));
+        } else {
+            reg2 = as_a<FVReg>(value_map.at(op2));
+        }
         auto op = reversed ? FCMP_OP_REVERSED.at(fcmp->get_fcmp_op())
                            : fcmp->get_fcmp_op();
         auto cmp_res = create<IVReg>();
