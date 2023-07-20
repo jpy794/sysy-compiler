@@ -15,6 +15,7 @@
 #include "mir_register.hh"
 #include "mir_value.hh"
 #include "module.hh"
+#include "type.hh"
 #include "value.hh"
 
 #include <any>
@@ -169,17 +170,23 @@ class MIRBuilder : public ir::InstructionVisitor {
         size_t alignment = 0;
         auto alloca_type =
             as_a<ir::PointerType>(instruction->get_type())->get_elem_type();
+        ir::Type *ir_basic_type;
         if (alloca_type->is_basic_type()) {
             size = BASIC_TYPE_SIZE;
             alignment = BASIC_TYPE_ALIGN;
+            ir_basic_type = alloca_type;
         } else if (alloca_type->is<ir::ArrayType>()) {
-            size = BASIC_TYPE_SIZE *
-                   as_a<ir::ArrayType>(alloca_type)->get_total_cnt();
+            auto arr_type = as_a<ir::ArrayType>(alloca_type);
+            size = BASIC_TYPE_SIZE * arr_type->get_total_cnt();
             alignment = BASIC_TYPE_ALIGN;
+            ir_basic_type = arr_type->get_base_type();
         } else
             throw unreachable_error{};
-
-        return func->add_stack_object(size, alignment);
+        assert(ir_basic_type->is_basic_type());
+        BasicType type = ir_basic_type->is<ir::IntType>() ? BasicType::INT
+                                                          : BasicType::FLOAT;
+        return func->add_local_var(type, size, alignment,
+                                   StatckObject::Reason::Alloca);
     }
 
     std::pair<bool, Value *> parse_address(ir::Value *irptr) {

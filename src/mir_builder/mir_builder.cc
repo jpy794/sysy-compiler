@@ -455,7 +455,8 @@ any MIRBuilder::visit(const ir::LoadInst *instruction) {
         cur_label->add_inst(inst_type,
                             {result_reg, create<Imm12bit>(0), address});
     } else {
-        cur_label->add_inst(inst_type, {result_reg, address}, true);
+        cur_label->add_inst(inst_type,
+                            {result_reg, create<Imm12bit>(0), address}, true);
     }
 
     return {};
@@ -476,7 +477,8 @@ any MIRBuilder::visit(const ir::StoreInst *instruction) {
         if (complete)
             cur_label->add_inst(SW, {value_reg, create<Imm12bit>(0), address});
         else
-            cur_label->add_inst(SW, {value_reg, address}, true);
+            cur_label->add_inst(SW, {value_reg, create<Imm12bit>(0), address},
+                                true);
     } else if (value->get_type()->is<ir::FloatType>()) {
         auto imm_result = parse_imm(value);
         assert(not imm_result.is_undef);
@@ -598,7 +600,7 @@ any MIRBuilder::visit(const ir::GetElementPtrInst *instruction) {
         tmp_reg = load_imm(arr_type->get_elem_cnt());
         cur_label->add_inst(MUL, {offset_reg, offset_reg, tmp_reg});
 
-        auto imm_result = parse_imm(operands[1]);
+        auto imm_result = parse_imm(operands[i]);
         assert(imm_result.is_undef == false);
         if (imm_result.is_const)
             tmp_reg = load_imm(imm_result.val);
