@@ -40,34 +40,43 @@ if [ $? != 0 ]; then
 fi
 
 if [ $emit_llvm == true ]; then
-    
+    run_bin=$out_path/$case_name
     clang -Wno-override-module $sysyc_out ./test/lib/sylib.c -o $out_path/$case_name
-
-    if [ $? != 0 ]; then
-        echo -e "\033[31m$case_full failed\033[0m"
-        echo 'clang compile error'
-        echo "see sysyc output file $sysyc_out"
-        exit 1
-    fi
-
-    ./tool/bin_test.sh $case_path $out_path $case_name
-
 else
-
+    run_bin="qemu-riscv64-static -L /usr/riscv64-linux-gnu $out_path/$case_name"
     riscv64-linux-gnu-gcc $sysyc_out ./test/lib/sylib.c -o $out_path/$case_name
-
-    if [ $? != 0 ]; then
-        echo -e "\033[31m$case_full failed\033[0m"
-        echo 'riscv64-linux-gnu-gcc compile error'
-        echo "see sysyc output file $sysyc_out"
-        exit 1
-    fi
-
-    docker run --rm --platform=linux/riscv64 \
-        -v $(realpath $out_path):/test/out \
-        -v $(realpath $case_path):/test/case \
-        -v $(pwd)/tool:/test/tool \
-        debian:unstable \
-        /bin/bash -c "/test/tool/bin_test.sh /test/case /test/out $case_name" 
-
 fi
+
+ret=$?
+
+if [ $ret != 0 ]; then
+    echo -e "\033[31m$case_full failed\033[0m"
+    echo 'llvm ir / asm compile error'
+    echo "see sysyc output file $sysyc_out"
+    exit 1
+fi
+
+# avoid stack overflow due to recursion (perf/median2.sy)
+ulimit -s unlimited
+
+if [ -f $case_path/$case_name.in ]; then
+    $run_bin < $case_path/$case_name.in 1> $out_path/$case_name.stdout 2> $out_path/$case_name.stderr
+else
+    $run_bin 1> $out_path/$case_name.stdout 2> $out_path/$case_name.stderr
+fi
+
+ret=$?
+
+# append \n to stdout if missing
+sed -e '$a\' $out_path/$case_name.stdout | cat > $out_path/$case_name.out
+echo $ret >> $out_path/$case_name.out
+diff -u --color $out_path/$case_name.out $case_path/$case_name.out &> /dev/null
+
+if [ $? != 0 ]; then
+    echo -e "\033[31m$case_full failed\033[0m"
+    echo 'output is different'
+    echo "see $out_path/$case_name.out, $case_path/$case_name.out for difference"
+    exit 1
+fi
+
+echo -e "\033[32m$case_full passed\033[0m"
