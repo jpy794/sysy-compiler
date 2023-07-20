@@ -289,9 +289,12 @@ std::ostream &codegen::operator<<(std::ostream &os, const CodeGen &c) {
     switch (c._stage) {
     case Stage::stage1: {
         os << "# stage1, uncomplete asm\n";
-    } break;
+        break;
+    }
     case Stage::stage2:
         os << "# stage2, complete asm\n";
+        // main is a global symbol
+        os << ".global main\n";
         break;
     }
 
@@ -574,7 +577,7 @@ void CodeGen::resolve_call() { // TODO
             Offset off = i * TARGET_MACHINE_SIZE;
             new_label->add_inst(LD, {preg_mgr.temp(i), create_imm(off), sp});
         }
-        new_label->add_inst(ADDI, {sp, create_imm(stack_grow_size), sp});
+        new_label->add_inst(ADDI, {sp, sp, create_imm(stack_grow_size)});
         new_label->add_inst(Jump, {target_label});
     }
 
@@ -586,7 +589,7 @@ void CodeGen::resolve_call() { // TODO
         Offset off = i * TARGET_MACHINE_SIZE;
         insert_inst(LD, {preg_mgr.temp(i), create_imm(off), sp});
     }
-    insert_inst(ADDI, {sp, create_imm(stack_grow_size), sp});
+    insert_inst(ADDI, {sp, sp, create_imm(stack_grow_size)});
 
     label->get_insts().erase(inst);
 }
@@ -676,7 +679,7 @@ void CodeGen::resolve_stack() {
             Offset off = i * TARGET_MACHINE_SIZE;
             new_label->add_inst(LD, {preg_mgr.temp(i), create_imm(off), sp});
         }
-        new_label->add_inst(ADDI, {sp, create_imm(stack_grow_size), sp});
+        new_label->add_inst(ADDI, {sp, sp, create_imm(stack_grow_size)});
         new_label->add_inst(Jump, {target_label});
     }
 
@@ -688,7 +691,7 @@ void CodeGen::resolve_stack() {
         Offset off = i * TARGET_MACHINE_SIZE;
         insert_inst(LD, {preg_mgr.temp(i), create_imm(off), sp});
     }
-    insert_inst(ADDI, {sp, create_imm(stack_grow_size), sp});
+    insert_inst(ADDI, {sp, sp, create_imm(stack_grow_size)});
 
     label->get_insts().erase(inst);
 }
