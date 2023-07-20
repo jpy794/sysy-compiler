@@ -15,6 +15,7 @@
 #include <cassert>
 #include <iterator>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -26,6 +27,15 @@ namespace std {
 template <>
 bool operator==(const shared_ptr<pass::GVN::Expression> &lhs,
                 const shared_ptr<pass::GVN::Expression> &rhs) noexcept {
+    if (lhs == nullptr || rhs == nullptr)
+        return false;
+    return *lhs == *rhs;
+}
+template <>
+bool operator==(const shared_ptr<pass::GVN::PhiExpr> &lhs,
+                const shared_ptr<pass::GVN::PhiExpr> &rhs) noexcept {
+    if (lhs == nullptr || rhs == nullptr)
+        return false;
     return *lhs == *rhs;
 }
 } // namespace std
@@ -117,7 +127,27 @@ GVN::intersect(shared_ptr<CongruenceClass> Ci, shared_ptr<CongruenceClass> Cj) {
     if (!Ck->members.empty() and
         Ck->index == 0) { // FIXME: more than two predecessor blocks?
         Ck->index = next_value_number++;
-        Ck->leader = *Ck->members.begin();
+        int order_id = -1;
+        for (auto mem :
+             Ck->members) { // when there is a non-phi inst in members, the phi
+                            // must be equal to the inst.
+            if (::is_a<Constant>(mem)) {
+                Ck->leader = mem;
+                break;
+            } else if (::is_a<Instruction>(
+                           mem)) { // Select the first inst in depth_first_order
+                auto bb = ::as_a<Instruction>(mem)->get_parent();
+                if (order_id < _depth_order->_post_order_id.at(_func).at(bb)) {
+                    order_id = _depth_order->_post_order_id.at(_func).at(bb);
+                    Ck->leader = mem;
+                }
+            } else { // for globalvar and argument, it shouldn't be intersected
+                     // after mem2reg
+                throw logic_error{mem->get_type()->print() +
+                                  "has been intersected"};
+            }
+        }
+        assert(Ck->leader);
         if (Ci->val_expr == Cj->val_expr)
             Ck->val_expr = Ci->val_expr;
         else {
@@ -142,10 +172,8 @@ void GVN::detect_equivalences(Function *func) {
         _pin[func->get_entry_bb()].insert(cc);
     }
     bool changed = false;
-    unsigned times = 0;
     do {
         changed = false;
-        debugs << "iter" << times << ":\n";
         for (auto &bb : _depth_order->_depth_priority_order.at(_func)) {
             auto &pre_bbs = bb->pre_bbs();
             partitions origin_pout = _pout[bb];
@@ -219,37 +247,10 @@ void GVN::detect_equivalences(Function *func) {
                         break;
                 }
             }
-            debugs << bb->get_name() << ":{\n";
-            if (_pout[bb] == TOP)
-                debugs << "TOP";
-            else
-                for (auto cc : _pout[bb]) {
-                    debugs << "v" << cc->index << ":";
-                    debugs << cc->val_expr->print() << "[";
-                    for (auto mem : cc->members) {
-                        debugs << mem->get_name() << " ";
-                    }
-                    debugs << "]\n";
-                }
-            debugs << "}\n";
             if (not(origin_pout == _pout[bb])) {
                 changed = true;
-                if (origin_pout == TOP)
-                    continue;
-                debugs << "diff:\n\n";
-                debugs << "last time\n\n";
-                for (auto cc : origin_pout) {
-                    debugs << "v" << cc->index << ":";
-                    debugs << cc->val_expr->print() << "[";
-                    for (auto mem : cc->members) {
-                        debugs << mem->get_name() << " ";
-                    }
-                    debugs << "]\n";
-                }
-                debugs << "\n\n";
             }
         }
-        assert(times++ < 10);
     } while (changed);
 }
 
@@ -323,16 +324,14 @@ shared_ptr<GVN::Expression> GVN::valueExpr(Value *val, partitions &pin) {
         }
         return create_expr<GepExpr>(std::move(idxs));
     } else if (::is_a<PhiInst>(val)) {
-        // auto inst = ::as_a<Instruction>(val);
-        // vector<shared_ptr<Expression>> vals;
-        // vector<BasicBlock *> bbs;
-        // for (unsigned i = 0; i < inst->operands().size(); i += 2) {
-        //     bbs.push_back(::as_a<BasicBlock>(inst->get_operand(i + 1)));
-        //     vals.push_back(valueExpr(inst->get_operand(i),
-        //     _pout[bbs.back()]));
-        // }
-        // return create_expr<PhiExpr>(vals, bbs);
-        return create_expr<UniqueExpr>(val); // create a temporary Expression;
+        auto inst = ::as_a<Instruction>(val);
+        vector<shared_ptr<Expression>> vals;
+        vector<BasicBlock *> bbs;
+        for (unsigned i = 0; i < inst->operands().size(); i += 2) {
+            bbs.push_back(::as_a<BasicBlock>(inst->get_operand(i + 1)));
+            vals.push_back(valueExpr(inst->get_operand(i), _pout[bbs.back()]));
+        }
+        return create_expr<PhiExpr>(vals, bbs);
     } else {
         return create_expr<UniqueExpr>(val);
     }
@@ -434,8 +433,8 @@ void GVN::replace_cc_members() {
                     op3 = phi ..., op2
                     it will replace op2 with op0
                     */
-                    // only replace the members if users are in the same block
-                    // as bb
+                    // only replace the members if users are in the same
+                    // block as bb
                     assert(cc->leader);
                     _usedef_chain->replace_use_when(
                         member, cc->leader, [bb](User *user) {

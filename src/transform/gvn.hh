@@ -26,12 +26,13 @@ class GVN final : public pass::TransformPass {
     GVN() = default;
     virtual void get_analysis_usage(pass::AnalysisUsage &AU) const override {
         using KillType = pass::AnalysisUsage::KillType;
-        AU.set_kill_type(KillType::All);
+        AU.set_kill_type(KillType::Normal);
         AU.add_require<FuncInfo>();
         AU.add_require<UseDefChain>();
         AU.add_require<DepthOrder>();
         AU.add_require<Mem2reg>();
         AU.add_kill<UseDefChain>();
+        AU.add_kill<DeadCode>();
         AU.add_post<DeadCode>();
     }
     virtual void run(pass::PassManager *mgr) override;
