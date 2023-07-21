@@ -164,7 +164,7 @@ class MIRBuilder : public ir::InstructionVisitor {
         return res;
     }
 
-    StatckObject *alloca_to_stack(const ir::AllocaInst *instruction,
+    StackObject *alloca_to_stack(const ir::AllocaInst *instruction,
                                   Function *func) {
         size_t size = 0;
         size_t alignment = 0;
@@ -186,7 +186,7 @@ class MIRBuilder : public ir::InstructionVisitor {
         BasicType type = ir_basic_type->is<ir::IntType>() ? BasicType::INT
                                                           : BasicType::FLOAT;
         return func->add_local_var(type, size, alignment,
-                                   StatckObject::Reason::Alloca);
+                                   StackObject::Reason::Alloca);
     }
 
     std::pair<bool, Value *> parse_address(ir::Value *irptr) {
