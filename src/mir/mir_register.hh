@@ -70,6 +70,8 @@ class PhysicalRegister : public Register {
         os << _abi_name;
     }
     virtual Saver get_saver() const = 0;
+    virtual bool is_arg_reg() const = 0;
+    virtual unsigned get_arg_idx() const = 0;
 };
 
 class IPReg final : public PhysicalRegister {
@@ -84,6 +86,11 @@ class IPReg final : public PhysicalRegister {
             return Saver::Callee;
         return Saver::Caller;
     }
+    virtual bool is_arg_reg() const { return 10 <= _id and _id <= 17; }
+    virtual unsigned get_arg_idx() const {
+        assert(is_arg_reg());
+        return _id - 10;
+    }
 };
 
 class FPReg final : public PhysicalRegister {
@@ -95,6 +102,11 @@ class FPReg final : public PhysicalRegister {
         if (_id == 8 or _id == 9 or (18 <= _id and _id <= 27))
             return Saver::Callee;
         return Saver::Caller;
+    }
+    virtual bool is_arg_reg() const { return 10 <= _id and _id <= 17; }
+    virtual unsigned get_arg_idx() const {
+        assert(is_arg_reg());
+        return _id - 10;
     }
 };
 
