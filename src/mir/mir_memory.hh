@@ -22,7 +22,9 @@ class MemObject : public Value {
     const std::size_t _size;
 
     explicit MemObject(BasicType type, std::size_t size)
-        : _type(type), _size(size) {}
+        : _type(type), _size(size) {
+        assert(type != BasicType::VOID);
+    }
 
   public:
     std::size_t get_size() const { return _size; }
@@ -30,7 +32,7 @@ class MemObject : public Value {
 };
 
 // local vars
-class StatckObject : public MemObject {
+class StackObject : public MemObject {
     friend class ValueManager;
 
   public:
@@ -41,11 +43,9 @@ class StatckObject : public MemObject {
     Reason _reason;
 
   protected:
-    StatckObject(BasicType type, std::size_t size, std::size_t align,
-                 Reason reason)
-        : MemObject(type, size), _align(align), _reason(reason) {
-        assert(type != BasicType::VOID);
-    }
+    StackObject(BasicType type, std::size_t size, std::size_t align,
+                Reason reason)
+        : MemObject(type, size), _align(align), _reason(reason) {}
 
   public:
     virtual void dump(std::ostream &os, const Context &context) const override;
@@ -53,7 +53,7 @@ class StatckObject : public MemObject {
     Reason get_reason() const { return _reason; }
 };
 
-class CalleeSave : public StatckObject {
+class CalleeSave : public StackObject {
     friend class ValueManager;
 
   private:
@@ -61,8 +61,8 @@ class CalleeSave : public StatckObject {
 
   private:
     CalleeSave(BasicType type, Register::RegIDType id)
-        : StatckObject(type, TARGET_MACHINE_SIZE, TARGET_MACHINE_SIZE,
-                       Reason::CalleeSave),
+        : StackObject(type, TARGET_MACHINE_SIZE, TARGET_MACHINE_SIZE,
+                      Reason::CalleeSave),
           _regid(id) {}
 
   public:

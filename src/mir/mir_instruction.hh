@@ -63,6 +63,7 @@ enum MIR_INST {
     FEQS,
     /* pseudo instruction */
     Move,
+    FMove,
     LoadAddress,
     LoadImmediate,
     SetEQZ,
@@ -104,7 +105,7 @@ class Instruction final : public ilist<Instruction>::node {
     MIR_INST get_opcode() const { return _opcode; }
     void set_operand(unsigned i, Value *reg) {
         assert(i < _operands.size());
-        assert(is_a<PhysicalRegister>(reg) or is_a<StatckObject>(reg));
+        assert(is_a<PhysicalRegister>(reg) or is_a<StackObject>(reg));
         _operands[i] = reg;
     }
 

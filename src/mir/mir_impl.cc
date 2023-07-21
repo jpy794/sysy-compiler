@@ -1,5 +1,6 @@
 #include "context.hh"
 #include "err.hh"
+#include "mir_instruction.hh"
 #include "mir_memory.hh"
 #include "mir_module.hh"
 #include "mir_register.hh"
@@ -104,6 +105,7 @@ const map<MIR_INST, string_view> MIR_INST_NAME = {
     {FLES, "fle.s"},
     {FEQS, "feq.s"},
     // pseudo instruction
+    {FMove, "fmv.s"},
     {Move, "mv"},
     {Jump, "j"},
     {LoadAddress, "la"},
@@ -273,7 +275,7 @@ void Instruction::dump(std::ostream &os, const Context &context) const {
     }
 }
 
-void StatckObject::dump(std::ostream &os, const Context &context) const {
+void StackObject::dump(std::ostream &os, const Context &context) const {
     switch (context.stage) {
     case Stage::stage1:
         os << "@stack-object[" << _size << "," << _align << "]";

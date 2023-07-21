@@ -21,7 +21,7 @@ using Offset = size_t;
 
 struct FrameInfo {
     Offset size;
-    std::map<StatckObject *, Offset> offset;
+    std::map<StackObject *, Offset> offset;
 };
 
 class Function : public Value {
@@ -35,7 +35,7 @@ class Function : public Value {
     std::deque<Label *> _labels; // FIXME the label at 0 is the entry label
 
     // objects in stack
-    std::vector<StatckObject *> _local_vars;
+    std::vector<StackObject *> _local_vars;
     std::vector<CalleeSave *> _callee_saves;
 
     // frame info
@@ -116,9 +116,9 @@ class Function : public Value {
         _labels.push_back(ValueManager::get().create<Label>(args...));
         return _labels.back();
     }
-    template <typename... Args> StatckObject *add_local_var(Args... args) {
+    template <typename... Args> StackObject *add_local_var(Args... args) {
         _local_vars.push_back(
-            ValueManager::get().create<StatckObject>(args...));
+            ValueManager::get().create<StackObject>(args...));
         return _local_vars.back();
     }
     template <typename... Args> CalleeSave *add_callee_save(Args... args) {
