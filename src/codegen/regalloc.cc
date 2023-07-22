@@ -114,7 +114,6 @@ LivenessAnalysis::LivenessAnalysis(const ControlFlowInfo &cfg_info,
                         live_info.at(OUT_POINT(inst_id.at(inst)) + 1);
                 }
 
-                // FIXME pesudo instruction will write specific register
                 // in-set
                 auto new_in = OUT_OF_INST(inst);
                 if (inst->will_write_register()) { // deal with def

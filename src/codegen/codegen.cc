@@ -248,6 +248,9 @@ void CodeGen::resolve_logue() {
     auto exit = _upgrade_context.exit;
     auto &frame = func->get_frame();
 
+    comment("prologue", entry);
+    comment("epilogue", exit);
+
     // no frame relation need to maintain
     if (frame.size == 0) {
         exit->add_inst(Ret, {});
@@ -327,7 +330,7 @@ std::ostream &codegen::operator<<(std::ostream &os, const CodeGen &c) {
         break;
     }
 
-    Context context{c._stage, Role::Full, c._allocator, false};
+    Context context{c._stage, Role::Full, c._allocator, true};
     c._mir_module->dump(os, context);
 
     return os;
@@ -427,6 +430,14 @@ void CodeGen::upgrade_step1() {
                         preg->get_saver() == Saver::Callee)
                         callee_saves.insert(preg_id);
                 }
+
+                // special case for ra:
+                // - if ra is writen as a general register, it will be add in to
+                // callee-saves during the above judge
+                // - if ra is writen implicitly during call, the code below will
+                // handle it
+                if (inst.get_opcode() == Call)
+                    int_callee_saves.insert(preg_mgr.ra()->get_id());
             }
         }
 
@@ -793,23 +804,28 @@ void CodeGen::resolve_call() {
     auto location = func->get_frame().offset;
     auto inst = _upgrade_context.inst;
 
+    // pre analysis for the inst
+    Value *ret_location = nullptr;
+    Function *called_func;
+    if (inst->will_write_register()) {
+        ret_location = inst->get_operand(0);
+        called_func = as_a<Function>(inst->get_operand(1));
+    } else {
+        called_func = as_a<Function>(inst->get_operand(0));
+    }
+
     auto critical_iregs = current_critical_regs(false, Saver::Caller);
     auto critical_fregs = current_critical_regs(true, Saver::Caller);
-    // critical_iregs.insert(preg_mgr.temp(unsigned int i))
+    if (is_a<IPReg>(ret_location))
+        critical_iregs.erase(as_a<IPReg>(ret_location)->get_id());
+    else if (is_a<FPReg>(ret_location))
+        critical_fregs.erase(as_a<FPReg>(ret_location)->get_id());
     // clang-format off
     const Offset stack_grow_size1 = ALIGN(
         critical_iregs.size()*TARGET_MACHINE_SIZE + critical_fregs.size()*BASIC_TYPE_SIZE,
         SP_ALIGNMENT
     );
 
-    Value *ret_reg = nullptr;
-    Function* called_func;
-    if (inst->will_write_register()) {
-        ret_reg = inst->get_operand(0);
-        called_func = as_a<Function>(inst->get_operand(1));
-    } else {
-        called_func = as_a<Function>(inst->get_operand(0));
-    }
     // clang-format on
     auto resolve_caller_save = [&](bool before_call) {
         if (before_call) // alloc stack space
@@ -820,15 +836,11 @@ void CodeGen::resolve_call() {
         for (auto ireg_id : critical_iregs) { // int registers
             off += TARGET_MACHINE_SIZE;
             auto ireg = preg_mgr.get_int_reg(ireg_id);
-            if (ireg == ret_reg)
-                continue;
             insert_inst(int_op, {ireg, create_imm(off), sp});
         }
         for (auto freg_id : critical_fregs) { // float registers
             off += BASIC_TYPE_SIZE;
             auto freg = preg_mgr.get_float_reg(freg_id);
-            if (freg == ret_reg)
-                continue;
             insert_inst(float_op, {freg, create_imm(off), sp});
         }
         if (not before_call) // recover sp
@@ -853,22 +865,25 @@ void CodeGen::resolve_call() {
     insert_inst(Call, {called_func});
     // TODO return value
     stack_change(Offset2int(stack_res.stack_grow_size2), t0);
-    if (ret_reg) {
-        if (is_a<PhysicalRegister>(ret_reg))
-            move_same_type(ret_reg, preg_mgr.ret_val(0, is_a<FPReg>(ret_reg)));
-        else if (is_a<StackObject>(ret_reg)) {
-            auto stack_object = as_a<StackObject>(ret_reg);
+    if (ret_location) {
+        if (is_a<PhysicalRegister>(ret_location))
+            move_same_type(ret_location,
+                           preg_mgr.ret_val(0, is_a<FPReg>(ret_location)));
+        else if (is_a<StackObject>(ret_location)) {
+            auto stack_object = as_a<StackObject>(ret_location);
             auto off = stack_grow_size1 + location.at(stack_object);
             bool is_float = stack_object->get_type() == BasicType::FLOAT;
             MIR_INST store_op = is_float ? FSW : SD; // FIXME
-            safe_load_store(store_op, preg_mgr.ret_val(0, is_a<FPReg>(ret_reg)),
+            safe_load_store(store_op,
+                            preg_mgr.ret_val(0, is_a<FPReg>(ret_location)),
                             Offset2int(off), t0);
 
         } else
             throw unreachable_error{"bad return value location"};
     }
     resolve_caller_save(false);
-    // recover registers and sp
+
+    inst->degenerate_to_comment();
 }
 
 // FIXME
