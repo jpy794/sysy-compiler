@@ -4,6 +4,7 @@
 #include "mir_memory.hh"
 #include "mir_module.hh"
 #include "mir_register.hh"
+#include "mir_value.hh"
 #include "regalloc.hh"
 
 #include <map>
@@ -125,6 +126,13 @@ bool Instruction::will_write_register() const {
     if (_opcode == MIR_INST::Call)
         return not is_a<Function>(_operands[0]);
     return true;
+}
+
+void Instruction::degenerate_to_comment() {
+    auto old_op_name = string(MIR_INST_NAME.at(_opcode));
+    _opcode = COMMENT;
+    _operands.insert(_operands.begin(),
+                     ValueManager::get().create<Comment>(old_op_name));
 }
 
 /* implemention of dumps */

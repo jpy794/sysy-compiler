@@ -16,7 +16,7 @@ struct Context {
     Stage stage;
     Role role;
     const codegen::RegAlloc &allocator;
-    bool output_comment{true};
+    bool output_comment;
 
     const mir::Function *cur_function{nullptr};
 

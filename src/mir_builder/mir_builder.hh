@@ -165,7 +165,7 @@ class MIRBuilder : public ir::InstructionVisitor {
     }
 
     StackObject *alloca_to_stack(const ir::AllocaInst *instruction,
-                                  Function *func) {
+                                 Function *func) {
         size_t size = 0;
         size_t alignment = 0;
         auto alloca_type =

@@ -99,7 +99,7 @@ class Instruction final : public ilist<Instruction>::node {
     friend class Label;
 
   private:
-    const MIR_INST _opcode;
+    MIR_INST _opcode;
     std::vector<Value *> _operands;
 
     // NOTE: aborted attribute
@@ -120,6 +120,7 @@ class Instruction final : public ilist<Instruction>::node {
         assert(is_a<PhysicalRegister>(reg) or is_a<StackObject>(reg));
         _operands[i] = reg;
     }
+    void degenerate_to_comment();
 
     void dump(std::ostream &os, const Context &context) const;
     // each instruction writes 1 register(def) at most
