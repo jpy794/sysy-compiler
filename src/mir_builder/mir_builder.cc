@@ -501,7 +501,7 @@ any MIRBuilder::visit(const ir::StoreInst *instruction) {
     } else if (value->get_type()->is<ir::ArrayType>()) {
         // store array is init-case
         auto arr_type = as_a<ir::ArrayType>(value->get_type());
-        size_t total = arr_type->get_total_cnt();
+        size_t total = arr_type->get_total_cnt() * BASIC_TYPE_SIZE;
         bool float_case = arr_type->get_base_type()->is<ir::FloatType>();
         // ConstZero is not a ConstArray
         if (is_a<ir::ConstZero>(value)) {
