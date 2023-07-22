@@ -4,6 +4,7 @@
 #include "instruction.hh"
 #include "mir_builder.hh"
 #include "mir_function.hh"
+#include "mir_immediate.hh"
 #include "mir_instruction.hh"
 #include "mir_label.hh"
 #include "mir_memory.hh"
@@ -36,7 +37,7 @@ class CodeGen {
         mir::Instruction *inst{nullptr};
         mir::Label *entry{nullptr}, *exit{nullptr}; // new created
         std::set<mir::Label *> new_labels{}; // should ignore during traverse
-        std::map<mir::VirtualRegister *, mir::StatckObject *>
+        std::map<mir::VirtualRegister *, mir::StackObject *>
             arg_spilled_location;
 
         void new_func(mir::Function *f) {
@@ -81,45 +82,77 @@ class CodeGen {
     void upgrade_step2();
 
     void resolve_logue();
+    void resolve_stack();
     void resolve_ret();
     void resolve_call();
-    void resolve_stack();
 
     // to make sure function args in consistence with register allocation result
     // !! used after sp move in prologue
     void coordinate_func_args();
 
-    void insert_inst(mir::MIR_INST op, std::vector<mir::Value *> vec);
-
     struct ArgInfo {
         struct _info {
             bool valid{false};
             bool is_float;
-            // mir::Register::RegIDType vreg;
-            std::variant<mir::Offset, mir::PhysicalRegister *> location;
+            // the immediate is just a workaround for call pass arg case
+            std::variant<mir::Offset, mir::PhysicalRegister *, mir::Immediate *>
+                location;
         };
         std::array<_info, 8> int_args_in_reg;
         std::array<_info, 8> float_args_in_reg;
         std::vector<_info> args_in_stack;
     };
     // split function args to int/float, parse their location info
-    ArgInfo split_func_args() const;
+    ArgInfo split_func_args_logue_ver() const; // used during resolve logue
+    ArgInfo split_func_args_call_ver() const;  // used during expand call
 
-    // @brief: make sure immediate in range
-    //
-    // This function is for load/store like instructions:
-    // lw/ld/.. rd, offset(sp)
-    //
-    // @label: If label is speicified, use `label->add_inst`, else
-    // `insert_inst`
-    // @temp_reg: If overflow on 12bit imm, use that temp_reg as address reg
-    void safe_load_store(mir::MIR_INST, mir::PhysicalRegister *rd, int offset,
-                         mir::IPReg *temp_reg, mir::Label *label = nullptr);
+    struct StackPassResult {
+        mir::Offset stack_grow_size2;
+        std::map<mir::PhysicalRegister *, bool> changed;
+    };
+
+    // used for call inst, pass arguments
+    // after pass_args_stack, tmp regs backup:
+    // - t0: -8(sp)
+    // - t1: -16(sp)
+    // - ft0: -20(sp)
+    // @return: stack_grow_size2, that is grow size during pass on stack
+    StackPassResult pass_args_stack(const ArgInfo &,
+                                    mir::Offset stack_grow_size1);
+    void pass_args_in_reg(const ArgInfo &, mir::Offset stack_grow_size1,
+                          StackPassResult res, bool for_float);
+
+    /* @brief: make sure immediate in range
+     *
+     * This function is for load/store like instructions:
+     * lw/ld/.. rd, offset(sp)
+     *
+     * @label: If label is speicified, use `label->add_inst`, else
+     * `insert_inst`
+     * @tmp_reg: If overflow on 12bit imm, use that tmp_reg as address reg
+     * @return: If the tmp_reg is overwriten
+     */
+    bool safe_load_store(mir::MIR_INST, mir::PhysicalRegister *rd_or_rs,
+                         int offset, mir::IPReg *tmp_reg,
+                         mir::Label *label = nullptr);
+    bool stack_change(int delta, mir::IPReg *tmp_reg,
+                      mir::Label *label = nullptr);
+
+    mir::Instruction *insert_inst(mir::MIR_INST op,
+                                  std::vector<mir::Value *> vec);
+    mir::Instruction *gen_inst(mir::MIR_INST _op,
+                               std::vector<mir::Value *> operands,
+                               mir::Label *label);
+    mir::Instruction *move_same_type(mir::Value *dest, mir::Value *src,
+                                     mir::Label *label = nullptr);
+    mir::Instruction *comment(std::string &&s, mir::Label *label = nullptr);
 
     // return a set containing physical regs which hold valid value,
     // relying on the data in `_upgrade_context`
     std::set<mir::Register::RegIDType>
-    current_critical_regs(bool want_float) const;
+    current_critical_regs(bool want_float,
+                          mir::PhysicalRegister::Saver s =
+                              mir::PhysicalRegister::Saver::None) const;
 };
 
 }; // namespace codegen
