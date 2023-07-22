@@ -592,18 +592,18 @@ any MIRBuilder::visit(const ir::GetElementPtrInst *instruction) {
     vector<int> sizes;
     auto elem_type =
         arr_ptr->get_type()->as<ir::PointerType>()->get_elem_type();
-    // first idx of pointer type should always be zero, ignore it
-    assert(operands[1]->as<ir::ConstInt>()->val() == 0);
     for (size_t i = 2; i < operands.size(); i++) {
+        auto elem_arr_type = elem_type->as<ir::ArrayType>();
+        sizes.push_back(elem_arr_type->get_elem_cnt());
+        elem_type = elem_arr_type->get_elem_type();
+    }
+    for (size_t i = 1; i < operands.size(); i++) {
         auto &op = operands[i];
         if (op->is<ir::ConstInt>()) {
             idxs.push_back(op->as<ir::ConstInt>()->val());
         } else {
             idxs.push_back(value_map.at(op));
         }
-        auto elem_arr_type = elem_type->as<ir::ArrayType>();
-        sizes.push_back(elem_arr_type->get_elem_cnt());
-        elem_type = elem_arr_type->get_elem_type();
     }
     // take basic type size as a size
     if (elem_type->is_basic_type()) {
@@ -615,10 +615,11 @@ any MIRBuilder::visit(const ir::GetElementPtrInst *instruction) {
     // take array address as an index
     auto [is_address_complete, address] = parse_address(arr_ptr);
     idxs.push_back(address);
-    assert(sizes.size() == idxs.size());
+    assert(sizes.size() + 1 == idxs.size());
 
     // generate multi-add sequence for gep
-    variant<int, Value *> off = 0;
+    variant<int, Value *> off = idxs.front();
+    idxs.erase(idxs.begin());
     auto is_leading_const = [&]() { return holds_alternative<int>(off); };
     for (size_t i = 0; i < idxs.size(); i++) {
         auto &idx = idxs[i];
