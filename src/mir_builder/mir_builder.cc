@@ -582,46 +582,72 @@ any MIRBuilder::visit(const ir::CallInst *instruction) {
 }
 
 any MIRBuilder::visit(const ir::GetElementPtrInst *instruction) {
-    auto operands = instruction->operands();
-    auto ptr_elem_type =
-        as_a<ir::PointerType>(operands[0]->get_type())->get_elem_type();
-    IVReg *offset_reg{nullptr}, *tmp_reg{nullptr};
-    // first dim offset
-    auto imm_result = parse_imm(operands[1]);
-    assert(imm_result.is_undef == false);
-    if (imm_result.is_const)
-        offset_reg = load_imm(imm_result.val);
-    else
-        offset_reg = as_a<IVReg>(value_map.at(operands[1]));
+    auto &operands = instruction->operands();
 
-    ir::Type *type = ptr_elem_type;
-    for (unsigned i = 2; i < operands.size(); ++i) {
-        auto arr_type = as_a<ir::ArrayType>(type);
-        tmp_reg = load_imm(arr_type->get_elem_cnt());
-        cur_label->add_inst(MUL, {offset_reg, offset_reg, tmp_reg});
+    auto arr_ptr = operands[0];
+    IVReg *res_reg = as_a<IVReg>(value_map.at(instruction));
 
-        auto imm_result = parse_imm(operands[i]);
-        assert(imm_result.is_undef == false);
-        if (imm_result.is_const)
-            tmp_reg = load_imm(imm_result.val);
-        else
-            tmp_reg = as_a<IVReg>(value_map.at(operands[i]));
-        cur_label->add_inst(ADD, {offset_reg, offset_reg, tmp_reg});
-        type = arr_type->get_elem_type();
+    // parse array index and element size
+    vector<variant<int, Value *>> idxs;
+    vector<int> sizes;
+    auto elem_type =
+        arr_ptr->get_type()->as<ir::PointerType>()->get_elem_type();
+    // first idx of pointer type should always be zero, ignore it
+    assert(operands[1]->as<ir::ConstInt>()->val() == 0);
+    for (size_t i = 2; i < operands.size(); i++) {
+        auto &op = operands[i];
+        if (op->is<ir::ConstInt>()) {
+            idxs.push_back(op->as<ir::ConstInt>()->val());
+        } else {
+            idxs.push_back(value_map.at(op));
+        }
+        auto elem_arr_type = elem_type->as<ir::ArrayType>();
+        sizes.push_back(elem_arr_type->get_elem_cnt());
+        elem_type = elem_arr_type->get_elem_type();
     }
+    // take basic type size as a size
+    if (elem_type->is_basic_type()) {
+        sizes.push_back(BASIC_TYPE_SIZE);
+    } else {
+        sizes.push_back(elem_type->as<ir::ArrayType>()->get_total_cnt() *
+                        BASIC_TYPE_SIZE);
+    }
+    // take array address as an index
+    auto [is_address_complete, address] = parse_address(arr_ptr);
+    idxs.push_back(address);
+    assert(sizes.size() == idxs.size());
 
-    size_t remaining_offset;
-    if (type->is_basic_type())
-        remaining_offset = BASIC_TYPE_SIZE;
-    else
-        remaining_offset =
-            as_a<ir::ArrayType>(type)->get_total_cnt() * BASIC_TYPE_SIZE;
-    tmp_reg = load_imm(remaining_offset);
-    cur_label->add_inst(MUL, {offset_reg, offset_reg, tmp_reg});
+    // generate multi-add sequence for gep
+    variant<int, Value *> off = 0;
+    auto is_leading_const = [&]() { return holds_alternative<int>(off); };
+    for (size_t i = 0; i < idxs.size(); i++) {
+        auto &idx = idxs[i];
+        auto &size = sizes[i];
 
-    auto [complete, address] = parse_address(operands[0]);
-    auto result_reg = value_map.at(instruction);
-    cur_label->add_inst(ADD, {result_reg, address, offset_reg}, complete);
+        // multiply
+        if (is_leading_const()) {
+            off = get<int>(off) * size;
+        } else {
+            auto off_reg = get<Value *>(off);
+            cur_label->add_inst(MUL, {off_reg, off_reg, load_imm(size)});
+        }
+
+        // add
+        if (is_leading_const() and holds_alternative<int>(idx)) {
+            off = get<int>(idx) + get<int>(off);
+        } else {
+            if (is_leading_const()) {
+                // encountered the first variable index, allocate reg for off
+                off = load_imm(get<int>(off), res_reg);
+            }
+            auto off_reg = get<Value *>(off);
+            auto idx_reg = holds_alternative<int>(idx) ? load_imm(get<int>(idx))
+                                                       : get<Value *>(idx);
+            // the last idx should be array's base address
+            bool complete = (i == idxs.size() - 1) ? is_address_complete : true;
+            cur_label->add_inst(ADD, {off_reg, off_reg, idx_reg}, complete);
+        }
+    }
 
     return {};
 }
