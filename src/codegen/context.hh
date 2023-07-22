@@ -10,25 +10,30 @@ enum class Role { Full, NameOnly };
 
 struct Context {
     static const char *TAB;
+
+    unsigned indent_level{0};
+
     Stage stage;
     Role role;
-    unsigned indent_level{0};
     const codegen::RegAlloc &allocator;
+    bool output_comment{true};
 
     const mir::Function *cur_function{nullptr};
 
     // constructors
-    explicit Context(Stage s, Role r, const codegen::RegAlloc &alloc)
-        : stage(s), role(r), allocator(alloc) {}
+    explicit Context(Stage s, Role r, const codegen::RegAlloc &alloc,
+                     bool comment)
+        : stage(s), role(r), allocator(alloc), output_comment(comment) {}
     explicit Context(const Context &c)
         : stage(c.stage), role(c.role), allocator(c.allocator),
-          cur_function(c.cur_function) {}
+          output_comment(c.output_comment), cur_function(c.cur_function) {}
     Context(const Context &&c)
         : stage(c.stage), role(c.role), allocator(c.allocator),
-          cur_function(c.cur_function) {}
+          output_comment(c.output_comment), cur_function(c.cur_function) {}
 
     Context name_only() const {
-        Context name_only_context{stage, Role::NameOnly, allocator};
+        Context name_only_context{*this};
+        name_only_context.role = Role::NameOnly;
         return name_only_context;
     }
     Context indent() const {

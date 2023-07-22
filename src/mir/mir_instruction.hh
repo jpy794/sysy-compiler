@@ -7,6 +7,7 @@
 #include "utils.hh"
 #include <array>
 #include <cassert>
+#include <string>
 #include <vector>
 
 namespace mir {
@@ -81,6 +82,17 @@ enum MIR_INST {
     SW,
     SD,
     FSW, // fsw f0, 0(x0)
+    /* special one */
+    COMMENT,
+};
+
+class Comment : public Value {
+    friend class ValueManager;
+    Comment(std::string s) : _comment(s) {}
+    std::string _comment;
+    virtual void dump(std::ostream &os, const Context &context) const {
+        os << _comment;
+    }
 };
 
 class Instruction final : public ilist<Instruction>::node {

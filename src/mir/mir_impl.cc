@@ -113,8 +113,10 @@ const map<MIR_INST, string_view> MIR_INST_NAME = {
     {SetEQZ, "seqz"},
     {SetNEQZ, "snez"},
     {Call, "call"},
-    {Ret, "ret"}
+    {Ret, "ret"},
+    {COMMENT, "#"},
     // end
+
 };
 
 bool Instruction::will_write_register() const {
@@ -222,6 +224,9 @@ void Instruction::dump(std::ostream &os, const Context &context) const {
 
     auto indent = [&]() { resolve_indent(os, context); };
 
+    if (_opcode == COMMENT and not context.output_comment)
+        return;
+
     switch (context.stage) {
     case Stage::stage1: {
         auto inst_id = context.allocator.get_cfg_info(cur_func).instid.at(this);
@@ -251,7 +256,6 @@ void Instruction::dump(std::ostream &os, const Context &context) const {
     } break;
     case Stage::stage2:
         // instruction content
-        // TODO special case for instructions with offset
         indent();
         os << MIR_INST_NAME.at(_opcode) << " ";
         if (is_load_store()) {
