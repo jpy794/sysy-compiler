@@ -347,7 +347,7 @@ set<RegIDType> CodeGen::current_critical_regs(bool want_float,
     for (auto vreg : out_set) {
         if (contains(reg_map, vreg)) {
             auto preg = reg_map.at(vreg).reg;
-            if (saver == Saver::None or saver == preg->get_saver())
+            if (saver == preg->get_saver())
                 critical_regs.insert(preg->get_id());
         }
     }

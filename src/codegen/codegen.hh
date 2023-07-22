@@ -147,12 +147,11 @@ class CodeGen {
                                      mir::Label *label = nullptr);
     mir::Instruction *comment(std::string &&s, mir::Label *label = nullptr);
 
-    // return a set containing physical regs which hold valid value,
+    // @return a set containing physical regs which hold valid value,
     // relying on the data in `_upgrade_context`
     std::set<mir::Register::RegIDType>
     current_critical_regs(bool want_float,
-                          mir::PhysicalRegister::Saver s =
-                              mir::PhysicalRegister::Saver::None) const;
+                          mir::PhysicalRegister::Saver s) const;
 };
 
 }; // namespace codegen

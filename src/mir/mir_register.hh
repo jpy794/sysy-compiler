@@ -58,7 +58,24 @@ inline Register::RegIDType FVReg::TOTAL = 0;
 
 class PhysicalRegister : public Register {
   public:
-    enum class Saver { None, Caller, Callee };
+    class Saver {
+      public:
+        enum SaverType { None, Caller, Callee, ALL };
+
+        Saver(SaverType mode) : _mode(mode) {}
+        bool operator==(const Saver &other) {
+            if (this->_mode == other._mode)
+                return true;
+            if (this->_mode == None or other._mode == None)
+                return false;
+            if (this->_mode == ALL or other._mode == ALL)
+                return true;
+            return false;
+        }
+
+      private:
+        SaverType _mode;
+    };
 
   protected:
     std::string _abi_name;
@@ -80,6 +97,8 @@ class IPReg final : public PhysicalRegister {
 
   public:
     virtual Saver get_saver() const {
+        if (_id == 1)
+            return Saver::ALL;
         if (_id == 0 or _id == 3 or _id == 4)
             return Saver::None;
         if (_id == 2 or _id == 8 or _id == 9 or (18 <= _id and _id >= 27))
@@ -150,6 +169,7 @@ class PhysicalRegisterManager {
     IPRegPtr sp() { return &_int_registers[2]; }
     IPRegPtr fp() { return &_int_registers[8]; }
 
+    // get registers which is seen as t{}/ft{}
     IPRegPtr temp(unsigned i) {
         assert(i <= 6);
         if (i <= 2)
@@ -165,6 +185,7 @@ class PhysicalRegisterManager {
             return &_float_registers[i + 20];
     }
 
+    // get registers which is seen as s{}/fs{}
     IPRegPtr saved(unsigned i) {
         assert(i <= 11);
         if (i <= 1)
@@ -180,6 +201,7 @@ class PhysicalRegisterManager {
             return &_float_registers[i + 16];
     }
 
+    // get registers which is used as argument
     IPRegPtr arg(unsigned i) {
         assert(i <= 7);
         return &_int_registers[i + 10];
@@ -188,7 +210,14 @@ class PhysicalRegisterManager {
         assert(i <= 7);
         return &_float_registers[i + 10];
     }
+    RegPtr get_arg_reg(unsigned i, bool want_float) {
+        if (want_float)
+            return farg(i);
+        else
+            return arg(i);
+    }
 
+    // get registers which is seen as a{}/fa{}
     IPRegPtr a(unsigned i) {
         assert(i <= 7);
         return &_int_registers[i + 10];
@@ -198,6 +227,7 @@ class PhysicalRegisterManager {
         return &_float_registers[i + 10];
     }
 
+    // get registers which is used as return value
     IPRegPtr ret_val_i(unsigned i) {
         assert(i <= 2);
         return &_int_registers[i + 10];
@@ -206,7 +236,14 @@ class PhysicalRegisterManager {
         assert(i <= 2);
         return &_float_registers[i + 10];
     }
+    RegPtr ret_val(unsigned i, bool want_float) {
+        if (want_float)
+            return ret_val_f(i);
+        else
+            return ret_val_i(i);
+    }
 
+    // get reg through basic idx
     IPRegPtr get_int_reg(unsigned i) {
         assert(i <= 31);
         return &_int_registers[i];
