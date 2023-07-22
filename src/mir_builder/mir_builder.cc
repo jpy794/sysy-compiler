@@ -618,8 +618,9 @@ any MIRBuilder::visit(const ir::GetElementPtrInst *instruction) {
     assert(sizes.size() + 1 == idxs.size());
 
     // generate multi-add sequence for gep
-    variant<int, Value *> off = idxs.front();
-    idxs.erase(idxs.begin());
+    variant<int, Value *> off = 0;
+    // insert a phantom size so that sizes.len == idxs.len
+    sizes.insert(sizes.begin(), 1);
     auto is_leading_const = [&]() { return holds_alternative<int>(off); };
     for (size_t i = 0; i < idxs.size(); i++) {
         auto &idx = idxs[i];
@@ -638,6 +639,7 @@ any MIRBuilder::visit(const ir::GetElementPtrInst *instruction) {
             off = get<int>(idx) + get<int>(off);
         } else {
             if (is_leading_const()) {
+                // FIXME: if off == 0, this li is redundant
                 // encountered the first variable index, allocate reg for off
                 off = load_imm(get<int>(off), res_reg);
             }
