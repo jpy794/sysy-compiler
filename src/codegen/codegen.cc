@@ -132,6 +132,49 @@ Instruction *CodeGen::move_same_type(Value *dest, Value *src, Label *label) {
         throw unreachable_error{"register is not same type"};
 }
 
+Instruction *CodeGen::safe_imm_inst(MIR_INST op_imm, MIR_INST op_rr, IPReg *rd,
+                                    IPReg *rs, int imm, Label *label) {
+    if (Imm12bit::check_in_range(imm))
+        return gen_inst(op_imm, {rd, rs, create_imm(imm)}, label);
+    else {
+        gen_inst(LoadImmediate, {rd, create_imm(imm, 32)}, label);
+        return gen_inst(op_rr, {rd, rs, rd}, label);
+    }
+}
+bool CodeGen::distinguish_stack_usage(PhysicalRegister *rd,
+                                      StackObject *stack_object,
+                                      IPReg *tmp_addr_reg,
+                                      Offset off_addition) {
+
+    MIR_INST load_op;
+    switch (stack_object->get_type()) {
+    case BasicType::INT:
+        load_op = LD; // FIXME
+        break;
+    case BasicType::FLOAT:
+        load_op = FLW;
+        break;
+    case BasicType::VOID:
+        throw unreachable_error{};
+    }
+
+    auto func_frame = _upgrade_context.func->get_frame();
+    int cur_off = Offset2int(func_frame.offset.at(stack_object) + off_addition);
+
+    switch (stack_object->get_reason()) {
+    case StackObject::Reason::Alloca: { // need address
+        assert(is_a<IPReg>(rd));
+        auto int_rd = as_a<IPReg>(rd);
+        safe_imm_inst(ADDI, ADD, int_rd, sp, cur_off);
+        return false;
+    }
+    case StackObject::Reason::Spilled: // need value
+        return safe_load_store(load_op, rd, cur_off, tmp_addr_reg);
+    case StackObject::Reason::CalleeSave:
+        throw unreachable_error{};
+    }
+}
+
 Instruction *CodeGen::comment(string &&s, Label *label) {
     return gen_inst(COMMENT, {value_mgr.create<Comment>(s)}, label);
 }
@@ -141,7 +184,6 @@ CodeGen::ArgInfo CodeGen::split_func_args_logue_ver() const {
     auto &arg_spilled_location = _upgrade_context.arg_spilled_location;
     auto &ireg_map = _allocator.get_reg_map(func, false);
     auto &freg_map = _allocator.get_reg_map(func, true);
-    auto &frame = func->get_frame();
     ArgInfo info;
     unsigned i_idx = 0, f_idx = 0;
     for (auto arg : func->get_args()) {
@@ -153,7 +195,7 @@ CodeGen::ArgInfo CodeGen::split_func_args_logue_ver() const {
 
         decltype(ArgInfo::_info::location) location;
         if (contains(arg_spilled_location, arg))
-            location = frame.offset.at(arg_spilled_location.at(arg));
+            location = arg_spilled_location.at(arg);
         else {
             auto preg_id = reg_map.at(arg->get_id()).reg->get_id();
             if (is_float)
@@ -182,7 +224,8 @@ void CodeGen::coordinate_func_args() {
      * - if spilled during reg-allocation, store a{} into mem */
     auto ArgResolver = overloaded{
         // arg is allocated to stack during reg allocation
-        [&](Offset off) {
+        [&](StackObject *stack_object) {
+            auto off = func->get_frame().offset.at(stack_object);
             MIR_INST store_op;
             if (is_a<FPReg>(convetion_reg)) {
                 throw not_implemented_error{};
@@ -543,7 +586,6 @@ void CodeGen::resolve_ret() {
 }
 
 CodeGen::ArgInfo CodeGen::split_func_args_call_ver() const {
-    auto func = _upgrade_context.func;
     auto call = _upgrade_context.inst;
     struct ArgInfo arg_info;
     unsigned i_idx = 0, f_idx = 0;
@@ -555,7 +597,7 @@ CodeGen::ArgInfo CodeGen::split_func_args_call_ver() const {
         if (is_a<MemObject>(arg)) {
             auto stack_object = as_a<StackObject>(arg);
             is_float = stack_object->get_type() == BasicType::FLOAT;
-            location = func->get_frame().offset.at(stack_object);
+            location = stack_object;
         } else if (is_a<PhysicalRegister>(arg)) {
             auto preg = as_a<PhysicalRegister>(arg);
             is_float = is_a<FPReg>(arg);
@@ -625,16 +667,16 @@ CodeGen::StackPassResult CodeGen::pass_args_stack(const ArgInfo &arg_info,
             value_reg = t0;
             tmp_addr_reg = t1;
             changed.at(t0) = true;
-        } else {
+        } else if (holds_alternative<StackObject *>(info.location)) {
             value_reg =
                 info.is_float ? ft0 : static_cast<PhysicalRegister *>(t0);
             tmp_addr_reg = t1;
-            Offset off = stack_grow_size1 + stack_grow_size2 +
-                         get<Offset>(info.location);
-            changed.at(t1) |=
-                safe_load_store(load_op, value_reg, Offset2int(off), t1);
+            changed.at(t1) |= distinguish_stack_usage(
+                value_reg, get<StackObject *>(info.location), t1,
+                stack_grow_size1 + stack_grow_size2);
             changed.at(value_reg) = true;
-        }
+        } else
+            throw unreachable_error{};
         changed.at(tmp_addr_reg) |=
             safe_load_store(store_op, value_reg,
                             Offset2int(i * TARGET_MACHINE_SIZE), tmp_addr_reg);
@@ -746,7 +788,6 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
     const auto &order = order_parser.order;
     const auto &backup = order_parser.backup;
 
-    auto tmp_reg = for_float ? ft0 : static_cast<PhysicalRegister *>(t0);
     const auto move_op = for_float ? FMove : Move;
     const auto load_op = for_float ? FLW : LD; // FIXME LD or LW?
 
@@ -769,10 +810,9 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
     // the other args
     // the overloaded function below need caller set target_reg
     auto ArgValueParser = overloaded{
-        [&](Offset off) {
-            auto cur_off = off + stack_grow_size1 + res.stack_grow_size2;
-            safe_load_store(load_op, tmp_reg, Offset2int(cur_off), t0);
-            move_same_type(target_reg, tmp_reg);
+        [&](StackObject *stack_object) {
+            auto add_off = stack_grow_size1 + res.stack_grow_size2;
+            distinguish_stack_usage(target_reg, stack_object, t0, add_off);
         },
         [&](PhysicalRegister *preg) {
             insert_inst(COMMENT,
@@ -863,7 +903,6 @@ void CodeGen::resolve_call() {
     pass_args_in_reg(arg_info, stack_grow_size1, stack_res, true);
 
     insert_inst(Call, {called_func});
-    // TODO return value
     stack_change(Offset2int(stack_res.stack_grow_size2), t0);
     if (ret_location) {
         if (is_a<PhysicalRegister>(ret_location))
@@ -925,6 +964,7 @@ void CodeGen::resolve_stack() {
     if (t_id == 0) // no stack object here
         return;
 
+    // TODO backup for t regs only on t is in use case
     Offset stack_grow_size = (t_id * TARGET_MACHINE_SIZE);
 
     // if overflow, use a new temp reg to express the address
@@ -953,11 +993,13 @@ void CodeGen::resolve_stack() {
             continue;
         }
         const auto &resolver = core.at(op);
-        auto temp_value_reg = preg_mgr.temp(resolver.t_id);
-        auto offset = Offset2int(stack_grow_size + resolver.location);
+        auto tmp_reg = preg_mgr.temp(resolver.t_id);
+        auto off_addition = stack_grow_size;
 
-        safe_load_store(LD, temp_value_reg, offset, tmp_addr_reg);
-        new_operands.push_back(temp_value_reg);
+        distinguish_stack_usage(tmp_reg, as_a<StackObject>(op), tmp_addr_reg,
+                                off_addition);
+
+        new_operands.push_back(tmp_reg);
     }
 
     if (inst->is_branch_inst()) {
@@ -987,7 +1029,8 @@ void CodeGen::resolve_stack() {
     }
     insert_inst(ADDI, {sp, sp, create_imm(stack_grow_size)});
 
-    label->get_insts().erase(inst);
+    inst->degenerate_to_comment();
+    // label->get_insts().erase(inst);
 }
 
 Instruction *CodeGen::insert_inst(mir::MIR_INST op,

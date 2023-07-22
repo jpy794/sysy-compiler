@@ -95,7 +95,8 @@ class CodeGen {
             bool valid{false};
             bool is_float;
             // the immediate is just a workaround for call pass arg case
-            std::variant<mir::Offset, mir::PhysicalRegister *, mir::Immediate *>
+            std::variant<mir::StackObject *, mir::PhysicalRegister *,
+                         mir::Immediate *>
                 location;
         };
         std::array<_info, 8> int_args_in_reg;
@@ -137,6 +138,25 @@ class CodeGen {
                          mir::Label *label = nullptr);
     bool stack_change(int delta, mir::IPReg *tmp_reg,
                       mir::Label *label = nullptr);
+
+    // stack object in operands may be handled in different ways:
+    // - Alloca: used for pointer, need to get its address
+    // - Spilled: meaning it's spilled from a vreg, representing a value
+    // - Callee Save: bad case
+    //
+    // @off_addition: typically the offset of stack_object is from frame info,
+    // but stack may be changed at the time, so `off_addition` is used to get
+    // correct location
+    // @return: if tmp_addr_reg is overwriten
+    // use insert inst only according to the function's semantic.
+    bool distinguish_stack_usage(mir::PhysicalRegister *rd,
+                                 mir::StackObject *stack_object,
+                                 mir::IPReg *tmp_addr_reg,
+                                 mir::Offset off_addition);
+
+    mir::Instruction *safe_imm_inst(mir::MIR_INST op_imm, mir::MIR_INST op_rr,
+                                    mir::IPReg *rd, mir::IPReg *rs, int imm,
+                                    mir::Label *label = nullptr);
 
     mir::Instruction *insert_inst(mir::MIR_INST op,
                                   std::vector<mir::Value *> vec);

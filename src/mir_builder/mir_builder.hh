@@ -189,13 +189,14 @@ class MIRBuilder : public ir::InstructionVisitor {
                                    StackObject::Reason::Alloca);
     }
 
+    // NOTE the bool return which means complete is aborted now
     std::pair<bool, Value *> parse_address(ir::Value *irptr) {
         if (is_a<ir::GlobalVariable>(irptr)) {
             return {true, load_global(as_a<ir::GlobalVariable>(irptr))};
         } else if (is_a<ir::GetElementPtrInst>(irptr)) {
-            return {false, value_map.at(irptr)};
+            return {true, value_map.at(irptr)};
         } else if (is_a<ir::Argument>(irptr)) {
-            return {false, value_map.at(irptr)};
+            return {true, value_map.at(irptr)};
         } else if (is_a<ir::AllocaInst>(irptr)) {
             return {false, value_map.at(irptr)};
         } else
