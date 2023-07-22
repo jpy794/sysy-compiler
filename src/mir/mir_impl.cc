@@ -144,11 +144,14 @@ ostream &operator<<(ostream &os, const codegen::LiveInterVal &interval) {
 }
 
 void Module::dump(std::ostream &os, const Context &context) const {
+    os << ".text\n";
     for (auto func : _functions) {
         if (not func->is_definition())
             continue;
         func->dump(os, context);
     }
+    // LA would fail if .data is not set
+    os << ".data\n";
     // output global at the end
     for (auto global : _globals) {
         global->dump(os, context);
