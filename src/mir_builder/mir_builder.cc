@@ -533,8 +533,16 @@ any MIRBuilder::visit(const ir::StoreInst *instruction) {
             }
             auto value_reg = load_imm(ival);
             int off = pos * BASIC_TYPE_SIZE;
-            cur_label->add_inst(SW, {value_reg, create<Imm12bit>(off), address},
-                                complete);
+            if (Imm12bit::check_in_range(off)) {
+                cur_label->add_inst(
+                    SW, {value_reg, create<Imm12bit>(off), address}, complete);
+            } else {
+                auto addr_reg = create<IVReg>();
+                cur_label->add_inst(ADD, {addr_reg, load_imm(off), address},
+                                    complete);
+                cur_label->add_inst(SW,
+                                    {value_reg, create<Imm12bit>(0), addr_reg});
+            }
         }
 
     } else
