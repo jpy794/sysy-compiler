@@ -269,7 +269,7 @@ void CodeGen::coordinate_func_args() {
     // arguments passed on stack
     for (unsigned i = 0; i < arg_info.args_in_stack.size(); ++i) {
         auto stack_arg_info = arg_info.args_in_stack.at(i);
-        auto off = (frame_size + i * BASIC_TYPE_SIZE);
+        auto off = (frame_size + i * TARGET_MACHINE_SIZE);
         MIR_INST load_op;
         if (stack_arg_info.is_float) {
             throw not_implemented_error{};
