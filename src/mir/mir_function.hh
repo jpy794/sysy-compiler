@@ -117,8 +117,7 @@ class Function : public Value {
         return _labels.back();
     }
     template <typename... Args> StackObject *add_local_var(Args... args) {
-        _local_vars.push_back(
-            ValueManager::get().create<StackObject>(args...));
+        _local_vars.push_back(ValueManager::get().create<StackObject>(args...));
         return _local_vars.back();
     }
     template <typename... Args> CalleeSave *add_callee_save(Args... args) {
