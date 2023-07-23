@@ -890,14 +890,14 @@ void CodeGen::resolve_call() {
         MIR_INST float_op = before_call ? FSW : LW;
         Offset off = 0;
         for (auto ireg_id : critical_iregs) { // int registers
-            off += TARGET_MACHINE_SIZE;
             auto ireg = preg_mgr.get_int_reg(ireg_id);
             insert_inst(int_op, {ireg, create_imm(off), sp});
+            off += TARGET_MACHINE_SIZE;
         }
         for (auto freg_id : critical_fregs) { // float registers
-            off += BASIC_TYPE_SIZE;
             auto freg = preg_mgr.get_float_reg(freg_id);
             insert_inst(float_op, {freg, create_imm(off), sp});
+            off += BASIC_TYPE_SIZE;
         }
         if (not before_call) // recover sp
             stack_change(stack_grow_size1, nullptr);
