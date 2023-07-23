@@ -484,6 +484,22 @@ void CodeGen::upgrade_step1() {
             }
         }
 
+    // add physical regs used by function arguments to callee_saves
+    for (auto arg : func->get_args()) {
+        bool is_float = is_a<FVReg>(arg);
+        auto &spilled_set = is_float ? float_spilled : int_spilled;
+        auto &reg_map = is_float ? float_reg_map : int_reg_map;
+        auto &callee_saves = is_float ? float_callee_saves : int_callee_saves;
+        auto vreg_id = arg->get_id();
+        if (not contains(spilled_set, vreg_id)) {
+            auto preg_id = reg_map.at(vreg_id).reg->get_id();
+            auto preg = preg_mgr.get_reg(preg_id, is_float);
+            if (preg->get_saver() == Saver::Callee) {
+                callee_saves.insert(preg_id);
+            }
+        }
+    }
+
     // NOTE we may save all callee saves whether or not cur func uses them
     for (auto preg_id : int_callee_saves)
         func->add_callee_save(BasicType::INT, preg_id);
