@@ -56,8 +56,8 @@ int main(int argc, char **argv) {
     pm.run({PassID<Mem2reg>(), PassID<LoopInvariant>(), PassID<DeadCode>()},
            false);
 
-    // codegen
-    codegen::CodeGen codegen{pm.release_module()};
+    // codegen, output stage1 asm only
+    codegen::CodeGen codegen{pm.release_module(), true};
     ofstream asm_output{output_path / (name_without_extension + ".s")};
     asm_output << codegen;
     asm_output.close();

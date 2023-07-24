@@ -50,11 +50,12 @@ class CodeGen {
     } _upgrade_context;
 
   public:
-    CodeGen(std::unique_ptr<ir::Module> &&ir_module) {
+    CodeGen(std::unique_ptr<ir::Module> &&ir_module, bool stage1_only = false) {
         mir::MIRBuilder builder(std::move(ir_module));
         _mir_module.reset(builder.release());
         _allocator.run(_mir_module.get());
-        upgrade();
+        if (not stage1_only)
+            upgrade();
     }
 
     friend std::ostream &operator<<(std::ostream &os, const CodeGen &c);
@@ -169,9 +170,11 @@ class CodeGen {
 
     // @return a set containing physical regs which hold valid value,
     // relying on the data in `_upgrade_context`
-    std::set<mir::Register::RegIDType>
+    std::set<mir::PhysicalRegister *>
     current_critical_regs(bool want_float,
                           mir::PhysicalRegister::Saver s) const;
+
+    mir::MIR_INST load_store_op(mir::StackObject *, bool is_load);
 };
 
 }; // namespace codegen
