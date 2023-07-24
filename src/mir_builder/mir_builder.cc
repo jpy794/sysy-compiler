@@ -10,7 +10,9 @@
 #include "mir_value.hh"
 #include "type.hh"
 #include "value.hh"
+#include <cassert>
 #include <new>
+#include <vector>
 
 using namespace std;
 using namespace mir;
@@ -410,6 +412,7 @@ void MIRBuilder::phi_elim_at_the_end() {
     for (auto instruction : phi_list) {
         auto result_reg = value_map.at(instruction);
         auto &operands = instruction->operands();
+        auto is_float = is_a<FVReg>(result_reg);
         for (unsigned i = 0; i < operands.size(); i += 2) {
             auto irvalue = operands[i];
             auto imm_result = parse_imm(irvalue);
@@ -417,13 +420,22 @@ void MIRBuilder::phi_elim_at_the_end() {
                 continue;
             auto prev_label = as_a<Label>(value_map.at(operands[i + 1]));
             auto first_branch = prev_label->get_first_branch();
-            if (imm_result.is_const)
-                prev_label->insert_before(
-                    first_branch, LoadImmediate,
-                    {result_reg, create<Imm32bit>(imm_result.val)});
-            else
-                prev_label->insert_before(first_branch, Move,
-                                          {result_reg, value_map.at(irvalue)});
+            auto insert_inst = [&](MIR_INST op, vector<Value *> operands) {
+                prev_label->insert_before(first_branch, op, operands);
+            };
+            if (imm_result.is_const) {
+                assert(imm_result.is_float == is_float);
+                if (is_float) {
+                    auto ireg = create<IVReg>();
+                    insert_inst(LoadImmediate,
+                                {ireg, create<Imm32bit>(imm_result.val)});
+                    insert_inst(FMVWX, {result_reg, ireg});
+                } else
+                    insert_inst(LoadImmediate,
+                                {result_reg, create<Imm32bit>(imm_result.val)});
+            } else
+                insert_inst(is_float ? FMove : Move,
+                            {result_reg, value_map.at(irvalue)});
         }
     }
 }
@@ -474,11 +486,7 @@ any MIRBuilder::visit(const ir::StoreInst *instruction) {
         auto value_reg = imm_result.is_const ? load_imm(imm_result.val)
                                              : value_map.at(value);
         assert(not(imm_result.is_const and imm_result.is_float));
-        if (complete)
-            cur_label->add_inst(SW, {value_reg, create<Imm12bit>(0), address});
-        else
-            cur_label->add_inst(SW, {value_reg, create<Imm12bit>(0), address},
-                                true);
+        cur_label->add_inst(SW, {value_reg, create<Imm12bit>(0), address});
     } else if (value->get_type()->is<ir::FloatType>()) {
         auto imm_result = parse_imm(value);
         assert(not imm_result.is_undef);
