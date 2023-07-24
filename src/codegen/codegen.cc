@@ -945,7 +945,7 @@ void CodeGen::resolve_stack() {
         rd_info.set(inst->get_operand(0));
 
     // 1. filter out the values that is not StackObject
-    set<PhysicalRegister *> tmp_regs_in_use;
+    set<PhysicalRegister *> tmp_regs_in_use, tmp_regs_save_if_critical;
     vector<StackObject *> stack_objects;
     for (unsigned i = (rd_info.rd_exist ? 1 : 0); i < inst->get_operand_num();
          ++i) {
@@ -968,12 +968,13 @@ void CodeGen::resolve_stack() {
         PhysicalRegister *tmp_reg = preg_mgr.get_temp_reg(idx, for_float);
         while (contains(tmp_regs_in_use, tmp_reg))
             tmp_reg = preg_mgr.get_temp_reg(++idx, for_float);
+        tmp_regs_in_use.insert(tmp_reg);
         return tmp_reg;
     };
     for (auto stack_object : stack_objects) {
         bool is_float = stack_object->get_type() == BasicType::FLOAT;
         PhysicalRegister *tmp_reg = find_tmp_reg(is_float);
-        tmp_regs_in_use.insert(tmp_reg);
+        tmp_regs_save_if_critical.insert(tmp_reg);
         tmp_reg_map.insert({stack_object, tmp_reg});
         if (is_float)
             load_order.push_front(stack_object);
@@ -986,9 +987,11 @@ void CodeGen::resolve_stack() {
         auto stack_object = rd_info.as_stack_object.value();
         auto is_float = stack_object->get_type() == BasicType::FLOAT;
         auto &idx = is_float ? f_idx : i_idx;
-        if (idx == 0) // no same type tmp-reg here
-            tmp_reg_map.insert({stack_object, find_tmp_reg(is_float)});
-        else { // there is at least 1 tmp-reg with same type
+        if (idx == 0) { // no same type tmp-reg here
+            auto tmp_reg = find_tmp_reg(is_float);
+            tmp_regs_save_if_critical.insert(tmp_reg);
+            tmp_reg_map.insert({stack_object, tmp_reg});
+        } else { // there is at least 1 tmp-reg with same type
             PhysicalRegister *reused_tmp_reg;
             if (is_float)
                 reused_tmp_reg = tmp_reg_map.at(load_order.front());
@@ -1004,19 +1007,16 @@ void CodeGen::resolve_stack() {
     // 4. parse critical regs(wipe off the dest reg), which are to be saved
     auto critical_iregs = current_critical_regs(false, Saver::ALL);
     auto critical_fregs = current_critical_regs(true, Saver::ALL);
-    decltype(tmp_regs_in_use) critical_tmp_iregs, critical_tmp_fregs;
-    set_intersection(tmp_regs_in_use.begin(), tmp_regs_in_use.end(),
-                     critical_iregs.begin(), critical_iregs.end(),
+    decltype(tmp_regs_save_if_critical) critical_tmp_iregs, critical_tmp_fregs;
+    set_intersection(tmp_regs_save_if_critical.begin(),
+                     tmp_regs_save_if_critical.end(), critical_iregs.begin(),
+                     critical_iregs.end(),
                      inserter(critical_tmp_iregs, critical_tmp_iregs.begin()));
-    set_intersection(tmp_regs_in_use.begin(), tmp_regs_in_use.end(),
-                     critical_fregs.begin(), critical_fregs.end(),
+    set_intersection(tmp_regs_save_if_critical.begin(),
+                     tmp_regs_save_if_critical.end(), critical_fregs.begin(),
+                     critical_fregs.end(),
                      inserter(critical_tmp_fregs, critical_tmp_fregs.begin()));
-    if (rd_info.rd_exist and is_a<PhysicalRegister>(rd_info.rd_location)) {
-        // wipe off the dest reg, because it will be overwriten right away
-        auto preg = as_a<PhysicalRegister>(rd_info.rd_location);
-        critical_tmp_iregs.erase(preg);
-        critical_tmp_fregs.erase(preg);
-    }
+
     Offset stack_grow_size = critical_tmp_iregs.size() * TARGET_MACHINE_SIZE +
                              critical_tmp_fregs.size() * BASIC_TYPE_SIZE;
 
