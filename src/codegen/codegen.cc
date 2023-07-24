@@ -253,21 +253,46 @@ void CodeGen::coordinate_func_args() {
             break;
         visit(ArgResolver, info.location);
     }
-    convetion_reg = preg_mgr.temp(0);
+
+    // reorder args passed by stack,
+    // spilled vreg first, then vreg mapped to preg
     auto frame_size = func->get_frame().size;
+    vector<pair<Offset, ArgInfo::_info>> reordered_args_in_stack;
+    // the last preg mapped to would become convetion reg so that it wouldn't be
+    // overwriten by previous use as a tmp reg
+    PhysicalRegister *int_convetion_reg{t0}, *float_convetion_reg{ft0};
+    for (size_t i = 0; i < arg_info.args_in_stack.size(); i++) {
+        auto &&info = arg_info.args_in_stack[i];
+        auto off = frame_size + i * TARGET_MACHINE_SIZE;
+        if (holds_alternative<PhysicalRegister *>(info.location)) {
+            reordered_args_in_stack.push_back({off, info});
+            auto preg = get<PhysicalRegister *>(info.location);
+            if (info.is_float) {
+                float_convetion_reg = preg;
+            } else {
+                int_convetion_reg = preg;
+            }
+        } else if (holds_alternative<StackObject *>(info.location)) {
+            reordered_args_in_stack.insert(reordered_args_in_stack.begin(),
+                                           {off, info});
+        } else {
+            throw unreachable_error{};
+        }
+    }
     // arguments passed on stack
-    for (unsigned i = 0; i < arg_info.args_in_stack.size(); ++i) {
-        auto stack_arg_info = arg_info.args_in_stack.at(i);
-        auto off = (frame_size + i * TARGET_MACHINE_SIZE);
+    for (auto &&[off, stack_arg_info] : reordered_args_in_stack) {
         MIR_INST load_op;
         if (stack_arg_info.is_float) {
-            convetion_reg = ft0;
+            convetion_reg = float_convetion_reg;
             load_op = FLW;
         } else {
-            convetion_reg = t0;
+            convetion_reg = int_convetion_reg;
             load_op = LD; // FIXME maybe ok?
         }
-        safe_load_store(load_op, convetion_reg, Offset2int(off), t1, entry);
+        // FIXME: is this tmp_reg correct for float?
+        auto tmp_reg = int_convetion_reg == t0 ? t1 : t0;
+        safe_load_store(load_op, convetion_reg, Offset2int(off), tmp_reg,
+                        entry);
         visit(ArgResolver, stack_arg_info.location);
     }
 }
@@ -961,6 +986,10 @@ void CodeGen::resolve_stack() {
     deque<StackObject *> load_order; // order: floats then ints
     map<StackObject *, PhysicalRegister *> tmp_reg_map;
     unsigned i_idx = 0, f_idx = 0;
+    // TODO:
+    // - select rd as tmp reg first as we do not need to save rd, though it
+    // could be critical
+    // - try selecting a reg that is not critical
     auto find_tmp_reg = [&](bool for_float) {
         auto &idx = for_float ? f_idx : i_idx;
         PhysicalRegister *tmp_reg = preg_mgr.get_temp_reg(idx, for_float);
