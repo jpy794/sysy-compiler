@@ -60,8 +60,11 @@ class CalleeSave : public StackObject {
 
   private:
     CalleeSave(BasicType type, Register::RegIDType id)
-        : StackObject(type, TARGET_MACHINE_SIZE, TARGET_MACHINE_SIZE,
-                      Reason::CalleeSave),
+        : StackObject(
+              type,
+              type == BasicType::INT ? TARGET_MACHINE_SIZE : BASIC_TYPE_SIZE,
+              type == BasicType::INT ? TARGET_MACHINE_SIZE : BASIC_TYPE_SIZE,
+              Reason::CalleeSave),
           _regid(id) {}
 
   public:

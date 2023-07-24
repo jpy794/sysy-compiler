@@ -41,6 +41,8 @@ using RegIDType = Register::RegIDType;
 
 // TODO
 // - distinguish register used bits for int registers: when to use lw/ld
+// - in mir_builder, we can leave immediate(int only for now) in the operands,
+// codegen will take care of it
 
 auto &preg_mgr = PhysicalRegisterManager::get();
 auto &value_mgr = ValueManager::get();
@@ -219,13 +221,7 @@ void CodeGen::coordinate_func_args() {
         // arg is allocated to stack during reg allocation
         [&](StackObject *stack_object) {
             auto off = func->get_frame().offset.at(stack_object);
-            MIR_INST store_op;
-            if (is_a<FPReg>(convetion_reg)) {
-                throw not_implemented_error{};
-                /* store_op = FSW */
-            } else {
-                store_op = SD; // FIXME is this right???
-            }
+            MIR_INST store_op = stack_object->store_op();
             // NOTE: use t1 as temp here, t0 may be used on
             // stack-pass case
             safe_load_store(store_op, convetion_reg, Offset2int(off), t1,
@@ -265,12 +261,11 @@ void CodeGen::coordinate_func_args() {
         auto off = (frame_size + i * TARGET_MACHINE_SIZE);
         MIR_INST load_op;
         if (stack_arg_info.is_float) {
-            throw not_implemented_error{};
             convetion_reg = ft0;
-            /* store_op = FLW */
+            load_op = FLW;
         } else {
             convetion_reg = t0;
-            load_op = LD; // FIXME is this right???
+            load_op = LD; // FIXME maybe ok?
         }
         safe_load_store(load_op, convetion_reg, Offset2int(off), t1, entry);
         visit(ArgResolver, stack_arg_info.location);
@@ -293,48 +288,31 @@ void CodeGen::resolve_logue() {
         return;
     }
 
+    auto resolve_callee = [&](bool backup) {
+        auto label = backup ? entry : exit;
+        for (auto save : func->get_callee_saves()) {
+            auto op = save->mem_op(not backup);
+            auto reg =
+                preg_mgr.get_reg(save->saved_reg_id(), save->is_float_reg());
+            auto off = Offset2int(frame.offset.at(save));
+            safe_load_store(op, reg, off, t0, label);
+        }
+    };
+
     /* prologue */
     stack_change(-Offset2int(frame.size), t0, entry); // stack grow
-    // save callee regs
-    for (auto save : func->get_callee_saves()) {
-        auto regid = save->saved_reg_id();
-        auto off = Offset2int(frame.offset.at(save));
-        MIR_INST store_op;
-        PhysicalRegister *src_reg;
-        if (save->is_float_reg()) {
-            // store_op = FSW;
-            // reg = preg_mgr.get_float_reg(regid);
-            throw not_implemented_error{};
-        } else {
-            store_op = SD;
-            src_reg = preg_mgr.get_int_reg(regid);
-        }
-        safe_load_store(store_op, src_reg, off, t0, entry);
-    }
-    // resolve args
+    resolve_callee(true);                             // save callee regs
+
+    /* resolve args */
     coordinate_func_args();
 
     // fp: we do not use it for now
     // entry->add_inst(ADDI, {preg_mgr.fp(), sp, create_imm(frame_size)});
 
     /* epilogue */
-    for (auto save : func->get_callee_saves()) {
-        auto regid = save->saved_reg_id();
-        auto off = Offset2int(frame.offset.at(save));
-        MIR_INST load_op;
-        PhysicalRegister *dest_reg;
-        if (save->is_float_reg()) {
-            // store_op = FLW;
-            // dest_reg = preg_mgr.get_float_reg(regid);
-            throw not_implemented_error{};
-        } else {
-            load_op = LD;
-            dest_reg = preg_mgr.get_int_reg(regid);
-        }
-        safe_load_store(load_op, dest_reg, off, t0, exit);
-    }
-    // stack change
+    resolve_callee(false);
     stack_change(Offset2int(frame.size), t0, exit);
+
     // return value is handled by prev labels
     exit->add_inst(Ret, {});
 }
@@ -563,33 +541,21 @@ void CodeGen::resolve_ret() {
     assert(inst->get_operand_num() <= 1);       // operands validaty
     if (inst->get_operand_num() == 1) {         // fill return value
         // physical register
-        PhysicalRegister *value_reg;
-        MIR_INST load_op;
-        switch (func->get_ret_type()) {
-        case BasicType::VOID:
-            throw unreachable_error{};
-        case BasicType::INT:
-            value_reg = preg_mgr.a(0);
-            load_op = LW;
-            break;
-        case BasicType::FLOAT:
-            /* value_reg = preg_mgr.fa(0);
-             * load_op = FLW; */
-            throw not_implemented_error{};
-            break;
-        }
-        // return value
-        auto ret_value = inst->get_operand(0);
-        if (is_a<Immediate>(ret_value)) {
-            insert_inst(LoadImmediate, {value_reg, ret_value});
-        } else if (is_a<PhysicalRegister>(ret_value)) {
-            if (ret_value != value_reg)
-                insert_inst(Move, {value_reg, ret_value});
-        } else if (is_a<StackObject>(ret_value)) {
-            auto stack_object = as_a<StackObject>(ret_value);
+        auto is_float = func->get_ret_type() == BasicType::FLOAT;
+        auto value_reg = preg_mgr.get_ret_val_reg(0, is_float);
+        // return value's location
+        auto ret_value_location = inst->get_operand(0);
+        if (is_a<Immediate>(ret_value_location)) {
+            insert_inst(LoadImmediate, {value_reg, ret_value_location});
+        } else if (is_a<PhysicalRegister>(ret_value_location)) {
+            if (ret_value_location != value_reg)
+                insert_inst(Move, {value_reg, ret_value_location});
+        } else if (is_a<StackObject>(ret_value_location)) {
+            auto stack_object = as_a<StackObject>(ret_value_location);
             assert(stack_object->get_type() == func->get_ret_type());
+            auto load_op = stack_object->load_op();
             auto offset = Offset2int(func->get_frame().offset.at(stack_object));
-            safe_load_store(load_op, value_reg, offset, preg_mgr.temp(0));
+            safe_load_store(load_op, value_reg, offset, t0);
         } else
             throw unreachable_error{};
     }
