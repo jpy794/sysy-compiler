@@ -549,7 +549,7 @@ void CodeGen::resolve_ret() {
             insert_inst(LoadImmediate, {value_reg, ret_value_location});
         } else if (is_a<PhysicalRegister>(ret_value_location)) {
             if (ret_value_location != value_reg)
-                insert_inst(Move, {value_reg, ret_value_location});
+                move_same_type(value_reg, ret_value_location);
         } else if (is_a<StackObject>(ret_value_location)) {
             auto stack_object = as_a<StackObject>(ret_value_location);
             assert(stack_object->get_type() == func->get_ret_type());
@@ -574,7 +574,7 @@ CodeGen::ArgInfo CodeGen::split_func_args_call_ver() const {
         decltype(ArgInfo::_info::location) location;
         if (is_a<MemObject>(arg)) {
             auto stack_object = as_a<StackObject>(arg);
-            is_float = stack_object->get_type() == BasicType::FLOAT;
+            is_float = stack_object->is_float_usage();
             location = stack_object;
         } else if (is_a<PhysicalRegister>(arg)) {
             auto preg = as_a<PhysicalRegister>(arg);
@@ -887,10 +887,8 @@ void CodeGen::resolve_call() {
         else if (is_a<StackObject>(ret_location)) {
             auto stack_object = as_a<StackObject>(ret_location);
             auto off = stack_grow_size1 + location.at(stack_object);
-            bool is_float = stack_object->get_type() == BasicType::FLOAT;
-            MIR_INST store_op = is_float ? FSW : SD; // FIXME
             safe_load_store(
-                store_op,
+                stack_object->store_op(),
                 preg_mgr.get_ret_val_reg(0, is_a<FPReg>(ret_location)),
                 Offset2int(off), t0);
 
@@ -972,7 +970,7 @@ void CodeGen::resolve_stack() {
         return tmp_reg;
     };
     for (auto stack_object : stack_objects) {
-        bool is_float = stack_object->get_type() == BasicType::FLOAT;
+        bool is_float = stack_object->is_float_usage();
         PhysicalRegister *tmp_reg = find_tmp_reg(is_float);
         tmp_regs_save_if_critical.insert(tmp_reg);
         tmp_reg_map.insert({stack_object, tmp_reg});
@@ -985,7 +983,7 @@ void CodeGen::resolve_stack() {
     // 3. resolve dest reg: tmp_reg can be reused
     if (rd_info.rd_exist and rd_info.as_stack_object.has_value()) {
         auto stack_object = rd_info.as_stack_object.value();
-        auto is_float = stack_object->get_type() == BasicType::FLOAT;
+        auto is_float = stack_object->is_float_usage();
         auto &idx = is_float ? f_idx : i_idx;
         if (idx == 0) { // no same type tmp-reg here
             auto tmp_reg = find_tmp_reg(is_float);
