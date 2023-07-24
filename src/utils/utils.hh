@@ -2,9 +2,11 @@
 
 #include <algorithm>
 #include <map>
+#include <set>
 #include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 
 template <typename Derived, typename Base> bool is_a(Base *base) {
     static_assert(std::is_base_of<Base, Derived>::value);
@@ -27,6 +29,16 @@ bool contains(const std::map<Key, Args...> &con, const Key &key) {
 
 template <typename Key, typename... Args>
 bool contains(const std::unordered_map<Key, Args...> &con, const Key &key) {
+    return con.find(key) != con.end();
+}
+
+template <typename Key, typename... Args>
+bool contains(const std::set<Key, Args...> &con, const Key &key) {
+    return con.find(key) != con.end();
+}
+
+template <typename Key, typename... Args>
+bool contains(const std::unordered_set<Key, Args...> &con, const Key &key) {
     return con.find(key) != con.end();
 }
 
