@@ -41,8 +41,6 @@ using RegIDType = Register::RegIDType;
 
 // TODO
 // - distinguish register used bits for int registers: when to use lw/ld
-// - distinguish pointer address and content in the MemObject!
-// - special register for ra
 
 auto &preg_mgr = PhysicalRegisterManager::get();
 auto &value_mgr = ValueManager::get();
@@ -1034,6 +1032,9 @@ void CodeGen::resolve_stack() {
         }
     }
 
+    if (tmp_reg_map.empty()) // no stack object in the inst
+        return;
+
     // 4. parse critical regs(wipe off the dest reg), which are to be saved
     auto critical_iregs = current_critical_regs(false, Saver::ALL);
     auto critical_fregs = current_critical_regs(true, Saver::ALL);
@@ -1044,6 +1045,12 @@ void CodeGen::resolve_stack() {
     set_intersection(tmp_regs_in_use.begin(), tmp_regs_in_use.end(),
                      critical_fregs.begin(), critical_fregs.end(),
                      inserter(critical_tmp_fregs, critical_tmp_fregs.begin()));
+    if (rd_info.rd_exist and is_a<PhysicalRegister>(rd_info.rd_location)) {
+        // wipe off the dest reg, because it will be overwriten right away
+        auto preg = as_a<PhysicalRegister>(rd_info.rd_location);
+        critical_tmp_iregs.erase(preg);
+        critical_tmp_fregs.erase(preg);
+    }
     Offset stack_grow_size = critical_tmp_iregs.size() * TARGET_MACHINE_SIZE +
                              critical_tmp_fregs.size() * BASIC_TYPE_SIZE;
 
