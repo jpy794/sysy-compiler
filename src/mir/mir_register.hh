@@ -88,6 +88,7 @@ class PhysicalRegister : public Register {
     }
     virtual Saver get_saver() const = 0;
     virtual bool is_arg_reg() const = 0;
+    virtual bool is_temp_reg() const = 0;
     virtual unsigned get_arg_idx() const = 0;
 };
 
@@ -106,6 +107,9 @@ class IPReg final : public PhysicalRegister {
         return Saver::Caller;
     }
     virtual bool is_arg_reg() const { return 10 <= _id and _id <= 17; }
+    virtual bool is_temp_reg() const {
+        return (5 <= _id and _id <= 7) or (28 <= _id and _id <= 31);
+    }
     virtual unsigned get_arg_idx() const {
         assert(is_arg_reg());
         return _id - 10;
@@ -123,6 +127,9 @@ class FPReg final : public PhysicalRegister {
         return Saver::Caller;
     }
     virtual bool is_arg_reg() const { return 10 <= _id and _id <= 17; }
+    virtual bool is_temp_reg() const {
+        return (0 <= _id and _id <= 7) or (28 <= _id and _id <= 31);
+    }
     virtual unsigned get_arg_idx() const {
         assert(is_arg_reg());
         return _id - 10;
@@ -184,6 +191,12 @@ class PhysicalRegisterManager {
         else
             return &_float_registers[i + 20];
     }
+    RegPtr get_temp_reg(unsigned i, bool want_float) {
+        if (want_float)
+            return ftemp(i);
+        else
+            return temp(i);
+    }
 
     // get registers which is seen as s{}/fs{}
     IPRegPtr saved(unsigned i) {
@@ -236,7 +249,7 @@ class PhysicalRegisterManager {
         assert(i <= 2);
         return &_float_registers[i + 10];
     }
-    RegPtr ret_val(unsigned i, bool want_float) {
+    RegPtr get_ret_val_reg(unsigned i, bool want_float) {
         if (want_float)
             return ret_val_f(i);
         else
