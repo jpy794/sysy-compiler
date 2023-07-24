@@ -849,7 +849,7 @@ void CodeGen::resolve_call() {
         if (before_call) // alloc stack space
             stack_change(-int(stack_grow_size1), nullptr);
         MIR_INST int_op = before_call ? SD : LD;
-        MIR_INST float_op = before_call ? FSW : LW;
+        MIR_INST float_op = before_call ? FSW : FLW;
         Offset off = 0;
         for (auto ireg : critical_iregs) { // int registers
             insert_inst(int_op, {ireg, create_imm(off), sp});
