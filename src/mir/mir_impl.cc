@@ -128,6 +128,13 @@ bool Instruction::is_load_store() const {
 
 /* MemObject functions */
 
+bool StackObject::is_float_usage() const {
+    if (_reason == Reason::Alloca)
+        return false;
+    else
+        return _type == BasicType::FLOAT;
+}
+
 MIR_INST StackObject::mem_op(bool load) const {
     if (_reason == Reason::Alloca) {
         // the case that stores into allocated stack object directly.

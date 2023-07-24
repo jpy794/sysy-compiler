@@ -50,6 +50,7 @@ class StackObject : public MemObject {
     MIR_INST load_op() const { return mem_op(true); }
     MIR_INST store_op() const { return mem_op(false); }
     MIR_INST mem_op(bool load) const;
+    bool is_float_usage() const;
 };
 
 class CalleeSave : public StackObject {
