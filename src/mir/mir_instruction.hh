@@ -1,12 +1,8 @@
 #pragma once
 
 #include "ilist.hh"
-#include "mir_memory.hh"
-#include "mir_register.hh"
 #include "mir_value.hh"
 #include "utils.hh"
-#include <array>
-#include <cassert>
 #include <string>
 #include <vector>
 
@@ -115,27 +111,15 @@ class Instruction final : public ilist<Instruction>::node {
     Value *get_operand(unsigned i) { return _operands.at(i); }
     const size_t get_operand_num() const { return _operands.size(); }
     MIR_INST get_opcode() const { return _opcode; }
-    void set_operand(unsigned i, Value *reg) {
-        assert(i < _operands.size());
-        assert(is_a<PhysicalRegister>(reg) or is_a<StackObject>(reg));
-        _operands[i] = reg;
-    }
+    void set_operand(unsigned i, Value *reg);
     void degenerate_to_comment();
 
     void dump(std::ostream &os, const Context &context) const;
     // each instruction writes 1 register(def) at most
     // the orther operands are use
     bool will_write_register() const;
-    bool is_branch_inst() const {
-        static const std::array branch_list = {
-            BEQ, BNE, BLT, BGE, Jump,
-        };
-        return contains(branch_list, _opcode);
-    }
-    bool is_load_store() const {
-        static const std::array load_store_list = {SD, SW, LD, LW, FLW, FSW};
-        return contains(load_store_list, _opcode);
-    }
+    bool is_branch_inst() const;
+    bool is_load_store() const;
 };
 
 }; // namespace mir

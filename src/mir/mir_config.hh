@@ -25,4 +25,6 @@ inline size_t ALIGN(size_t x, size_t alignment) {
     return ((x + (alignment - 1)) & ~(alignment - 1));
 }
 
+inline size_t SP_ALIGN(size_t x) { return ALIGN(x, SP_ALIGNMENT); }
+
 }; // namespace mir
