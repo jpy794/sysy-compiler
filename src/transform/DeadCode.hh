@@ -20,6 +20,8 @@ class DeadCode final : public pass::TransformPass {
     }
     virtual void run(pass::PassManager *mgr) override;
 
+    virtual bool always_invalid() const override { return true; }
+
   private:
     void mark_sweep(ir::Function *);
     void mark();
