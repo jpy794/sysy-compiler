@@ -126,6 +126,11 @@ bool Instruction::is_load_store() const {
     return contains(load_store_list, _opcode);
 }
 
+bool Instruction::should_round_towards_zero() const {
+    static const std::array rtz_list = {FCVTWS};
+    return contains(rtz_list, _opcode);
+}
+
 /* MemObject functions */
 
 bool StackObject::is_float_usage() const {
@@ -385,6 +390,9 @@ void Instruction::dump(std::ostream &os, const Context &context) const {
                 if (i != _operands.size() - 1)
                     os << ", ";
             }
+        }
+        if (should_round_towards_zero()) {
+            os << ", rtz";
         }
         os << "\n";
         break;

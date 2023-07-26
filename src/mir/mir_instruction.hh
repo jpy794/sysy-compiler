@@ -120,6 +120,7 @@ class Instruction final : public ilist<Instruction>::node {
     bool will_write_register() const;
     bool is_branch_inst() const;
     bool is_load_store() const;
+    bool should_round_towards_zero() const;
 };
 
 }; // namespace mir
