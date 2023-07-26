@@ -102,7 +102,7 @@ class IPReg final : public PhysicalRegister {
             return Saver::ALL;
         if (_id == 0 or _id == 3 or _id == 4)
             return Saver::None;
-        if (_id == 2 or _id == 8 or _id == 9 or (18 <= _id and _id >= 27))
+        if (_id == 2 or _id == 8 or _id == 9 or (18 <= _id and _id <= 27))
             return Saver::Callee;
         return Saver::Caller;
     }
