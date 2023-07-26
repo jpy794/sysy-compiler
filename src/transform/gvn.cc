@@ -157,8 +157,12 @@ GVN::intersect(shared_ptr<CongruenceClass> Ci, shared_ptr<CongruenceClass> Cj) {
         // the leader must be a phi inst under the case that there is no
         // other non-phi inst
         assert(::is_a<PhiInst>(Ck->leader));
-        Ck->phi_expr = as_a<PhiExpr>(valueExpr(Ck->leader));
-        Ck->val_expr = valueExpr(Ck->leader);
+        Ck->phi_expr = create_expr<PhiExpr>(
+            _bb, vector<shared_ptr<Expression>>{Ci->val_expr, Cj->val_expr});
+        Ck->val_expr = Ck->phi_expr;
+        for (auto mem : Ck->members) {
+            _val2expr[mem] = Ck->val_expr;
+        }
     }
     if (Ck->index == 0 && not Ck->members.empty())
         Ck->index = next_value_number++;
@@ -212,9 +216,6 @@ void GVN::detect_equivalences(Function *func) {
                 for (auto &inst_r : suc_bb->insts()) {
                     if (::is_a<PhiInst>(&inst_r)) {
                         auto inst = ::as_a<PhiInst>(&inst_r);
-                        if (not _val2expr[inst])
-                            _val2expr[inst] = create_expr<PhiExpr>(
-                                inst->operands().size() / 2);
                         // deal with the case that the origin of phi is also the
                         // phi of current bb
                         // op1 = phi opi, op1
@@ -234,8 +235,6 @@ void GVN::detect_equivalences(Function *func) {
                         }
                         assert(i < inst->operands().size());
                         auto oper = inst->get_operand(i - 1);
-                        as_a<PhiExpr>(_val2expr[inst])
-                            ->update_val(valueExpr(oper), i / 2);
                         bool flag = true;
                         for (auto &CC : _pout[_bb]) {
                             if (contains(CC->members, oper)) {
@@ -261,6 +260,7 @@ void GVN::detect_equivalences(Function *func) {
                 changed = true;
             }
         }
+        debugs << times << "\n";
         assert(times++ < 10);
     } while (changed);
 }
@@ -273,7 +273,7 @@ GVN::partitions GVN::transfer_function(Instruction *inst, partitions &pin) {
         }
     }
     auto ve = valueExpr(inst);
-    auto vpf = valuePhiFunc(ve, pin);
+    auto vpf = valuePhiFunc(ve);
     bool exist_cc = false;
     if (pout == TOP)
         pout.clear();
@@ -293,8 +293,6 @@ GVN::partitions GVN::transfer_function(Instruction *inst, partitions &pin) {
 }
 shared_ptr<GVN::Expression> GVN::valueExpr(Value *val) {
     assert(val);
-    if (_val2expr[val])
-        return _val2expr[val];
     std::shared_ptr<Expression> ve;
     if (::is_a<Constant>(val)) {
         ve = create_expr<ConstExpr>(val);
@@ -343,8 +341,10 @@ shared_ptr<GVN::Expression> GVN::valueExpr(Value *val) {
         }
         ve = create_expr<GepExpr>(std::move(idxs));
     } else if (::is_a<PhiInst>(val)) {
-        assert(_val2expr[val]);
-        return _val2expr[val];
+        if (_val2expr[val])
+            ve = _val2expr[val];
+        else
+            ve = create_expr<UniqueExpr>(val);
     } else if (::is_a<LoadInst>(val) || ::is_a<StoreInst>(val) ||
                ::is_a<AllocaInst>(val)) {
         if (_val2expr[val])
@@ -359,8 +359,7 @@ shared_ptr<GVN::Expression> GVN::valueExpr(Value *val) {
     }
     return _val2expr[val] = ve;
 }
-std::shared_ptr<GVN::PhiExpr> GVN::valuePhiFunc(shared_ptr<Expression> ve,
-                                                partitions &pin) {
+std::shared_ptr<GVN::PhiExpr> GVN::valuePhiFunc(shared_ptr<Expression> ve) {
     if (not is_a<BinExpr>(ve))
         return nullptr;
     auto lhs = as_a<BinExpr>(ve)->get_lhs();
@@ -371,7 +370,8 @@ std::shared_ptr<GVN::PhiExpr> GVN::valuePhiFunc(shared_ptr<Expression> ve,
     auto phi_rhs = as_a<PhiExpr>(rhs);
     if (phi_lhs->size() != phi_rhs->size())
         return nullptr;
-    auto res_phi = create_expr<PhiExpr>();
+    auto bb = phi_lhs->get_ori_bb();
+    auto res_phi = create_expr<PhiExpr>(bb);
     for (unsigned i = 0; i < phi_lhs->size(); i++) {
         shared_ptr<Expression> tmp;
         switch (ve->get_op()) {
@@ -398,10 +398,10 @@ std::shared_ptr<GVN::PhiExpr> GVN::valuePhiFunc(shared_ptr<Expression> ve,
         default:
             assert(false);
         }
-        auto pout_i = _pout[_bb->pre_bbs()[i]];
+        auto pout_i = _pout[phi_lhs->get_ori_bb()->pre_bbs()[i]];
         auto vn = getVN(pout_i, tmp);
         if (vn == nullptr)
-            vn = valuePhiFunc(tmp, pout_i);
+            vn = valuePhiFunc(tmp);
         if (vn == nullptr)
             return nullptr;
         else {

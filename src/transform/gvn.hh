@@ -319,20 +319,17 @@ class GVN final : public pass::TransformPass {
 
     class PhiExpr final : public Expression {
       public:
-        PhiExpr(GVN *gvn) : Expression(gvn, expr_type::e_phi), _vals{} {}
-        PhiExpr(GVN *gvn, std::vector<std::shared_ptr<Expression>> &&vals)
-            : Expression(gvn, expr_type::e_phi), _vals(vals) {}
-        PhiExpr(GVN *gvn, unsigned len)
-            : Expression(gvn, expr_type::e_phi), _vals{len} {}
+        PhiExpr(GVN *gvn, ir::BasicBlock *bb)
+            : Expression(gvn, expr_type::e_phi), _ori_bb(bb), _vals{} {}
+        PhiExpr(GVN *gvn, ir::BasicBlock *bb,
+                std::vector<std::shared_ptr<Expression>> &&vals)
+            : Expression(gvn, expr_type::e_phi), _ori_bb(bb), _vals(vals) {}
         size_t size() const { return _vals.size(); }
         std::shared_ptr<Expression> get_val(size_t i) { return _vals[i]; }
 
         void add_val(std::shared_ptr<Expression> ve) { _vals.push_back(ve); }
 
-        void update_val(std::shared_ptr<Expression> ve, unsigned idx) {
-            assert(idx < _vals.size());
-            _vals[idx] = ve;
-        }
+        ir::BasicBlock *get_ori_bb() { return _ori_bb; }
 
         bool operator==(const PhiExpr &other) const {
             auto ors = this;
@@ -353,6 +350,7 @@ class GVN final : public pass::TransformPass {
         virtual std::string print() { return "Phi"; }
 
       private:
+        ir::BasicBlock *_ori_bb;
         std::vector<std::shared_ptr<Expression>> _vals;
     };
 
@@ -409,8 +407,7 @@ class GVN final : public pass::TransformPass {
                   std::shared_ptr<CongruenceClass>);
     partitions transfer_function(ir::Instruction *, partitions &);
     std::shared_ptr<Expression> valueExpr(ir::Value *);
-    std::shared_ptr<PhiExpr> valuePhiFunc(std::shared_ptr<Expression>,
-                                          partitions &);
+    std::shared_ptr<PhiExpr> valuePhiFunc(std::shared_ptr<Expression>);
     std::shared_ptr<Expression> getVN(partitions &,
                                       std::shared_ptr<Expression>);
 
