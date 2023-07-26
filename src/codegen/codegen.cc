@@ -437,7 +437,17 @@ void CodeGen::upgrade_step1() {
                     not contains(reg_map, ret_reg))
                     inst.operands().erase(inst.operands().begin());
             }
+
+            // special case for ra:
+            // - if ra is writen as a general register, it will be add in to
+            // callee-saves during the vreg replacement
+            // - if ra is writen implicitly during call, the code below will
+            // handle it
+            if (inst.get_opcode() == Call)
+                int_callee_saves.insert(preg_mgr.ra()->get_id());
+
             for (unsigned i = 0; i < inst.get_operand_num(); ++i) {
+                // the folowing code will run only if op is a vreg
                 auto op = inst.get_operand(i);
                 if (not is_a<VirtualRegister>(op))
                     continue;
@@ -469,14 +479,6 @@ void CodeGen::upgrade_step1() {
                         preg->get_saver() == Saver::Callee)
                         callee_saves.insert(preg_id);
                 }
-
-                // special case for ra:
-                // - if ra is writen as a general register, it will be add in to
-                // callee-saves during the above judge
-                // - if ra is writen implicitly during call, the code below will
-                // handle it
-                if (inst.get_opcode() == Call)
-                    int_callee_saves.insert(preg_mgr.ra()->get_id());
             }
         }
 
