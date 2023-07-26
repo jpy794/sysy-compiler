@@ -17,6 +17,12 @@ class Immediate : public Value {
     void dump(std::ostream &os, const Context &context) const { os << _value; }
 };
 
+// to pass float imm to codegen, only used by call for now
+class FImm32bit : public Immediate {
+    friend class ValueManager;
+    FImm32bit(int v) : Immediate(v) {}
+};
+
 class Imm32bit : public Immediate {
     friend class ValueManager;
     Imm32bit(int v) : Immediate(v) {}

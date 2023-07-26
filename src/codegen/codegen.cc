@@ -608,7 +608,7 @@ CodeGen::ArgInfo CodeGen::split_func_args_call_ver() const {
             is_float = is_a<FPReg>(arg);
             location = preg;
         } else if (is_a<Immediate>(arg)) {
-            is_float = false;
+            is_float = is_a<FImm32bit>(arg);
             location = as_a<Immediate>(arg);
         } else
             throw unreachable_error{"wrong case after step1"};
@@ -667,6 +667,8 @@ CodeGen::StackPassResult CodeGen::pass_args_stack(const ArgInfo &arg_info,
             else
                 tmp_addr_reg = t1;
         } else if (holds_alternative<Immediate *>(info.location)) {
+            // TODO: test with func with a lot of float param and remove this
+            // assert if the result is correct
             assert(not info.is_float); // FIXME resolve float immediate
             insert_inst(LoadImmediate, {t0, get<Immediate *>(info.location)});
             value_reg = t0;
@@ -830,16 +832,19 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
             else
                 move_same_type(target_reg, preg);
         },
-        [&](mir::Immediate *imm) { // assert is not float
-            insert_inst(LoadImmediate, {target_reg, imm});
+        [&](mir::Immediate *imm) {
+            if (is_a<FImm32bit>(imm)) {
+                insert_inst(LoadImmediate, {t0, imm});
+                insert_inst(FMVWX, {target_reg, t0});
+            } else {
+                insert_inst(LoadImmediate, {target_reg, imm});
+            }
         },
     };
     for (auto i : order) {
         auto info = location_info.at(i);
         target_reg = preg_mgr.get_arg_reg(i, for_float);
         visit(ArgValueParser, info.location);
-        assert(not(info.is_float and
-                   holds_alternative<Immediate *>(info.location)));
     }
 }
 

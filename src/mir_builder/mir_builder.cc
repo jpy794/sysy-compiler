@@ -585,9 +585,13 @@ any MIRBuilder::visit(const ir::CallInst *instruction) {
                 value_reg = create<FVReg>();
             else
                 value_reg = create<IVReg>();
-        } else if (imm_result.is_const)
-            value_reg = load_imm(imm_result.val);
-        else
+        } else if (imm_result.is_const) {
+            if (imm_result.is_float) {
+                value_reg = create<FImm32bit>(imm_result.val);
+            } else {
+                value_reg = create<Imm32bit>(imm_result.val);
+            }
+        } else
             value_reg = value_map.at(value);
         ops.push_back(value_reg);
     }
