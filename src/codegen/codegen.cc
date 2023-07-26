@@ -706,7 +706,7 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
         // ai is need by a_k, k is in neeby[i]
         array<NeedByVec, ARG_REGS> needby;
         // if ai has been checked, to detect cycle
-        array<bool, ARG_REGS> vis;
+        array<bool, ARG_REGS> vis{};
         deque<unsigned> queue;
 
         const decltype(ArgInfo::int_args_in_reg) &location_info;
@@ -715,8 +715,8 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
       public:
         unsigned arg_cnt;
         AssignOrder order;
-        array<bool, ARG_REGS> backup = {false}; // if ai need a backup
-        vector<unsigned> value_in_tmp_first;    // assign args use tmp reg first
+        array<bool, ARG_REGS> backup{};      // if ai need a backup
+        vector<unsigned> value_in_tmp_first; // assign args use tmp reg first
 
         explicit OrderParser(decltype(location_info) l, decltype(res) r)
             : location_info(l), res(r) {
