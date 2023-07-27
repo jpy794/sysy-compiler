@@ -21,6 +21,7 @@ function(sysyc_test_path BASE)
     endforeach()
 endfunction()
 
+sysyc_test_path(simplyfied_test)
 sysyc_test_path(func)
 sysyc_test_path(func_hidden)
 sysyc_test_path(perf)
