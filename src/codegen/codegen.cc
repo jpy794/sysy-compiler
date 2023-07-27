@@ -418,9 +418,8 @@ void CodeGen::upgrade_step1() {
     for (auto spill_id : float_spilled) {
         // FIXME use more specific size(only pointer use 8 bytes)
         float_spilled_location.insert(
-            {spill_id,
-             func->add_local_var(BasicType::FLOAT, TARGET_MACHINE_SIZE,
-                                 TARGET_MACHINE_SIZE, Reason::Spilled)});
+            {spill_id, func->add_local_var(BasicType::FLOAT, BASIC_TYPE_SIZE,
+                                           BASIC_TYPE_SIZE, Reason::Spilled)});
     }
 
     // 1st pass
@@ -506,12 +505,15 @@ void CodeGen::upgrade_step1() {
 
     // update context: argument spill info
     for (auto arg : func->get_args()) {
-        if (not contains(int_spilled, arg->get_id()))
+        bool is_float = is_a<FVReg>(arg);
+        auto &spilled_set = is_a<FVReg>(arg) ? float_spilled : int_spilled;
+        auto &spilled_location =
+            is_float ? float_spilled_location : int_spilled_location;
+        auto arg_id = arg->get_id();
+        if (not contains(spilled_set, arg_id))
             continue;
-        decltype(int_spilled_location) &spilled_location =
-            is_a<IVReg>(arg) ? int_spilled_location : float_spilled_location;
         _upgrade_context.arg_spilled_location.insert(
-            {arg, spilled_location.at(arg->get_id())});
+            {arg, spilled_location.at(arg_id)});
     }
 }
 
@@ -921,7 +923,7 @@ void CodeGen::resolve_call() {
             auto off = stack_grow_size1 + location.at(stack_object);
             safe_load_store(
                 stack_object->store_op(),
-                preg_mgr.get_ret_val_reg(0, is_a<FPReg>(ret_location)),
+                preg_mgr.get_ret_val_reg(0, stack_object->is_float_usage()),
                 Offset2int(off), t0);
 
         } else
