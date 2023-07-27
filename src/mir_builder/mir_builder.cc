@@ -332,8 +332,12 @@ any MIRBuilder::visit(const ir::ZextInst *instruction) {
         // interger register
         auto res =
             binary_helper(fcmp->operands()[0], fcmp->operands()[1], false);
-        auto freg1 = reinterpret_i2f(as_a<IVReg>(res.op1));
-        auto freg2 = reinterpret_i2f(as_a<IVReg>(res.op2));
+        auto freg1 = is_a<IVReg>(res.op1)
+                         ? reinterpret_i2f(as_a<IVReg>(res.op1))
+                         : as_a<FVReg>(res.op1);
+        auto freg2 = is_a<IVReg>(res.op2)
+                         ? reinterpret_i2f(as_a<IVReg>(res.op2))
+                         : as_a<FVReg>(res.op2);
         auto op = reversed ? FCMP_OP_REVERSED.at(fcmp->get_fcmp_op())
                            : fcmp->get_fcmp_op();
         switch (op) {
