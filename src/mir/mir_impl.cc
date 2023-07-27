@@ -288,18 +288,32 @@ void Function::dump(std::ostream &os, const Context &context) const {
         }
         os << "\n";
 
-        auto &intervals = allocator.get_live_ints(this, false);
         os << "# =========Live Interval=========\n";
+        os << "# =========int\n";
         os << "# ";
-        for (auto &interval : intervals) {
+        for (auto &interval : allocator.get_live_ints(this, false)) {
+            os << interval << " ";
+        }
+        os << "\n";
+        os << "# =========float\n";
+        os << "# ";
+        for (auto &interval : allocator.get_live_ints(this, true)) {
             os << interval << " ";
         }
         os << "\n";
 
-        auto &regmap = allocator.get_reg_map(this, false);
         os << "# =========Register Map=========\n";
+        os << "# =========int\n";
         os << "# ";
-        for (auto &[vid, reginfo] : regmap) {
+        for (auto &[vid, reginfo] : allocator.get_reg_map(this, false)) {
+            os << vid << "~";
+            reginfo.reg->dump(os, name_only_context);
+            os << " ";
+        }
+        os << "\n";
+        os << "# =========float\n";
+        os << "# ";
+        for (auto &[vid, reginfo] : allocator.get_reg_map(this, true)) {
             os << vid << "~";
             reginfo.reg->dump(os, name_only_context);
             os << " ";
@@ -322,7 +336,8 @@ void Label::dump(std::ostream &os, const Context &context) const {
     auto indent_context{context.indent()};
     switch (context.role) {
     case Role::Full: {
-        if (this != context.cur_function->get_labels()[0])
+        if (context.stage == Stage::stage1 or
+            this != context.cur_function->get_labels()[0])
             os << _name << ":\n";
         for (auto &inst : _insts) {
             inst.dump(os, indent_context);
