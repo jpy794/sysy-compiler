@@ -36,6 +36,7 @@ function(add_codegen_test_path CATEGORY)
     endforeach()
 endfunction()
 
+add_codegen_test_path(simplyfied_test)
 add_codegen_test_path(codegen)
 add_codegen_test_path(func)
 add_codegen_test_path(func_hidden)

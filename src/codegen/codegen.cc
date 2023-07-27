@@ -629,12 +629,8 @@ CodeGen::ArgInfo CodeGen::split_func_args_call_ver() const {
 CodeGen::StackPassResult CodeGen::pass_args_stack(const ArgInfo &arg_info,
                                                   Offset stack_grow_size1) {
     // the stack grow size because of arg-pass on stack
-    Offset stack_grow_size2 = 0;
-    for (const auto &info : arg_info.args_in_stack) {
-        stack_grow_size2 +=
-            info.is_float ? BASIC_TYPE_SIZE : TARGET_MACHINE_SIZE;
-    }
-    stack_grow_size2 = ALIGN(stack_grow_size2, SP_ALIGNMENT);
+    Offset stack_grow_size2 =
+        SP_ALIGN(arg_info.args_in_stack.size() * TARGET_MACHINE_SIZE);
     map<PhysicalRegister *, bool> changed = {
         {t0, false}, {t1, false}, {ft0, false}};
     if (stack_grow_size2 == 0)
