@@ -1155,7 +1155,7 @@ void CodeGen::resolve_stack() {
             stack_change(delta, nullptr);
             if (new_label)
                 new_label->insert_before(insert_before, ADDI,
-                                         {sp, sp, create_imm(-delta)});
+                                         {sp, sp, create_imm(delta)});
         }
     };
     auto get_value_from_stack = [&]() {
