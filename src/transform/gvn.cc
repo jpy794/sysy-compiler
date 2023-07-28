@@ -244,7 +244,8 @@ void GVN::detect_equivalences(Function *func) {
                         for (auto &CC : _pout[_bb]) {
                             if (contains(CC->members, oper)) {
                                 CC->members.insert(inst);
-                                _val2expr[inst] = CC->val_expr;
+                                if (not _val2expr[inst])
+                                    _val2expr[inst] = CC->val_expr;
                                 flag = false;
                                 break;
                             }
@@ -257,7 +258,8 @@ void GVN::detect_equivalences(Function *func) {
                             auto cc = create_cc(next_value_number++, oper,
                                                 _val2expr[oper], nullptr, oper);
                             cc->members.insert(inst);
-                            _val2expr[inst] = cc->val_expr;
+                            if (not _val2expr[inst])
+                                _val2expr[inst] = cc->val_expr;
                             _pout[_bb].insert(cc);
                         }
                     } else
@@ -287,6 +289,7 @@ GVN::partitions GVN::transfer_function(Instruction *inst, partitions &pin) {
     for (auto cc : pout) {
         if (cc->val_expr == ve || (vpf != nullptr && cc->phi_expr == vpf)) {
             cc->members.insert(inst);
+            _val2expr[inst] = cc->val_expr;
             exist_cc = true;
             break;
         }
@@ -442,14 +445,12 @@ void GVN::replace_cc_members() {
             if (cc->index == 0)
                 continue;
             for (auto &member : cc->members) {
+                // if it is a copy statement, it shouldn't replace any inst
                 bool member_is_phi = ::is_a<PhiInst>(member);
-                bool value_phi = cc->phi_expr != nullptr;
+                bool member_not_copy = cc->val_expr == _val2expr[member];
+                assert(not(!member_is_phi && !member_not_copy));
                 if (member != cc->leader and not ::is_a<Constant>(member) and
-                    (value_phi or !member_is_phi)) {
-                    // FIXME:it may be a copy statement or just
-                    // exactly a normal val equal to some inst
-                    // how to tell the two cases?Now assume that they're all
-                    // copy statement
+                    (!member_is_phi or member_not_copy)) {
                     assert(cc->leader);
                     _usedef_chain->replace_use_when(
                         member, cc->leader, [bb](User *user, unsigned idx) {
@@ -457,9 +458,10 @@ void GVN::replace_cc_members() {
                                 auto parent = inst->get_parent();
                                 if (::is_a<PhiInst>(inst))
                                     return inst->get_operand(idx + 1) ==
-                                           bb; // only replace the operand of
-                                               // the user from current bb for
-                                               // phi
+                                           bb; // only replace the
+                                               // operand of the
+                                               // user from current
+                                               // bb for phi
                                 else
                                     return parent ==
                                            bb; // replace the members if users
