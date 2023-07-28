@@ -126,7 +126,7 @@ class GVN final : public pass::TransformPass {
         }
 
         virtual std::string print() {
-            return "ConstExpr(" + _const->get_name() + ")";
+            return "ConstExpr:" + _const->get_name() + "\n";
         }
 
       private:
@@ -144,7 +144,7 @@ class GVN final : public pass::TransformPass {
         }
 
         virtual std::string print() {
-            return "UniqueExpr(" + _val->get_name() + ")";
+            return "UniqueExpr:" + _val->get_name() + "\n";
         }
 
       private:
@@ -177,9 +177,9 @@ class GVN final : public pass::TransformPass {
 
         virtual std::string print() {
             if (_func != nullptr) {
-                return "CallExpr(" + _func->get_name() + ")";
+                return "CallExpr:{\n" + _func->get_name() + "}\n";
             }
-            return "CallExpr(" + _inst->get_name() + ")";
+            return "CallExpr:{\n" + _inst->get_name() + "}\n";
         }
 
       private:
@@ -199,7 +199,7 @@ class GVN final : public pass::TransformPass {
         }
 
         virtual std::string print() {
-            return "UnitExpr(" + _unit->print() + ")";
+            return "UnitExpr:{\n" + _unit->print() + "}\n";
         }
 
       private:
@@ -232,7 +232,11 @@ class GVN final : public pass::TransformPass {
 
         ir::IBinaryInst::IBinOp get_ibin_op() { return _op; }
 
-        virtual std::string print() { return "Bin"; }
+        virtual std::string print() {
+            std::string lhs_s = "[\n" + get_lhs()->print() + "]\n";
+            std::string rhs_s = "[\n" + get_rhs()->print() + "]\n";
+            return "IBin:{\n" + lhs_s + rhs_s + "}\n";
+        }
 
       private:
         ir::IBinaryInst::IBinOp _op;
@@ -252,7 +256,11 @@ class GVN final : public pass::TransformPass {
 
         ir::FBinaryInst::FBinOp get_fbin_op() { return _op; }
 
-        virtual std::string print() { return "Bin"; }
+        virtual std::string print() {
+            std::string lhs_s = "[\n" + get_lhs()->print() + "]\n";
+            std::string rhs_s = "[\n" + get_rhs()->print() + "]\n";
+            return "FBin:{\n" + lhs_s + rhs_s + "}\n";
+        }
 
       private:
         ir::FBinaryInst::FBinOp _op;
@@ -272,7 +280,11 @@ class GVN final : public pass::TransformPass {
 
         ir::ICmpInst::ICmpOp get_icmp_op() { return _op; }
 
-        virtual std::string print() { return "Bin"; }
+        virtual std::string print() {
+            std::string lhs_s = "[\n" + get_lhs()->print() + "]\n";
+            std::string rhs_s = "[\n" + get_rhs()->print() + "]\n";
+            return "ICmp:{\n" + lhs_s + rhs_s + "}\n";
+        }
 
       private:
         ir::ICmpInst::ICmpOp _op;
@@ -292,7 +304,11 @@ class GVN final : public pass::TransformPass {
 
         ir::FCmpInst::FCmpOp get_fcmp_op() { return _op; }
 
-        virtual std::string print() { return "Bin"; }
+        virtual std::string print() {
+            std::string lhs_s = "[\n" + get_lhs()->print() + "]\n";
+            std::string rhs_s = "[\n" + get_rhs()->print() + "]\n";
+            return "FCmp:{\n" + lhs_s + rhs_s + "}\n";
+        }
 
       private:
         ir::FCmpInst::FCmpOp _op;
@@ -332,10 +348,8 @@ class GVN final : public pass::TransformPass {
         ir::BasicBlock *get_ori_bb() { return _ori_bb; }
 
         bool operator==(const PhiExpr &other) const {
-            auto ors = this;
-            auto oth = &other;
-            if (ors == oth)
-                return true;
+            if (_ori_bb != other._ori_bb)
+                return false;
             for (unsigned i = 0; i < _vals.size(); i++) {
                 if (_vals[i] == nullptr && other._vals[i] == nullptr)
                     continue;
@@ -347,7 +361,13 @@ class GVN final : public pass::TransformPass {
             return true;
         }
 
-        virtual std::string print() { return "Phi"; }
+        virtual std::string print() {
+            std::string val_s{};
+            for (auto val : _vals) {
+                val_s += "[" + val->print() + "]\n";
+            }
+            return "Phi:{\n" + val_s + "}\n";
+        }
 
       private:
         ir::BasicBlock *_ori_bb;
