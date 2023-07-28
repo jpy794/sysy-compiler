@@ -156,12 +156,16 @@ GVN::intersect(shared_ptr<CongruenceClass> Ci, shared_ptr<CongruenceClass> Cj) {
                                    // Ck->index = next_value_number++;
         // the leader must be a phi inst under the case that there is no
         // other non-phi inst
-        assert(::is_a<PhiInst>(Ck->leader));
-        Ck->phi_expr = create_expr<PhiExpr>(
-            _bb, vector<shared_ptr<Expression>>{Ci->val_expr, Cj->val_expr});
-        Ck->val_expr = Ck->phi_expr;
-        for (auto mem : Ck->members) {
-            _val2expr[mem] = Ck->val_expr;
+        if (::is_a<PhiInst>(Ck->leader)) {
+            Ck->phi_expr = create_expr<PhiExpr>(
+                _bb,
+                vector<shared_ptr<Expression>>{Ci->val_expr, Cj->val_expr});
+            Ck->val_expr = Ck->phi_expr;
+            for (auto mem : Ck->members) {
+                _val2expr[mem] = Ck->val_expr;
+            }
+        } else {
+            Ck->val_expr = Ci->index > Cj->index ? Ci->val_expr : Cj->val_expr;
         }
     }
     if (Ck->index == 0 && not Ck->members.empty())
@@ -216,9 +220,17 @@ void GVN::detect_equivalences(Function *func) {
                 for (auto &inst_r : suc_bb->insts()) {
                     if (::is_a<PhiInst>(&inst_r)) {
                         auto inst = ::as_a<PhiInst>(&inst_r);
-                        // deal with the case that the origin of phi is also the
-                        // phi of current bb
-                        // op1 = phi opi, op1
+                        unsigned i = 1;
+                        for (; i < inst->operands().size(); i += 2) {
+                            if (inst->operands()[i] == _bb)
+                                break;
+                        }
+                        assert(i < inst->operands().size());
+                        auto oper = inst->get_operand(i - 1);
+                        // transfer inst according to oper's CC to prevent from
+                        // CC increasing unlimitedly
+                        if (inst == oper) // if oper is inst itself, no transfer
+                            continue;
                         for (auto &Ci : _pout[_bb]) {
                             if (contains(Ci->members,
                                          static_cast<Value *>(inst))) {
@@ -228,28 +240,24 @@ void GVN::detect_equivalences(Function *func) {
                                 break;
                             }
                         }
-                        unsigned i = 1;
-                        for (; i < inst->operands().size(); i += 2) {
-                            if (inst->operands()[i] == _bb)
-                                break;
-                        }
-                        assert(i < inst->operands().size());
-                        auto oper = inst->get_operand(i - 1);
                         bool flag = true;
                         for (auto &CC : _pout[_bb]) {
                             if (contains(CC->members, oper)) {
                                 CC->members.insert(inst);
+                                _val2expr[inst] = CC->val_expr;
                                 flag = false;
                                 break;
                             }
                         }
+                        assert(not flag || not ::is_a<Instruction>(oper));
                         if (flag) {
-                            if (not _val2expr[oper]) {
+                            assert(_val2expr[oper] || ::is_a<Constant>(oper));
+                            if (not _val2expr[oper])
                                 _val2expr[oper] = valueExpr(oper);
-                            }
                             auto cc = create_cc(next_value_number++, oper,
                                                 _val2expr[oper], nullptr, oper);
                             cc->members.insert(inst);
+                            _val2expr[inst] = cc->val_expr;
                             _pout[_bb].insert(cc);
                         }
                     } else
@@ -260,7 +268,6 @@ void GVN::detect_equivalences(Function *func) {
                 changed = true;
             }
         }
-        debugs << times << "\n";
         assert(times++ < 10);
     } while (changed);
 }
@@ -344,7 +351,7 @@ shared_ptr<GVN::Expression> GVN::valueExpr(Value *val) {
         if (_val2expr[val])
             ve = _val2expr[val];
         else
-            ve = create_expr<UniqueExpr>(val);
+            assert(false);
     } else if (::is_a<LoadInst>(val) || ::is_a<StoreInst>(val) ||
                ::is_a<AllocaInst>(val)) {
         if (_val2expr[val])
@@ -439,27 +446,24 @@ void GVN::replace_cc_members() {
                 bool value_phi = cc->phi_expr != nullptr;
                 if (member != cc->leader and not ::is_a<Constant>(member) and
                     (value_phi or !member_is_phi)) {
-                    /*FIXME:
-                    bb1:
-                    op0 = phi ... v1
-                    op1 = phi ... v1
-                    bb2 pre_bb:bb1,bb2
-                    op2 = phi op1, ...
-                    op3 = phi ..., op2
-                    it will replace op2 with op0
-                    */
-                    // only replace the members if users are in the same
-                    // block as bb
+                    // FIXME:it may be a copy statement or just
+                    // exactly a normal val equal to some inst
+                    // how to tell the two cases?Now assume that they're all
+                    // copy statement
                     assert(cc->leader);
                     _usedef_chain->replace_use_when(
-                        member, cc->leader, [bb](User *user) {
+                        member, cc->leader, [bb](User *user, unsigned idx) {
                             if (auto inst = dynamic_cast<Instruction *>(user)) {
                                 auto parent = inst->get_parent();
-                                auto &bb_pre = parent->pre_bbs();
                                 if (::is_a<PhiInst>(inst))
-                                    return contains(bb_pre, bb);
+                                    return inst->get_operand(idx + 1) ==
+                                           bb; // only replace the operand of
+                                               // the user from current bb for
+                                               // phi
                                 else
-                                    return parent == bb;
+                                    return parent ==
+                                           bb; // replace the members if users
+                                               // are in the same block as bb
                             }
                             return false;
                         });

@@ -27,14 +27,15 @@ class UseDefChain final : public pass::AnalysisPass {
                 use.user->set_operand(use.op_idx, new_val);
             }
         }
-        void replace_use_when(ir::Value *old_val, ir::Value *new_val,
-                              std::function<bool(ir::User *)> pred) const {
-            auto &_users = users.at(old_val);
-            for (auto it = _users.begin(); it != _users.end();) {
+        void replace_use_when(
+            ir::Value *old_val, ir::Value *new_val,
+            std::function<bool(ir::User *, unsigned idx)> source) const {
+            auto &_uses = users.at(old_val);
+            for (auto it = _uses.begin(); it != _uses.end();) {
                 auto use = *it;
                 auto user = use.user;
                 ++it;
-                if (not pred(user)) {
+                if (not source(user, use.op_idx)) {
                     continue;
                 }
                 user->set_operand(use.op_idx, new_val);
