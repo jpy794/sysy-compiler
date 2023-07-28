@@ -229,6 +229,9 @@ void CodeGen::coordinate_func_args() {
         },
         // arg is allocated a physical reg during reg allocation
         [&](PhysicalRegister *preg) {
+            gen_inst(COMMENT,
+                     {preg, value_mgr.create<Comment>("="), convetion_reg},
+                     entry);
             if (preg != convetion_reg)
                 move_same_type(preg, convetion_reg, entry);
         },
@@ -325,17 +328,22 @@ void CodeGen::resolve_logue() {
     };
 
     /* prologue */
+    comment("stack grow", entry);
     stack_change(-Offset2int(frame.size), t0, entry); // stack grow
-    resolve_callee(true);                             // save callee regs
+    comment("callee backup", entry);
+    resolve_callee(true); // save callee regs
 
     /* resolve args */
+    comment("coordinate with convetion reg", entry);
     coordinate_func_args();
 
     // fp: we do not use it for now
     // entry->add_inst(ADDI, {preg_mgr.fp(), sp, create_imm(frame_size)});
 
     /* epilogue */
+    comment("callee recover", exit);
     resolve_callee(false);
+    comment("stack recover", exit);
     stack_change(Offset2int(frame.size), t0, exit);
 
     // return value is handled by prev labels

@@ -400,10 +400,11 @@ void Instruction::dump(std::ostream &os, const Context &context) const {
             os << ")";
 
         } else {
+            auto sep = _opcode == COMMENT ? " " : ", ";
             for (unsigned i = 0; i < _operands.size(); i++) {
                 _operands[i]->dump(os, name_only_context);
                 if (i != _operands.size() - 1)
-                    os << ", ";
+                    os << sep;
             }
         }
         if (should_round_towards_zero()) {
