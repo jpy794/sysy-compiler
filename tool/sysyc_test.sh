@@ -43,7 +43,7 @@ if [ $emit_llvm == true ]; then
     run_bin=$out_path/$case_name
     clang -Wno-override-module $sysyc_out ./test/lib/sylib.c -o $out_path/$case_name
 else
-    run_bin="qemu-riscv64-static -L /usr/riscv64-linux-gnu $out_path/$case_name"
+    run_bin="qemu-riscv64-static -s 128M -L /usr/riscv64-linux-gnu $out_path/$case_name"
     riscv64-linux-gnu-gcc $sysyc_out ./test/lib/sylib.c -o $out_path/$case_name
 fi
 

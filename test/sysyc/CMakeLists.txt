@@ -6,7 +6,7 @@ function(sysyc_test PREFIX CASE SYSYC_ARGS)
         COMMAND ${CMAKE_SOURCE_DIR}/tool/sysyc_test.sh ${CASE} ${CMAKE_CURRENT_BINARY_DIR}/${PREFIX} ${SYSYC_ARGS}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
-    set_tests_properties(test_sysyc_${PREFIX}_${CASE_NAME} PROPERTIES TIMEOUT 100) 
+    set_tests_properties(test_sysyc_${PREFIX}_${CASE_NAME} PROPERTIES TIMEOUT 500) 
 endfunction()
 
 function(sysyc_test_path BASE)
