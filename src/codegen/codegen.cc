@@ -213,27 +213,42 @@ void CodeGen::coordinate_func_args() {
     auto func = _upgrade_context.func;
     auto entry = _upgrade_context.entry;
     PhysicalRegister *convetion_reg = nullptr;
+    set<PhysicalRegister *> reg_in_use;
+    map<PhysicalRegister *, bool> tmp_reg_need_recover{
+        {t0, false}, {t1, false}, {ft0, false}};
 
+    /* if a tmp reg is to be used and it holds valid value now, backup it */
+    auto tmp_reg_backup_check = [&](PhysicalRegister *tmp_reg) {
+        if (not contains(reg_in_use, tmp_reg))
+            return;
+        auto store_op = is_a<FPReg>(tmp_reg) ? FSW : SD;
+        safe_load_store(store_op, tmp_reg, tmp_arg_off.at(tmp_reg), nullptr,
+                        entry);
+        reg_in_use.erase(tmp_reg);
+        tmp_reg_need_recover.at(tmp_reg) = true;
+    };
     /* for first 8 args, have convetion_reg in calling convetion
      * - if has a physical reg `r`, move into a{} into `r`
      * - if spilled during reg-allocation, store a{} into mem */
     auto ArgResolver = overloaded{
         // arg is allocated to stack during reg allocation
         [&](StackObject *stack_object) {
+            assert(not contains(reg_in_use, convetion_reg));
             auto off = func->get_frame().offset.at(stack_object);
             MIR_INST store_op = stack_object->store_op();
-            // NOTE: use t1 as temp here, t0 may be used on
-            // stack-pass case
+            tmp_reg_backup_check(t1);
             safe_load_store(store_op, convetion_reg, Offset2int(off), t1,
                             entry);
         },
         // arg is allocated a physical reg during reg allocation
         [&](PhysicalRegister *preg) {
+            assert(not contains(reg_in_use, convetion_reg));
             gen_inst(COMMENT,
                      {preg, value_mgr.create<Comment>("="), convetion_reg},
                      entry);
             if (preg != convetion_reg)
                 move_same_type(preg, convetion_reg, entry);
+            reg_in_use.insert(preg);
         },
         [&](mir::Immediate *) {
             throw unreachable_error{"invalid for logue case"};
@@ -292,11 +307,21 @@ void CodeGen::coordinate_func_args() {
             convetion_reg = int_convetion_reg;
             load_op = LD; // FIXME maybe ok?
         }
-        // FIXME: is this tmp_reg correct for float?
         auto tmp_reg = int_convetion_reg == t0 ? t1 : t0;
+        // check if a backup is needed
+        tmp_reg_backup_check(convetion_reg);
+        tmp_reg_backup_check(tmp_reg);
+        // load value and move to the allocated location
         safe_load_store(load_op, convetion_reg, Offset2int(off), tmp_reg,
                         entry);
         visit(ArgResolver, stack_arg_info.location);
+    }
+
+    // recover tmp regs if used
+    for (auto [reg, need_recover] : tmp_reg_need_recover) {
+        auto load_op = is_a<FPReg>(reg) ? FLW : LD;
+        if (need_recover)
+            safe_load_store(load_op, reg, tmp_arg_off.at(reg), nullptr, entry);
     }
 }
 
