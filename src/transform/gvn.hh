@@ -470,10 +470,13 @@ class GVN final : public pass::TransformPass {
     ir::BasicBlock *_bb;
     std::map<std::pair<const Expression *, const Expression *>, bool>
         expr_cmp_visited{};
-    std::unordered_map<ir::Value *, std::shared_ptr<Expression>> _val2expr{};
     const pass::FuncInfo::ResultType *_func_info;
     const pass::UseDefChain::ResultType *_usedef_chain;
     const pass::DepthOrder::ResultType *_depth_order;
     std::map<ir::BasicBlock *, partitions> _pin, _pout;
+
+    // helper members which can improve analysis efficiency
+    std::unordered_map<ir::Value *, std::shared_ptr<Expression>> _val2expr{};
+    unsigned phi_construct_point;
 };
 }; // namespace pass

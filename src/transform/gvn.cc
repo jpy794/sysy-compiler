@@ -151,19 +151,25 @@ GVN::intersect(shared_ptr<CongruenceClass> Ci, shared_ptr<CongruenceClass> Cj) {
         }
     }
     assert(Ck->leader || Ck->members.empty());
-    if (!Ck->members.empty() and
-        Ck->val_expr == nullptr) { // FIXME: more than two predecessor blocks?
-                                   // Ck->index = next_value_number++;
-        // the leader must be a phi inst under the case that there is no
-        // other non-phi inst
+    if (!Ck->members.empty() and Ck->val_expr == nullptr) {
         if (::is_a<PhiInst>(Ck->leader)) {
-            Ck->phi_expr = create_expr<PhiExpr>(
-                _bb,
-                vector<shared_ptr<Expression>>{Ci->val_expr, Cj->val_expr});
+            Ck->phi_expr = create_expr<PhiExpr>(_bb);
+            assert(phi_construct_point);
+            if (phi_construct_point == 1) {
+                Ck->phi_expr->add_val(Ci->val_expr);
+            } else {
+                if (not is_a<PhiExpr>(_val2expr[Ck->leader])) {
+                    for (unsigned i = 0; i < phi_construct_point; i++) {
+                        Ck->phi_expr->add_val(_val2expr[Ck->leader]);
+                    }
+                }
+            }
+            Ck->phi_expr->add_val(Cj->val_expr);
             Ck->val_expr = Ck->phi_expr;
             for (auto mem : Ck->members) {
                 _val2expr[mem] = Ck->val_expr;
             }
+            assert(Ck->phi_expr->size() == phi_construct_point - 1);
         } else {
             Ck->val_expr = Ci->index > Cj->index ? Ci->val_expr : Cj->val_expr;
         }
@@ -186,8 +192,6 @@ void GVN::detect_equivalences(Function *func) {
     }
     bool changed = false;
     unsigned times = 0;
-    // Value *ins;
-    // shared_ptr<Expression> tms;
     do {
         changed = false;
         for (auto &bb_r : _depth_order->_depth_priority_order.at(_func)) {
@@ -195,8 +199,11 @@ void GVN::detect_equivalences(Function *func) {
             auto &pre_bbs = _bb->pre_bbs();
             partitions origin_pout = _pout[_bb];
             partitions pin = TOP;
-            for (auto pre_bb : pre_bbs)
+            phi_construct_point = 0;
+            for (auto pre_bb : pre_bbs) {
                 pin = join(pin, _pout[pre_bb]);
+                phi_construct_point++;
+            }
             if (_bb == func->get_entry_bb()) {
                 _pout[_bb] = clone(_pin[_bb]);
             } else {
