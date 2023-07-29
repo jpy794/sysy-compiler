@@ -1,8 +1,11 @@
 #pragma once
 
 #include <any>
+#include <list>
+#include <map>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -57,6 +60,11 @@ struct BinaryExpr;
 struct CallExpr;
 struct LiteralExpr;
 struct LValExpr;
+
+/* raw node that should only exisit in raw_ast */
+struct RawVarDefStmt;
+struct RawFunDefGlobal;
+struct RawVarDefGlobal;
 
 /* visitor pattern allows multiple nodes of the same super class
    to be visited through super class pointer (by the virtual accept).
@@ -219,17 +227,31 @@ struct VarDefStmt : Stmt {
     /* all dims should be non-zero
        evaluated when building the AST */
     std::vector<size_t> dims;
-    /* TODO: evaluate init_vals for global consts
-       instead of leaving it to optimization pass later
-       nullopt means undefined init_val for corresponding element */
-    std::vector<std::optional<Ptr<Expr>>> init_vals;
+    /* @init_vals: info of designated initializer
+     *
+     * Has the following features:
+     * - flattened initialize-list
+     * - each kv-pair in the map is the designated initialize-value
+     * - for const and gloabl, the inner node is LiteralExpr actually
+     * - for other cases, no guarantee for epxr
+     *
+     * Semantic:
+     * - nullopt indicates no initialization. global variable always has init
+     *   due to the rule of implicit 0-init
+     * - for the BaseType var init case, init_vals always holds `single`
+     *   kv-pair: <0, value>
+     * - for inited array type(not nullopt), if init_vals contains target idx,
+     *   use the mapped value, or means implicit 0 init.
+     *
+     */
+    std::optional<std::map<size_t, Ptr<Expr>>> init_vals;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
     }
 };
 
 struct BlockStmt : Stmt {
-    PtrList<Stmt> stmts;
+    std::list<std::unique_ptr<Stmt>> stmts;
     std::any accept(ASTVisitor &visitor) const override {
         return visitor.visit(*this);
     }
@@ -243,19 +265,69 @@ struct ExprStmt : Stmt {
     }
 };
 
+/* raw node that should only exisit in raw_ast */
+
+struct RawVarDefGlobal : Global {
+    Ptr<RawVarDefStmt> vardef_stmt;
+    std::any accept(ASTVisitor &visitor) const override {
+        return visitor.visit(*this);
+    }
+};
+
+struct RawVarDefStmt : Stmt {
+    struct InitList {
+        bool is_zero_list;
+        std::variant<Ptr<Expr>, PtrList<InitList>> val;
+    };
+    struct Entry {
+        bool is_const;
+        BaseType type;
+        std::string var_name;
+        PtrList<Expr> dims;
+        /* nullopt means there's no initval for the entry */
+        std::optional<Ptr<InitList>> init_list;
+    };
+    PtrList<Entry> var_defs;
+    std::any accept(ASTVisitor &visitor) const override {
+        return visitor.visit(*this);
+    }
+};
+
+struct RawFunDefGlobal : Global {
+    struct Param {
+        BaseType type;
+        std::string name;
+        bool is_ptr;
+        // dim starts from the 2nd one
+        PtrList<Expr> dims;
+    };
+    BaseType ret_type;
+    std::string fun_name;
+    PtrList<Param> params;
+    Ptr<BlockStmt> body;
+    std::any accept(ASTVisitor &visitor) const override {
+        return visitor.visit(*this);
+    }
+};
+
+class RawAST;
+
 class AST {
   public:
-    AST(const std::string &src_file);
-    void visit(ASTVisitor &visitor) {
+    AST(RawAST &&raw_ast);
+    std::any accept(ASTVisitor &visitor) const {
         if (not root) {
             throw std::logic_error{"trying to visit an empty AST"};
         }
         /* it's safe to strip unique_ptr here
            as long as visitor does not save ptr to AST node */
-        visitor.visit(*root.get());
+        return visitor.visit(*root.get());
     }
 
   private:
     Ptr<Root> root;
 };
+
+std::ostream &operator<<(std::ostream &os, const AST &ast);
+
 } // namespace ast

@@ -2,7 +2,14 @@
 /build/
 
 # clangd
-/.cache/
+/**/.cache/
+
+# vscode
+/**/.vscode
 
 # antlr
 .antlr
+
+/**/*.png
+
+/**/*log*

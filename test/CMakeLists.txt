@@ -1,0 +1,6 @@
+add_subdirectory(utils)
+add_subdirectory(ast)
+add_subdirectory(ir)
+add_subdirectory(pm)
+add_subdirectory(codegen)
+add_subdirectory(sysyc)

@@ -1,12 +1,14 @@
 grammar sysy;
 
-compUnit: (vardecl | funcdef)+;
+compUnit: globalDef+;
+
+globalDef: (vardecl | funcdef);
 
 vardecl: Const? (Int | Float) vardef (Comma vardef)* SemiColon;
 
 vardef: Identifier (LeftBracket exp RightBracket)* (Assign varInit)?;
 
-varInit: LeftBrace varInit (Comma varInit)* RightBrace
+varInit: LeftBrace (varInit (Comma varInit)*)? RightBrace
        | exp;
 
 funcdef: (Void | Int | Float) Identifier LeftParen (funcparam (Comma funcparam)*)? RightParen block;
@@ -91,7 +93,8 @@ IntConst: '0' [0-7]*
         | '0' [xX] [0-9a-fA-F]+;
 
 FloatConst: ([0-9]* '.' [0-9]+ | [0-9]+ '.') ([eE] [-+]? [0-9]+)?
-          | [0-9]+ [eE] [-+]? [0-9]+;
+          | [0-9]+ [eE] [-+]? [0-9]+
+          | '0' [xX] ([0-9a-fA-F]+ | [0-9a-fA-F]* '.' [0-9a-fA-F]+ | [0-9a-fA-F]+ '.') [pP] [-+]? [0-9]+;
 
 LineComment: ('//' | '/\\' ('\r'? '\n') '/') ~[\r\n\\]* ('\\' ('\r'? '\n')? ~[\r\n\\]*)* '\r'? '\n' -> skip;
 BlockComment: '/*' .*? '*/' -> skip;

@@ -1,6 +1,9 @@
 #include "raw_ast.hh"
 #include "err.hh"
+#include "sysyLexer.h"
 #include "sysyVisitor.h"
+#include <fstream>
+#include <sstream>
 
 using namespace std;
 using namespace ast;
@@ -10,6 +13,7 @@ using namespace ast;
 
 class RawASTBuilder : public sysyVisitor {
     any visitCompUnit(sysyParser::CompUnitContext *ctx) final;
+    any visitGlobalDef(sysyParser::GlobalDefContext *ctx) final;
     any visitVardecl(sysyParser::VardeclContext *ctx) final;
     any visitVardef(sysyParser::VardefContext *ctx) final;
     any visitVarInit(sysyParser::VarInitContext *ctx) final;
@@ -30,7 +34,7 @@ class RawASTBuilder : public sysyVisitor {
 template <typename T> T *as_raw_ptr(const any &rhs) {
     auto raw_ptr = any_cast<T *>(rhs);
     if (raw_ptr == nullptr) {
-        throw logic_error{"trying to as_raw_ptr(nullptr)"};
+        throw logic_error{"as_raw_ptr results in nullptr"};
     }
     return raw_ptr;
 }
@@ -46,8 +50,6 @@ template <typename Derived, typename Base> Ptr<Derived> cast_ptr(Base *ptr) {
     }
     return Ptr<Derived>(raw_ptr);
 }
-
-RawAST RawAST::parse_sysy_src(const string &src) { return {}; }
 
 any RawASTBuilder::visitExp(sysyParser::ExpContext *ctx) {
     Expr *ret{nullptr};
@@ -101,10 +103,15 @@ any RawASTBuilder::visitExp(sysyParser::ExpContext *ctx) {
             throw unreachable_error{};
         }
         ret = node;
-    } else if (ctx->parenExp() || ctx->lval() || ctx->number() ||
-               ctx->funcCall()) {
+    } else if (ctx->parenExp()) {
         // pass through
         ret = as_raw_ptr<Expr>(visit(ctx->parenExp()));
+    } else if (ctx->lval()) {
+        ret = as_raw_ptr<Expr>(visit(ctx->lval()));
+    } else if (ctx->number()) {
+        ret = as_raw_ptr<Expr>(visit(ctx->number()));
+    } else if (ctx->funcCall()) {
+        ret = as_raw_ptr<Expr>(visit(ctx->funcCall()));
     } else {
         throw unreachable_error{};
     }
@@ -122,7 +129,7 @@ any RawASTBuilder::visitNumber(sysyParser::NumberContext *ctx) {
         node->type = BaseType::FLOAT;
     } else if (ctx->IntConst()) {
         auto val_str = ctx->IntConst()->getText();
-        node->val = stoi(val_str);
+        node->val = stoi(val_str, 0, 0);
         node->type = BaseType::INT;
     } else {
         throw unreachable_error{};
@@ -147,6 +154,7 @@ any RawASTBuilder::visitFuncCall(sysyParser::FuncCallContext *ctx) {
         node->args.push_back(as_ptr<Expr>(visit(pexp)));
     }
 
+    ret = node;
     return ret;
 }
 
@@ -229,7 +237,9 @@ any RawASTBuilder::visitExpStmt(sysyParser::ExpStmtContext *ctx) {
     Stmt *ret{nullptr};
     auto node = new ExprStmt;
 
-    node->expr = as_ptr<Expr>(visit(ctx->exp()));
+    if (ctx->exp()) {
+        node->expr = as_ptr<Expr>(visit(ctx->exp()));
+    }
 
     ret = node;
     return ret;
@@ -257,6 +267,9 @@ any RawASTBuilder::visitVardecl(sysyParser::VardeclContext *ctx) {
         auto entry = as_ptr<RawVarDefStmt::Entry>(visit(pvardef));
         entry->is_const = is_const;
         entry->type = var_type;
+        if (is_const and not entry->init_list.has_value())
+            throw unreachable_error{entry->var_name +
+                                    ": const without initval"};
         node->var_defs.push_back(std::move(entry));
     }
 
@@ -270,20 +283,28 @@ any RawASTBuilder::visitVardef(sysyParser::VardefContext *ctx) {
     for (auto &&pexp : ctx->exp()) {
         entry->dims.push_back(as_ptr<Expr>(visit(pexp)));
     }
-    entry->init_vals = as_ptr<Expr>(ctx->varInit());
+    if (ctx->varInit()) {
+        entry->init_list =
+            as_ptr<RawVarDefStmt::InitList>(visit(ctx->varInit()));
+    }
     return entry;
 }
 
 any RawASTBuilder::visitVarInit(sysyParser::VarInitContext *ctx) {
-    Expr *ret{nullptr};
+    auto ret = new RawVarDefStmt::InitList;
     if (ctx->exp()) {
-        ret = as_raw_ptr<Expr>(visit(ctx->exp()));
+        ret->is_zero_list = false;
+        ret->val = as_ptr<Expr>(visit(ctx->exp()));
     } else if (ctx->varInit().size() > 0) {
-        auto node = new RawInitExpr;
+        PtrList<RawVarDefStmt::InitList> list;
         for (auto &&pinit : ctx->varInit()) {
-            node->init_vals.push_back(as_ptr<Expr>(visit(pinit)));
+            list.push_back(as_ptr<RawVarDefStmt::InitList>(visit(pinit)));
         }
-        ret = node;
+        ret->is_zero_list = false;
+        ret->val = std::move(list);
+    } else if (ctx->LeftBrace() && ctx->RightBrace()) {
+        // zero init
+        ret->is_zero_list = true;
     } else {
         throw unreachable_error{};
     }
@@ -292,16 +313,106 @@ any RawASTBuilder::visitVarInit(sysyParser::VarInitContext *ctx) {
 
 any RawASTBuilder::visitFuncdef(sysyParser::FuncdefContext *ctx) {
     Global *ret{nullptr};
-    auto node = new FunDefGlobal;
+    auto node = new RawFunDefGlobal;
+
+    if (ctx->Float()) {
+        node->ret_type = BaseType::FLOAT;
+    } else if (ctx->Int()) {
+        node->ret_type = BaseType::INT;
+    } else if (ctx->Void()) {
+        node->ret_type = BaseType::VOID;
+    } else {
+        throw unreachable_error{};
+    }
+    node->fun_name = ctx->Identifier()->getText();
+    node->body = cast_ptr<BlockStmt>(as_raw_ptr<Stmt>(visit(ctx->block())));
+    for (auto &&pparam : ctx->funcparam()) {
+        node->params.push_back(as_ptr<RawFunDefGlobal::Param>(visit(pparam)));
+    }
 
     ret = node;
     return ret;
 }
 
 any RawASTBuilder::visitFuncparam(sysyParser::FuncparamContext *ctx) {
-    return {};
+    auto ret = new RawFunDefGlobal::Param;
+
+    if (ctx->Float()) {
+        ret->type = BaseType::FLOAT;
+    } else if (ctx->Int()) {
+        ret->type = BaseType::INT;
+    } else {
+        throw unreachable_error{};
+    }
+    ret->name = ctx->Identifier()->getText();
+    if (ctx->LeftBracket().size() > 0) {
+        ret->is_ptr = true;
+    } else {
+        ret->is_ptr = false;
+    }
+    for (auto &&pexp : ctx->exp()) {
+        ret->dims.push_back(as_ptr<Expr>(visit(pexp)));
+    }
+
+    return ret;
 }
 
 any RawASTBuilder::visitCompUnit(sysyParser::CompUnitContext *ctx) {
-    return {};
+    auto ret = new Root;
+
+    for (auto &&pglobal : ctx->globalDef()) {
+        ret->globals.push_back(as_ptr<Global>(visit(pglobal)));
+    }
+
+    return ret;
+}
+
+any RawASTBuilder::visitGlobalDef(sysyParser::GlobalDefContext *ctx) {
+    Global *ret{nullptr};
+
+    if (ctx->funcdef()) {
+        ret = as_raw_ptr<Global>(visit(ctx->funcdef()));
+    } else if (ctx->vardecl()) {
+        auto node = new RawVarDefGlobal;
+        node->vardef_stmt =
+            cast_ptr<RawVarDefStmt>(as_raw_ptr<Stmt>(visit(ctx->vardecl())));
+        ret = node;
+    } else {
+        throw unreachable_error{};
+    }
+
+    return ret;
+}
+
+void replace_all(string &s, const string &search, const string &replace) {
+    size_t pos{0};
+    while ((pos = s.find(search)) != string::npos) {
+        s.replace(pos, search.size(), replace);
+        pos += replace.size();
+    }
+}
+
+void macro_replace(string &s) {
+    vector<pair<string, string>> macros = {
+        {"starttime()", "_sysy_starttime(0)"},
+        {"stoptime()", "_sysy_stoptime(0)"}};
+    for (auto &&[search, replace] : macros) {
+        replace_all(s, search, replace);
+    }
+}
+
+RawAST::RawAST(const string &src) {
+    ifstream src_s{src};
+    ostringstream src_ss;
+    src_ss << src_s.rdbuf();
+    auto src_str = src_ss.str();
+    macro_replace(src_str);
+
+    antlr4::ANTLRInputStream input_s{src_str};
+    sysyLexer lexer{&input_s};
+    antlr4::CommonTokenStream token_s{&lexer};
+    sysyParser parser{&token_s};
+
+    RawASTBuilder builder;
+    root = as_ptr<Root>(builder.visit(parser.compUnit()));
 }
