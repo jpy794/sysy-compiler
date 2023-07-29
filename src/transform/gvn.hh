@@ -68,8 +68,10 @@ class GVN final : public pass::TransformPass {
         bool operator==(const Expression &other) const {
             if (this->get_op() != other.get_op())
                 return false;
-            if (_parent->expr_cmp_visited[{this, &other}])
+            if (this == &other)
                 return true;
+            if (_parent->expr_cmp_visited[{this, &other}])
+                assert(false);
             _parent->expr_cmp_visited[{this, &other}] = true;
             bool cmp_resu = true;
             switch (_op) {
@@ -126,7 +128,7 @@ class GVN final : public pass::TransformPass {
         }
 
         virtual std::string print() {
-            return "ConstExpr:" + _const->get_name() + "\n";
+            return "ConstExpr:" + _const->get_name() + "";
         }
 
       private:
@@ -177,9 +179,9 @@ class GVN final : public pass::TransformPass {
 
         virtual std::string print() {
             if (_func != nullptr) {
-                return "CallExpr:{\n" + _func->get_name() + "}\n";
+                return "CallExpr:{\n" + _func->get_name() + "}";
             }
-            return "CallExpr:{\n" + _inst->get_name() + "}\n";
+            return "CallExpr:{\n" + _inst->get_name() + "}";
         }
 
       private:
@@ -199,7 +201,7 @@ class GVN final : public pass::TransformPass {
         }
 
         virtual std::string print() {
-            return "UnitExpr:{\n" + _unit->print() + "}\n";
+            return "UnitExpr:{\n" + _unit->print() + "}";
         }
 
       private:
@@ -233,8 +235,8 @@ class GVN final : public pass::TransformPass {
         ir::IBinaryInst::IBinOp get_ibin_op() { return _op; }
 
         virtual std::string print() {
-            std::string lhs_s = "[\n" + get_lhs()->print() + "]\n";
-            std::string rhs_s = "[\n" + get_rhs()->print() + "]\n";
+            std::string lhs_s = "[" + get_lhs()->print() + "]\n";
+            std::string rhs_s = "[" + get_rhs()->print() + "]\n";
             return "IBin:{\n" + lhs_s + rhs_s + "}\n";
         }
 
@@ -257,8 +259,8 @@ class GVN final : public pass::TransformPass {
         ir::FBinaryInst::FBinOp get_fbin_op() { return _op; }
 
         virtual std::string print() {
-            std::string lhs_s = "[\n" + get_lhs()->print() + "]\n";
-            std::string rhs_s = "[\n" + get_rhs()->print() + "]\n";
+            std::string lhs_s = "[" + get_lhs()->print() + "]\n";
+            std::string rhs_s = "[" + get_rhs()->print() + "]\n";
             return "FBin:{\n" + lhs_s + rhs_s + "}\n";
         }
 
@@ -281,8 +283,8 @@ class GVN final : public pass::TransformPass {
         ir::ICmpInst::ICmpOp get_icmp_op() { return _op; }
 
         virtual std::string print() {
-            std::string lhs_s = "[\n" + get_lhs()->print() + "]\n";
-            std::string rhs_s = "[\n" + get_rhs()->print() + "]\n";
+            std::string lhs_s = "[" + get_lhs()->print() + "]\n";
+            std::string rhs_s = "[" + get_rhs()->print() + "]\n";
             return "ICmp:{\n" + lhs_s + rhs_s + "}\n";
         }
 
@@ -305,8 +307,8 @@ class GVN final : public pass::TransformPass {
         ir::FCmpInst::FCmpOp get_fcmp_op() { return _op; }
 
         virtual std::string print() {
-            std::string lhs_s = "[\n" + get_lhs()->print() + "]\n";
-            std::string rhs_s = "[\n" + get_rhs()->print() + "]\n";
+            std::string lhs_s = "[" + get_lhs()->print() + "]\n";
+            std::string rhs_s = "[" + get_rhs()->print() + "]\n";
             return "FCmp:{\n" + lhs_s + rhs_s + "}\n";
         }
 
@@ -351,10 +353,7 @@ class GVN final : public pass::TransformPass {
             if (_ori_bb != other._ori_bb)
                 return false;
             for (unsigned i = 0; i < _vals.size(); i++) {
-                if (_vals[i] == nullptr && other._vals[i] == nullptr)
-                    continue;
-                if (_vals[i] == nullptr || other._vals[i] == nullptr)
-                    return false;
+                assert(not(_vals[i] == nullptr || other._vals[i] == nullptr));
                 if (not(*_vals[i] == *other._vals[i]))
                     return false;
             }
@@ -364,7 +363,7 @@ class GVN final : public pass::TransformPass {
         virtual std::string print() {
             std::string val_s{};
             for (auto val : _vals) {
-                val_s += "[" + val->print() + "]\n";
+                val_s += "[" + val->print() + "]";
             }
             return "Phi:{\n" + val_s + "}\n";
         }

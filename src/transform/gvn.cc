@@ -6,7 +6,7 @@
 #include "func_info.hh"
 #include "function.hh"
 #include "instruction.hh"
-#include "log.hh"
+
 #include "type.hh"
 #include "usedef_chain.hh"
 #include "utils.hh"
@@ -186,6 +186,8 @@ void GVN::detect_equivalences(Function *func) {
     }
     bool changed = false;
     unsigned times = 0;
+    // Value *ins;
+    // shared_ptr<Expression> tms;
     do {
         changed = false;
         for (auto &bb_r : _depth_order->_depth_priority_order.at(_func)) {
@@ -270,7 +272,7 @@ void GVN::detect_equivalences(Function *func) {
                 changed = true;
             }
         }
-        assert(times++ < 10);
+        assert(times++ < 100);
     } while (changed);
 }
 
@@ -445,30 +447,33 @@ void GVN::replace_cc_members() {
             if (cc->index == 0)
                 continue;
             for (auto &member : cc->members) {
-                // if it is a copy statement, it shouldn't replace any inst
-                bool member_is_phi = ::is_a<PhiInst>(member);
-                bool member_not_copy = cc->val_expr == _val2expr[member];
-                assert(not(!member_is_phi && !member_not_copy));
-                if (member != cc->leader and not ::is_a<Constant>(member) and
-                    (!member_is_phi or member_not_copy)) {
-                    assert(cc->leader);
-                    _usedef_chain->replace_use_when(
-                        member, cc->leader, [bb](User *user, unsigned idx) {
-                            if (auto inst = dynamic_cast<Instruction *>(user)) {
-                                auto parent = inst->get_parent();
-                                if (::is_a<PhiInst>(inst))
-                                    return inst->get_operand(idx + 1) ==
-                                           bb; // only replace the
-                                               // operand of the
-                                               // user from current
-                                               // bb for phi
-                                else
-                                    return parent ==
-                                           bb; // replace the members if users
-                                               // are in the same block as bb
-                            }
-                            return false;
-                        });
+                if (member != cc->leader and not ::is_a<Constant>(member)) {
+                    // if it is a copy statement, it shouldn't replace any inst
+                    bool member_is_phi = ::is_a<PhiInst>(member);
+                    bool member_not_copy = cc->val_expr == _val2expr[member];
+                    assert(not(!member_is_phi && !member_not_copy));
+                    if ((!member_is_phi or member_not_copy)) {
+                        assert(cc->leader);
+                        _usedef_chain->replace_use_when(
+                            member, cc->leader, [bb](User *user, unsigned idx) {
+                                if (auto inst =
+                                        dynamic_cast<Instruction *>(user)) {
+                                    auto parent = inst->get_parent();
+                                    if (::is_a<PhiInst>(inst))
+                                        return inst->get_operand(idx + 1) ==
+                                               bb; // only replace the
+                                                   // operand of the
+                                                   // user from current
+                                                   // bb for phi
+                                    else
+                                        return parent ==
+                                               bb; // replace the members if
+                                                   // users are in the same
+                                                   // block as bb
+                                }
+                                return false;
+                            });
+                    }
                 }
             }
         }
