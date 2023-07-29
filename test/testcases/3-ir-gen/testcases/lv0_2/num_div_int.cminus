@@ -1,4 +1,0 @@
-void main(void) {
-    output(2468 / 2);
-    return;
-}

@@ -1,9 +1,0 @@
-void main(void) {
-    if (2 > 1)
-        output(42);
-    output(24);
-    if (1 > 2) {
-        output (1234);
-    }
-    return;
-}

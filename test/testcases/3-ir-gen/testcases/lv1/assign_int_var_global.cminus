@@ -1,6 +1,0 @@
-int a;
-void main(void) {
-    a = 1234;
-    output(a);
-    return;
-}

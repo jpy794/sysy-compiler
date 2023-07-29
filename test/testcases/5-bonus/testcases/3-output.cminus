@@ -1,5 +1,0 @@
-int main(void) {
-    output(11);
-    output(22222);
-    return 0;
-}
