@@ -1081,7 +1081,12 @@ void CodeGen::resolve_stack() {
                      tmp_regs_save_if_critical.end(), critical_fregs.begin(),
                      critical_fregs.end(),
                      inserter(critical_tmp_fregs, critical_tmp_fregs.begin()));
-
+    if (rd_info.rd_exist and is_a<PhysicalRegister>(rd_info.rd_location)) {
+        // wipe off the dest reg, because it will be overwriten right away
+        auto preg = as_a<PhysicalRegister>(rd_info.rd_location);
+        critical_tmp_iregs.erase(preg);
+        critical_tmp_fregs.erase(preg);
+    }
     Offset stack_grow_size = critical_tmp_iregs.size() * TARGET_MACHINE_SIZE +
                              critical_tmp_fregs.size() * BASIC_TYPE_SIZE;
 
