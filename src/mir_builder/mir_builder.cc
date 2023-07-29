@@ -156,9 +156,17 @@ any MIRBuilder::visit(const ir::BrInst *instruction) {
 
     /* cond = icmp .. %op1, %op2
      * br i1 cond, TBB, FBB */
-    auto [cond_src, TBB, FBB] =
-        tuple(as_a<ir::Instruction>(operands[0]), operands[1], operands[2]);
+    auto [TBB, FBB] = tuple(operands[1], operands[2]);
     auto [TLabel, FLabel] = tuple(value_map.at(TBB), value_map.at(FBB));
+
+    // decay to conditionaless jump
+    if (is_a<ir::Constant>(operands[0])) {
+        auto cond = as_a<ir::ConstBool>(operands[0])->val();
+        cur_label->add_inst(Jump, {cond ? TLabel : FLabel});
+        return {};
+    }
+
+    auto cond_src = as_a<ir::Instruction>(operands[0]);
     auto [cond, reversed] = backtrace_i1(cond_src);
     auto [op1, op2] = tuple(cond->operands()[0], cond->operands()[1]);
 
