@@ -102,8 +102,26 @@ int main(int argc, char **argv) {
         pm.add_pass<LoopInvariant>();
         pm.add_pass<DeadCode>();
 
-        pm.run({PassID<Mem2reg>(), PassID<LoopInvariant>(), PassID<DeadCode>()},
-               false);
+        pm.run(
+            {PassID<Mem2reg>(), PassID<LoopInvariant>(), PassID<DeadCode>()});
+
+        module = pm.release_module();
+    } else {
+        // minimum passes required by backend
+        PassManager pm{std::move(module)};
+
+        // analysis
+        pm.add_pass<Dominator>();
+        pm.add_pass<UseDefChain>();
+        pm.add_pass<FuncInfo>();
+        pm.add_pass<DepthOrder>();
+
+        // transform
+        pm.add_pass<RmUnreachBB>();
+        pm.add_pass<Mem2reg>();
+        pm.add_pass<DeadCode>();
+
+        pm.run({PassID<Mem2reg>(), PassID<DeadCode>()});
 
         module = pm.release_module();
     }
