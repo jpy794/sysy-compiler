@@ -217,7 +217,7 @@ void GVN::detect_equivalences(Function *func) {
             }
             for (auto &inst_r : _bb->insts()) {
                 if (::is_a<BrInst>(&inst_r) || ::is_a<PhiInst>(&inst_r) ||
-                    ::is_a<StoreInst>(&inst_r) || ::is_a<RetInst>(&inst_r) ||
+                    ::is_a<RetInst>(&inst_r) ||
                     (::is_a<CallInst>(&inst_r) &&
                      _usedef_chain->users.at(&inst_r)
                          .empty())) // For pure_func, if it isn't used, it
@@ -256,9 +256,9 @@ void GVN::detect_equivalences(Function *func) {
                             }
                         }
                         bool flag = true;
-                        for (auto &CC : _pout[_bb]) {
-                            if (contains(CC->members, oper)) {
-                                CC->members.insert(inst);
+                        for (auto &cc : _pout[_bb]) {
+                            if (contains(cc->members, oper)) {
+                                cc->members.insert(inst);
                                 flag = false;
                                 break;
                             }
@@ -291,6 +291,8 @@ GVN::partitions GVN::transfer_function(Instruction *inst, partitions &pin) {
     for (auto cc : pout) {
         if (contains(cc->members, static_cast<Value *>(inst))) {
             cc->members.erase(inst);
+            if (cc->members.size() == 0)
+                pout.erase(cc);
         }
     }
     auto ve = valueExpr(inst, pin);
@@ -361,9 +363,15 @@ shared_ptr<GVN::Expression> GVN::valueExpr(Value *val, partitions &pin) {
         ve = create_expr<GepExpr>(std::move(idxs));
     } else if (::is_a<PhiInst>(val)) {
         throw unreachable_error{};
-    } else if (::is_a<LoadInst>(val) || ::is_a<StoreInst>(val) ||
-               ::is_a<AllocaInst>(val)) {
+    } else if (::is_a<AllocaInst>(val)) {
         ve = create_expr<UniqueExpr>(val);
+    } else if (::is_a<LoadInst>(val)) {
+        ve = create_expr<LoadExpr>(
+            valueExpr(::as_a<LoadInst>(val)->get_operand(0), pin));
+    } else if (::is_a<StoreInst>(val)) {
+        ve = create_expr<StoreExpr>(
+            valueExpr(::as_a<StoreInst>(val)->get_operand(0), pin),
+            valueExpr(::as_a<StoreInst>(val)->get_operand(1), pin));
     } else {
         throw logic_error{"Can't create a temporary expression"};
     }

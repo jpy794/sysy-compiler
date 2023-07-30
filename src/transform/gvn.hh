@@ -19,6 +19,9 @@
 #include <utility>
 #include <vector>
 
+// TODO:analysis of MemAddress use chain
+// improve efficiency of GVN
+
 namespace pass {
 
 class GVN final : public pass::TransformPass {
@@ -55,7 +58,9 @@ class GVN final : public pass::TransformPass {
             e_icmp,
             e_fcmp,
             e_gep,
-            e_phi
+            e_phi,
+            e_load,
+            e_store
         };
         Expression(GVN *gvn, expr_type op) : _parent(gvn), _op(op) {}
         expr_type get_op() const { return _op; }
@@ -104,6 +109,12 @@ class GVN final : public pass::TransformPass {
                 break;
             case expr_type::e_phi:
                 cmp_resu = equal_as<PhiExpr>(this, &other);
+                break;
+            case expr_type::e_load:
+                cmp_resu = equal_as<LoadExpr>(this, &other);
+                break;
+            case expr_type::e_store:
+                cmp_resu = equal_as<StoreExpr>(this, &other);
                 break;
             }
             _parent->expr_cmp_visited[{this, &other}] = false;
@@ -189,6 +200,44 @@ class GVN final : public pass::TransformPass {
         ir::Instruction *_inst{};
         std::vector<std::shared_ptr<Expression>> _params{};
     };
+    class LoadExpr final : public Expression {
+      public:
+        LoadExpr(GVN *gvn, std::shared_ptr<Expression> addr)
+            : Expression(gvn, expr_type::e_load), _addr(addr) {}
+
+        bool operator==(const LoadExpr &other) const {
+            return false && *_addr == *other._addr;
+        }
+
+        virtual std::string print() {
+            return "LoadExpr:{\n" + _addr->print() + "}";
+        }
+
+      private:
+        std::shared_ptr<Expression> _addr;
+    };
+
+    class StoreExpr final : public Expression {
+      public:
+        StoreExpr(GVN *gvn, std::shared_ptr<Expression> val,
+                  std::shared_ptr<Expression> addr)
+            : Expression(gvn, expr_type::e_store), _val(val), _addr(addr) {}
+
+        bool operator==(const StoreExpr &other) const {
+            return false && *_addr == *other._addr &&
+                   *_val == *other._val; // TODO: how to tell two StoreExpr is
+                                         // the same
+        }
+
+        virtual std::string print() {
+            return "StoreExpr:{\n" + _addr->print() + "," + _val->print() + "}";
+        }
+
+      private:
+        std::shared_ptr<Expression> _val;
+        std::shared_ptr<Expression> _addr;
+    };
+
     // If two UnitExprs' _unit is different, the exprs are
     // absolutely different
     class UnitExpr final : public Expression { // zext/fp2si/si2fp
@@ -228,6 +277,11 @@ class GVN final : public pass::TransformPass {
             : BinExpr(gvn, expr_type::e_ibin, lhs, rhs), _op(op) {}
 
         bool operator==(const IBinExpr &other) const {
+            if (_op == ir::IBinaryInst::ADD or _op == ir::IBinaryInst::MUL)
+                return _op == other._op && ((*get_lhs() == *other.get_lhs() &&
+                                             *get_rhs() == *other.get_rhs()) ||
+                                            (*get_lhs() == *other.get_rhs() &&
+                                             *get_rhs() == *other.get_lhs()));
             return _op == other._op && *get_lhs() == *other.get_lhs() &&
                    *get_rhs() == *other.get_rhs();
         }
@@ -252,6 +306,11 @@ class GVN final : public pass::TransformPass {
             : BinExpr(gvn, expr_type::e_fbin, lhs, rhs), _op(op) {}
 
         bool operator==(const FBinExpr &other) const {
+            if (_op == ir::FBinaryInst::FADD or _op == ir::FBinaryInst::FMUL)
+                return _op == other._op && ((*get_lhs() == *other.get_lhs() &&
+                                             *get_rhs() == *other.get_rhs()) ||
+                                            (*get_lhs() == *other.get_rhs() &&
+                                             *get_rhs() == *other.get_lhs()));
             return _op == other._op && *get_lhs() == *other.get_lhs() &&
                    *get_rhs() == *other.get_rhs();
         }
