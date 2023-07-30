@@ -27,32 +27,34 @@ sysyc_test_path(func)
 sysyc_test_path(func_hidden)
 sysyc_test_path(perf)
 
+set(SYSYC_CTEST ${CMAKE_CTEST_COMMAND} --output-on-failure $(ARGS))
+
 add_custom_target(
     check_sysyc_ir
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'test_sysyc_ir_.*' -E 'test_sysyc_ir_opt_.*'
+    COMMAND ${SYSYC_CTEST} -R 'test_sysyc_ir_.*' -E 'test_sysyc_ir_opt_.*'
 )
 
 add_custom_target(
     check_sysyc_ir_opt
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'test_sysyc_ir_opt_.*'
+    COMMAND ${SYSYC_CTEST} -R 'test_sysyc_ir_opt_.*'
 )
 
 add_custom_target(
     check_sysyc_ir_opt_perf
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'test_sysyc_ir_opt_perf_.*'
+    COMMAND ${SYSYC_CTEST} -R 'test_sysyc_ir_opt_perf_.*'
 )
 
 add_custom_target(
     check_sysyc_asm
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'test_sysyc_asm_.*' -E 'test_sysyc_asm_opt_.*'
+    COMMAND ${SYSYC_CTEST} -R 'test_sysyc_asm_.*' -E 'test_sysyc_asm_opt_.*'
 )
 
 add_custom_target(
     check_sysyc_asm_opt
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'test_sysyc_asm_opt_.*'
+    COMMAND ${SYSYC_CTEST} -R 'test_sysyc_asm_opt_.*'
 )
 
 add_custom_target(
     check_sysyc_asm_opt_perf
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'test_sysyc_asm_opt_perf_.*'
+    COMMAND ${SYSYC_CTEST} -R 'test_sysyc_asm_opt_perf_.*'
 )
