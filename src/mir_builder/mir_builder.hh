@@ -50,6 +50,7 @@ class MIRBuilder : public ir::InstructionVisitor {
 
     /* foreign ref */
     ValueManager &value_mgr;
+    PhysicalRegisterManager &preg_mgr;
 
   public:
     explicit MIRBuilder(unique_ptr<ir::Module> &&mod);
@@ -67,14 +68,18 @@ class MIRBuilder : public ir::InstructionVisitor {
 
     void phi_elim_at_the_end();
 
-    // FIXME
-    // if imm is 0, we may return imm[0] directly or something else to match x0
-    // for stage 2?
     // load Immediate into virtual register
-    IVReg *load_imm(int imm, IVReg *target_reg = nullptr) {
-        if (target_reg == nullptr)
-            target_reg = create<IVReg>();
-        cur_label->add_inst(LoadImmediate, {target_reg, create<Imm32bit>(imm)});
+    Register *load_imm(int imm, IVReg *target_reg = nullptr) {
+        if (imm) {
+            if (target_reg == nullptr)
+                target_reg = create<IVReg>();
+            cur_label->add_inst(LoadImmediate,
+                                {target_reg, create<Imm32bit>(imm)});
+        } else {
+            if (target_reg == nullptr)
+                return preg_mgr.zero();
+            cur_label->add_inst(Move, {target_reg, preg_mgr.zero()});
+        }
         return target_reg;
     }
 
@@ -87,7 +92,8 @@ class MIRBuilder : public ir::InstructionVisitor {
         return target_reg;
     }
 
-    FVReg *cast_i2f(IVReg *ireg, FVReg *freg = nullptr) {
+    FVReg *cast_i2f(Register *ireg, FVReg *freg = nullptr) {
+        ireg->assert_int();
         if (freg == nullptr) {
             freg = create<FVReg>();
         }
@@ -95,7 +101,8 @@ class MIRBuilder : public ir::InstructionVisitor {
         return freg;
     }
 
-    FVReg *reinterpret_i2f(IVReg *ireg, FVReg *freg = nullptr) {
+    FVReg *reinterpret_i2f(Register *ireg, FVReg *freg = nullptr) {
+        ireg->assert_int();
         if (freg == nullptr) {
             freg = create<FVReg>();
         }
@@ -253,6 +260,13 @@ class MIRBuilder : public ir::InstructionVisitor {
             not inst_type->is<ir::BoolType>())
             return true;
         return false;
+    }
+
+    static bool is_int_reg(const Value *v) {
+        if (not is_a<const Register>(v))
+            return false;
+        auto reg = as_a<const Register>(v);
+        return reg->is_int_register();
     }
 
     /* @brief: backtrace the i1 origin, return a icmp or fcmp instruction.
