@@ -1,0 +1,29 @@
+name: Submit
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  submit:
+    runs-on: self-hosted
+    steps:
+    - uses: actions/checkout@v3
+    - name: Create build directory
+      run: mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug ..
+    - name: Build
+      run: make -C build -j$(nproc)
+    - name: Push to Gitlab
+      run: |
+        git config --local user.email "actions@github.com"
+        git config --local user.name "github actions"
+        git clone "https://oauth2:${TOKEN}@gitlab.eduxiji.net/202310358201729/compiler2023-ggvm.git" submit
+        rm -r submit/* || true
+        cp src/**/*.cc src/**/*.hh submit
+        cp build/antlr4_generated_src/**/*.h build/antlr4_generated_src/**/*.cpp submit
+        cd submit
+        git add .
+        git commit -m "submit for $GITHUB_SHA"
+        git push
+      env:
+        TOKEN: ${{ secrets.GITLAB_ACCESS_TOKEN }}
