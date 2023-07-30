@@ -425,7 +425,7 @@ class GVN final : public pass::TransformPass {
         intersect(std::shared_ptr<CongruenceClass>,
                   std::shared_ptr<CongruenceClass>);
     partitions transfer_function(ir::Instruction *, partitions &);
-    std::shared_ptr<Expression> valueExpr(ir::Value *);
+    std::shared_ptr<Expression> valueExpr(ir::Value *, partitions &);
     std::shared_ptr<PhiExpr> valuePhiFunc(std::shared_ptr<Expression>);
     std::shared_ptr<Expression> getVN(partitions &,
                                       std::shared_ptr<Expression>);
@@ -434,6 +434,7 @@ class GVN final : public pass::TransformPass {
     void replace_cc_members();
 
     // utils function
+    std::shared_ptr<Expression> get_ve(ir::Value *, partitions &);
     template <typename Derived, typename Base>
     static bool is_a(std::shared_ptr<Base> base) {
         static_assert(std::is_base_of<Base, Derived>::value);
@@ -451,16 +452,11 @@ class GVN final : public pass::TransformPass {
     }
     template <typename ExprT, typename InstT,
               typename OP> // only for valueExpr function
-    std::shared_ptr<ExprT> create_BinOperExpr(OP op, ir::Value *val) {
+    std::shared_ptr<ExprT> create_BinOperExpr(OP op, ir::Value *val,
+                                              partitions &pin) {
         std::shared_ptr<Expression> lhs, rhs;
-        if (_val2expr[::as_a<InstT>(val)->get_operand(0)])
-            lhs = _val2expr[::as_a<InstT>(val)->get_operand(0)];
-        else
-            lhs = valueExpr(::as_a<InstT>(val)->get_operand(0));
-        if (_val2expr[::as_a<InstT>(val)->get_operand(1)])
-            rhs = _val2expr[::as_a<InstT>(val)->get_operand(1)];
-        else
-            rhs = valueExpr(::as_a<InstT>(val)->get_operand(1));
+        lhs = valueExpr(::as_a<InstT>(val)->get_operand(0), pin);
+        rhs = valueExpr(::as_a<InstT>(val)->get_operand(1), pin);
         return create_expr<ExprT>(op, lhs, rhs);
     }
 
@@ -476,7 +472,9 @@ class GVN final : public pass::TransformPass {
     std::map<ir::BasicBlock *, partitions> _pin, _pout;
 
     // helper members which can improve analysis efficiency
-    std::unordered_map<ir::Value *, std::shared_ptr<Expression>> _val2expr{};
+    std::unordered_map<ir::Value *, std::shared_ptr<Expression>>
+        _val2expr{}; // just record GlobalVal and Constant
     unsigned phi_construct_point;
+    std::map<ir::BasicBlock *, partitions> non_copy_pout;
 };
 }; // namespace pass
