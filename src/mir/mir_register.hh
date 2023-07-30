@@ -18,6 +18,8 @@ class Register : public Value {
 
   public:
     RegIDType get_id() const { return _id; }
+    bool is_int_register() const;
+    void assert_int() const;
 };
 
 class VirtualRegister : public Register {

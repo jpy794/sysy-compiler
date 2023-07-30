@@ -39,7 +39,7 @@ const map<ir::FCmpInst::FCmpOp, ir::FCmpInst::FCmpOp> FCMP_OP_REVERSED = {
 
 MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
     : mir_moduler(new Module), ir_module(std::move(mod)),
-      value_mgr(ValueManager::get()) {
+      value_mgr(ValueManager::get()), preg_mgr(PhysicalRegisterManager::get()) {
 
     // external function
     memset_plt_func = create<Function>(false, "memset@plt", BasicType::VOID);
@@ -174,12 +174,12 @@ any MIRBuilder::visit(const ir::BrInst *instruction) {
         auto icmp = as_a<ir::ICmpInst>(cond);
         // let related value in the register
         // TODO: use x0 if possible
-        IVReg *reg1 = is_a<ir::ConstInt>(op1)
-                          ? load_imm(as_a<ir::ConstInt>(op1)->val())
-                          : as_a<IVReg>(value_map.at(op1));
-        IVReg *reg2 = is_a<ir::ConstInt>(op2)
-                          ? load_imm(as_a<ir::ConstInt>(op2)->val())
-                          : as_a<IVReg>(value_map.at(op2));
+        auto reg1 = is_a<ir::ConstInt>(op1)
+                        ? load_imm(as_a<ir::ConstInt>(op1)->val())
+                        : as_a<IVReg>(value_map.at(op1));
+        auto *reg2 = is_a<ir::ConstInt>(op2)
+                         ? load_imm(as_a<ir::ConstInt>(op2)->val())
+                         : as_a<IVReg>(value_map.at(op2));
         auto op = reversed ? ICMP_OP_REVERSED.at(icmp->get_icmp_op())
                            : icmp->get_icmp_op();
         switch (op) {
@@ -340,11 +340,11 @@ any MIRBuilder::visit(const ir::ZextInst *instruction) {
         // interger register
         auto res =
             binary_helper(fcmp->operands()[0], fcmp->operands()[1], false);
-        auto freg1 = is_a<IVReg>(res.op1)
-                         ? reinterpret_i2f(as_a<IVReg>(res.op1))
+        auto freg1 = is_int_reg(res.op1)
+                         ? reinterpret_i2f(as_a<Register>(res.op1))
                          : as_a<FVReg>(res.op1);
-        auto freg2 = is_a<IVReg>(res.op2)
-                         ? reinterpret_i2f(as_a<IVReg>(res.op2))
+        auto freg2 = is_int_reg(res.op2)
+                         ? reinterpret_i2f(as_a<Register>(res.op2))
                          : as_a<FVReg>(res.op2);
         auto op = reversed ? FCMP_OP_REVERSED.at(fcmp->get_fcmp_op())
                            : fcmp->get_fcmp_op();
@@ -694,11 +694,11 @@ any MIRBuilder::visit(const ir::FBinaryInst *instruction) {
     auto operands = instruction->operands();
     // load immediate to integer reg if exists
     auto res = binary_helper(operands[0], operands[1], false);
-    if (is_a<IVReg>(res.op1)) {
-        res.op1 = reinterpret_i2f(as_a<IVReg>(res.op1));
+    if (is_int_reg(res.op1)) {
+        res.op1 = reinterpret_i2f(as_a<Register>(res.op1));
     }
-    if (is_a<IVReg>(res.op2)) {
-        res.op2 = reinterpret_i2f(as_a<IVReg>(res.op2));
+    if (is_int_reg(res.op2)) {
+        res.op2 = reinterpret_i2f(as_a<Register>(res.op2));
     }
 
     switch (fbin_op) {

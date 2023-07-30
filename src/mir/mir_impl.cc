@@ -92,6 +92,14 @@ const map<MIR_INST, string_view> MIR_INST_NAME = {
 
 };
 
+/* Register functions */
+
+bool Register::is_int_register() const {
+    return is_a<const IVReg>(this) or is_a<const IPReg>(this);
+}
+
+void Register::assert_int() const { assert(is_int_register()); }
+
 /* Instruction functions */
 
 void Instruction::set_operand(unsigned i, Value *reg) {
