@@ -19,6 +19,7 @@ class Register : public Value {
   public:
     RegIDType get_id() const { return _id; }
     bool is_int_register() const;
+    bool is_float_register() const;
     void assert_int() const;
 };
 
@@ -55,8 +56,8 @@ class FVReg final : public VirtualRegister {
     }
 };
 
-inline Register::RegIDType IVReg::TOTAL = 0;
-inline Register::RegIDType FVReg::TOTAL = 0;
+inline Register::RegIDType IVReg::TOTAL = 32;
+inline Register::RegIDType FVReg::TOTAL = 32;
 
 class PhysicalRegister : public Register {
   public:

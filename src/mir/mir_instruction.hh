@@ -3,6 +3,7 @@
 #include "ilist.hh"
 #include "mir_value.hh"
 #include "utils.hh"
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -15,9 +16,9 @@ class Function;
  * - abort instructions: unsigned related, non 32-bit(reserve on ptr calc case)
  * - order matters, used in will_write_register()
  */
-enum MIR_INST {
+enum MIR_INST : uint16_t {
     /* RV32I */
-    LW,
+    LW = 0,
     SLTI,
     XORI,
     ORI,
@@ -28,11 +29,11 @@ enum MIR_INST {
     XOR,
     OR,
     AND,
+    SLLI,
     /* RV64I */
     LD,
     ADDI,
     ADDIW,
-    SLLIW,
     SRLIW,
     SRAIW,
     ADDW,
@@ -111,7 +112,8 @@ class Instruction final : public ilist<Instruction>::node {
     Value *get_operand(unsigned i) { return _operands.at(i); }
     const size_t get_operand_num() const { return _operands.size(); }
     MIR_INST get_opcode() const { return _opcode; }
-    void set_operand(unsigned i, Value *reg);
+    void change_opcode(MIR_INST opcode) { _opcode = opcode; }
+    void set_operand(unsigned i, Value *v);
     void degenerate_to_comment();
 
     void dump(std::ostream &os, const Context &context) const;

@@ -4,6 +4,8 @@
 #include "mir_instruction.hh"
 #include "mir_value.hh"
 
+#include <algorithm>
+#include <cassert>
 #include <string>
 #include <vector>
 
@@ -38,6 +40,17 @@ class Label : public Value {
     const LabelType get_type() const { return _type; }
     const std::string &get_name() const { return _name; }
 
+    void rm_prev(Label *prev) {
+        auto iter = std::find(_prev_labels.begin(), _prev_labels.end(), prev);
+        assert(iter != _prev_labels.end());
+        _prev_labels.erase(iter);
+    }
+    void rm_succ(Label *prev) {
+        auto iter = std::find(_succ_labels.begin(), _succ_labels.end(), prev);
+        assert(iter != _succ_labels.end());
+        _succ_labels.erase(iter);
+    }
+
     Instruction &add_inst(MIR_INST inst_type, std::vector<Value *> operands,
                           bool partial = false) {
         _insts.emplace_back(inst_type, operands, partial);
@@ -52,6 +65,8 @@ class Label : public Value {
                                bool partial = false) {
         return *_insts.emplace(inst, inst_type, operands, partial);
     }
+
+  private:
 };
 
 }; // namespace mir

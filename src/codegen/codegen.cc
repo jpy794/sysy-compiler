@@ -79,6 +79,16 @@ inline int Offset2int(Offset offset) {
     return off;
 }
 
+// helpers to maintain prev/succ info
+void link(Label *src_label, Label *dest_label) {
+    src_label->add_succ(dest_label);
+    dest_label->add_prev(src_label);
+}
+void unlink(Label *src_label, Label *dest_label) {
+    src_label->rm_succ(dest_label);
+    dest_label->rm_prev(src_label);
+}
+
 Instruction *CodeGen::insert_inst(mir::MIR_INST op,
                                   std::vector<mir::Value *> vec) {
     auto label = _upgrade_context.label;
@@ -578,6 +588,7 @@ void CodeGen::upgrade_step2() {
             if (inst->get_opcode() == COMMENT)
                 continue;
 
+            // TODO resolve_move!
             switch (inst->get_opcode()) {
             case Ret:
                 resolve_ret();
@@ -622,6 +633,7 @@ void CodeGen::resolve_ret() {
             throw unreachable_error{};
     }
     insert_inst(Jump, {exit});
+    link(label, exit);
     label->get_insts().erase(inst);
 }
 
@@ -1131,6 +1143,10 @@ void CodeGen::resolve_stack() {
         new_label = func->add_label(new_label_name);
         // after recover tmp regs, jump to the target label
         insert_before = &new_label->add_inst(Jump, {target_label});
+        // maintain prev/succ
+        unlink(label, target_label);
+        link(label, new_label);
+        link(new_label, target_label);
         // update context
         _upgrade_context.new_labels.insert(new_label);
     };

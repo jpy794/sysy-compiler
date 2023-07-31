@@ -53,27 +53,26 @@ class Function : public Value {
             _ret_type = BasicType::FLOAT;
         else
             throw unreachable_error{};
-        if (_is_def)
-            for (auto &arg : func->get_args()) {
-                auto type = arg->get_type();
-                if (type->is<ir::IntType>() or type->is<ir::PointerType>()) {
-                    _args.push_back(ValueManager::get().create<IVReg>());
-                } else if (type->is<ir::FloatType>()) {
-                    _args.push_back(ValueManager::get().create<FVReg>());
-                } else
-                    throw unreachable_error{};
-            }
+        for (auto &arg : func->get_args()) {
+            auto type = arg->get_type();
+            if (type->is<ir::IntType>() or type->is<ir::PointerType>()) {
+                _args.push_back(ValueManager::get().create<IVReg>());
+            } else if (type->is<ir::FloatType>()) {
+                _args.push_back(ValueManager::get().create<FVReg>());
+            } else
+                throw unreachable_error{};
+        }
     }
 
-    Function(bool def, std::string name, BasicType ret)
-        : _is_def(def), _name(name), _ret_type(ret) {}
+    Function(bool def, std::string name, BasicType ret, decltype(_args) args)
+        : _is_def(def), _name(name), _ret_type(ret), _args(args) {}
 
   public:
     BasicType get_ret_type() const { return _ret_type; }
     bool is_definition() const { return _is_def; }
-    VirtualRegister *get_args(size_t idx) { return _args[idx]; }
+    VirtualRegister *get_arg(size_t idx) { return _args.at(idx); }
     const std::string &get_name() const { return _name; }
-    const decltype(_args) &get_args() { return _args; }
+    const decltype(_args) &get_args() const { return _args; }
     const decltype(_labels) &get_labels() const { return _labels; }
     const decltype(_frame) &get_frame() const { return _frame; }
     const decltype(_callee_saves) &get_callee_saves() const {
@@ -100,16 +99,22 @@ class Function : public Value {
         _frame.size = off;
     }
 
+    // the prev/succ for entry is hold inside function
     Label *create_entry() {
         assert(_labels.front()->get_type() != Label::LabelType::Entry);
-        _labels.push_front(
-            ValueManager::get().create<Label>(Label::LabelType::Entry, ""));
+        auto entry =
+            ValueManager::get().create<Label>(Label::LabelType::Entry, "");
+        entry->add_succ(_labels.front());
+        _labels.front()->add_prev(entry);
+        _labels.push_front(entry);
         return _labels.front();
     }
+    // the prev/succ for exit need to be hold outside
     Label *create_exit() {
         assert(_labels.back()->get_type() != Label::LabelType::Exit);
-        _labels.push_back(ValueManager::get().create<Label>(
-            Label::LabelType::Exit, _name + "_exit"));
+        auto exit = ValueManager::get().create<Label>(Label::LabelType::Exit,
+                                                      _name + "_exit");
+        _labels.push_back(exit);
         return _labels.back();
     }
     template <typename... Args> Label *add_label(Args... args) {

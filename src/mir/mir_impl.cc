@@ -1,5 +1,6 @@
 #include "context.hh"
 #include "err.hh"
+#include "mir_immediate.hh"
 #include "mir_instruction.hh"
 #include "mir_memory.hh"
 #include "mir_module.hh"
@@ -48,11 +49,11 @@ const map<MIR_INST, string_view> MIR_INST_NAME = {
     {XOR, "xor"},
     {OR, "or"},
     {AND, "and"},
+    {SLLI, "slli"},
     {LD, "ld"},
     {SD, "sd"},
     {ADDI, "addi"},
     {ADDIW, "addiw"},
-    {SLLIW, "slliw"},
     {SRLIW, "srliw"},
     {SRAIW, "sraiw"},
     {ADDW, "addw"},
@@ -92,20 +93,39 @@ const map<MIR_INST, string_view> MIR_INST_NAME = {
 
 };
 
+/* Value functions */
+
+bool Value::is_int_reg() const {
+    if (not is_a<const Register>(this))
+        return false;
+    auto reg = as_a<const Register>(this);
+    return reg->is_int_register();
+}
+bool Value::is_float_reg() const {
+    if (not is_a<const Register>(this))
+        return false;
+    auto reg = as_a<const Register>(this);
+    return reg->is_float_register();
+}
+
 /* Register functions */
 
 bool Register::is_int_register() const {
     return is_a<const IVReg>(this) or is_a<const IPReg>(this);
+}
+bool Register::is_float_register() const {
+    return is_a<const FVReg>(this) or is_a<const FPReg>(this);
 }
 
 void Register::assert_int() const { assert(is_int_register()); }
 
 /* Instruction functions */
 
-void Instruction::set_operand(unsigned i, Value *reg) {
+void Instruction::set_operand(unsigned i, Value *v) {
     assert(i < _operands.size());
-    assert(is_a<PhysicalRegister>(reg) or is_a<StackObject>(reg));
-    _operands[i] = reg;
+    assert(is_a<PhysicalRegister>(v) or is_a<StackObject>(v) or
+           is_a<Immediate>(v));
+    _operands[i] = v;
 }
 
 void Instruction::degenerate_to_comment() {

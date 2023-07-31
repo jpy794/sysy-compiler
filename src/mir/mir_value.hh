@@ -15,6 +15,9 @@ class Value {
   public:
     virtual void dump(std::ostream &os, const Context &context) const = 0;
     virtual ~Value() {}
+
+    bool is_int_reg() const;
+    bool is_float_reg() const;
 };
 
 // FIXME how to AUTO release unused value?

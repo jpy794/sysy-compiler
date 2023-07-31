@@ -262,13 +262,6 @@ class MIRBuilder : public ir::InstructionVisitor {
         return false;
     }
 
-    static bool is_int_reg(const Value *v) {
-        if (not is_a<const Register>(v))
-            return false;
-        auto reg = as_a<const Register>(v);
-        return reg->is_int_register();
-    }
-
     /* @brief: backtrace the i1 origin, return a icmp or fcmp instruction.
      * i1 origin: cmp/fcmp, xor
      * and on xor case, xor is always used as: %op = xor %op true

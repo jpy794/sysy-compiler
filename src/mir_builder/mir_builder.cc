@@ -42,7 +42,9 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
       value_mgr(ValueManager::get()), preg_mgr(PhysicalRegisterManager::get()) {
 
     // external function
-    memset_plt_func = create<Function>(false, "memset@plt", BasicType::VOID);
+    vector<VirtualRegister *> memset_arg(3, create<IVReg>());
+    memset_plt_func =
+        create<Function>(false, "memset@plt", BasicType::VOID, memset_arg);
 
     for (auto &glob_var : ir_module->get_global_vars()) {
         value_map[&glob_var] = mir_moduler->add_global(&glob_var);
@@ -57,7 +59,7 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
         auto &ir_args = ir_function.get_args();
         if (mir_funtion->is_definition())
             for (unsigned i = 0; i < ir_args.size(); ++i) {
-                value_map[ir_args[i]] = mir_funtion->get_args(i);
+                value_map[ir_args[i]] = mir_funtion->get_arg(i);
             }
         // Blocks to label
         for (auto &BB : ir_function.get_bbs()) {
@@ -340,10 +342,10 @@ any MIRBuilder::visit(const ir::ZextInst *instruction) {
         // interger register
         auto res =
             binary_helper(fcmp->operands()[0], fcmp->operands()[1], false);
-        auto freg1 = is_int_reg(res.op1)
+        auto freg1 = res.op1->is_int_reg()
                          ? reinterpret_i2f(as_a<Register>(res.op1))
                          : as_a<FVReg>(res.op1);
-        auto freg2 = is_int_reg(res.op2)
+        auto freg2 = res.op2->is_int_reg()
                          ? reinterpret_i2f(as_a<Register>(res.op2))
                          : as_a<FVReg>(res.op2);
         auto op = reversed ? FCMP_OP_REVERSED.at(fcmp->get_fcmp_op())
@@ -694,10 +696,10 @@ any MIRBuilder::visit(const ir::FBinaryInst *instruction) {
     auto operands = instruction->operands();
     // load immediate to integer reg if exists
     auto res = binary_helper(operands[0], operands[1], false);
-    if (is_int_reg(res.op1)) {
+    if (res.op1->is_int_reg()) {
         res.op1 = reinterpret_i2f(as_a<Register>(res.op1));
     }
-    if (is_int_reg(res.op2)) {
+    if (res.op2->is_int_reg()) {
         res.op2 = reinterpret_i2f(as_a<Register>(res.op2));
     }
 
