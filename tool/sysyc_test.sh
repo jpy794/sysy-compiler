@@ -59,8 +59,8 @@ fi
 # avoid stack overflow due to recursion (perf/median2.sy)
 ulimit -s unlimited
 
-if [ -f $case_path/$case_name.in ]; then
-    $run_bin < $case_path/$case_name.in 1> $out_path/$case_name.stdout 2> $out_path/$case_name.stderr
+if ls $case_path/$case_name.in* &> /dev/null; then
+    cat $case_path/$case_name.in* | $run_bin 1> $out_path/$case_name.stdout 2> $out_path/$case_name.stderr
 else
     $run_bin 1> $out_path/$case_name.stdout 2> $out_path/$case_name.stderr
 fi

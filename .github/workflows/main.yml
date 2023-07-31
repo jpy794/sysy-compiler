@@ -11,8 +11,6 @@ jobs:
     runs-on: self-hosted
     steps:
     - uses: actions/checkout@v3
-      with:
-        lfs: true
     - name: Create build directory
       run: mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug ..
     - name: Style check
