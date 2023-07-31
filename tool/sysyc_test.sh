@@ -39,9 +39,17 @@ if [ $? != 0 ]; then
     exit 1
 fi
 
+
+clang_flags='-Wno-override-module'
+
+# workaround for clang bug
+if [ $case_name == '30_many_dimensions' ]; then
+    clang_flags="$clang_flags -O1"
+fi
+
 if [ $emit_llvm == true ]; then
     run_bin=$out_path/$case_name
-    clang -Wno-override-module $sysyc_out ./test/lib/sylib.c -o $out_path/$case_name
+    clang $clang_flags $sysyc_out ./test/lib/sylib.c -o $out_path/$case_name
 else
     run_bin="qemu-riscv64-static -s 128M -L /usr/riscv64-linux-gnu $out_path/$case_name"
     riscv64-linux-gnu-gcc $sysyc_out ./test/lib/sylib.c -o $out_path/$case_name
