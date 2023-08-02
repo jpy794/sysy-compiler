@@ -5,6 +5,7 @@
 #include <array>
 #include <cassert>
 #include <memory>
+#include <set>
 
 namespace mir {
 
@@ -273,6 +274,20 @@ class PhysicalRegisterManager {
             return get_float_reg(i);
         else
             return get_int_reg(i);
+    }
+
+    // get all registers able to write
+    const std::set<RegPtr> &get_all_regs_writable(bool want_float) {
+        static std::set<RegPtr> floats, ints;
+        static bool run_once = false;
+        if (not run_once) {
+            run_once = true;
+            for (unsigned i = 5; i < 32; ++i)
+                ints.insert(&_int_registers[i]);
+            for (auto &freg : _float_registers)
+                floats.insert(&freg);
+        }
+        return want_float ? floats : ints;
     }
 };
 

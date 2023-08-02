@@ -58,10 +58,10 @@ class CodeGen {
         _allocator.run(_mir_module.get());
         if (not stage1_only) {
             upgrade();
-            if (optimize) {
-                PeepholeOpt opt(*_mir_module);
-                opt.run();
-            }
+            /* if (optimize) {
+             *     PeepholeOpt opt(*_mir_module);
+             *     opt.run();
+             * } */
         }
     }
 
@@ -93,6 +93,7 @@ class CodeGen {
     void resolve_stack();
     void resolve_ret();
     void resolve_call();
+    void resolve_move();
 
     // to make sure function args in consistence with register allocation result
     // !! used after sp move in prologue

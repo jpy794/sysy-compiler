@@ -162,7 +162,7 @@ bool CodeGen::distinguish_stack_usage(PhysicalRegister *rd,
                                       StackObject *stack_object,
                                       IPReg *tmp_addr_reg,
                                       Offset off_addition) {
-    auto func_frame = _upgrade_context.func->get_frame();
+    auto &func_frame = _upgrade_context.func->get_frame();
     int cur_off = Offset2int(func_frame.offset.at(stack_object) + off_addition);
 
     switch (stack_object->get_reason()) {
@@ -596,6 +596,10 @@ void CodeGen::upgrade_step2() {
             case Call:
                 resolve_call();
                 break;
+            case Move:
+            case FMove:
+                resolve_move();
+                break;
             default:
                 resolve_stack();
                 break;
@@ -894,7 +898,7 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
 // pass arguments and caller saves
 void CodeGen::resolve_call() {
     auto func = _upgrade_context.func;
-    auto location = func->get_frame().offset;
+    auto &location = func->get_frame().offset;
     auto inst = _upgrade_context.inst;
 
     // pre analysis for the inst
@@ -975,6 +979,72 @@ void CodeGen::resolve_call() {
     inst->degenerate_to_comment();
 }
 
+void CodeGen::resolve_move() {
+    auto inst = _upgrade_context.inst;
+    auto func = _upgrade_context.func;
+    auto &frame_location = func->get_frame().offset;
+
+    assert(inst->get_operand_num() == 2);
+    auto dest = inst->get_operand(0);
+    auto src = inst->get_operand(1);
+
+    if (not is_a<StackObject>(dest) and not is_a<StackObject>(src))
+        return;
+    if (is_a<StackObject>(dest) and is_a<StackObject>(src)) {
+        resolve_stack();
+        return;
+    }
+
+    // helper function to find 1 tmp reg
+    IPReg *tmp_reg{nullptr};
+    bool need_recover{false};
+    auto find_tmp_reg = [&]() {
+        if (is_a<IPReg>(dest))
+            tmp_reg = as_a<IPReg>(dest);
+        else {
+            auto critical_iregs = current_critical_regs(false, Saver::ALL);
+            auto writable_iregs = preg_mgr.get_all_regs_writable(false);
+            vector<PhysicalRegister *> tmp_regs;
+            // src cannot be overwriten
+            if (is_a<PhysicalRegister>(src))
+                writable_iregs.erase(as_a<PhysicalRegister>(src));
+
+            set_difference(writable_iregs.begin(), writable_iregs.end(),
+                           critical_iregs.begin(), critical_iregs.end(),
+                           back_inserter(tmp_regs));
+            if (tmp_regs.size())
+                tmp_reg = as_a<IPReg>(tmp_regs[0]);
+        }
+        if (tmp_reg == nullptr) {
+            tmp_reg = t0;
+            need_recover = true;
+            safe_load_store(SD, t0, tmp_arg_off.at(t0), nullptr);
+        }
+    };
+
+    if (is_a<StackObject>(dest)) {
+        auto stack_object = as_a<StackObject>(dest);
+        int off = Offset2int(frame_location.at(stack_object));
+        if (not Imm12bit::check_in_range(off))
+            find_tmp_reg();
+        safe_load_store(stack_object->store_op(), as_a<PhysicalRegister>(src),
+                        off, tmp_reg);
+    } else {
+        auto stack_object = as_a<StackObject>(src);
+        int off = Offset2int(frame_location.at(stack_object));
+
+        if (not Imm12bit::check_in_range(off))
+            find_tmp_reg();
+
+        safe_load_store(stack_object->load_op(), as_a<PhysicalRegister>(dest),
+                        off, tmp_reg);
+    }
+
+    if (need_recover)
+        safe_load_store(LD, tmp_reg, tmp_arg_off.at(tmp_reg), nullptr);
+    inst->degenerate_to_comment();
+}
+
 /* @brief expand the instruction with stack object to lw/sw instructions
  *
  * =================HOW-TO-DO=================
@@ -997,7 +1067,7 @@ void CodeGen::resolve_stack() {
     auto func = _upgrade_context.func;
     auto label = _upgrade_context.label;
     auto inst = _upgrade_context.inst;
-    auto frame_location = func->get_frame().offset;
+    auto &frame_location = func->get_frame().offset;
 
     // 0. parse this instruction
     struct {
