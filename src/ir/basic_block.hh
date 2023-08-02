@@ -52,8 +52,21 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
     // invalidate all operands
     Instruction *clone_inst(const ilist<Instruction>::iterator &it,
                             Instruction *other) {
-        if (other->is<BrInst>() || other->is<RetInst>()) {
+        // check for RetInst
+        if (other->is<RetInst>()) {
             assert(not is_terminated() && it == _insts.end());
+        }
+        // check for BrInst
+        if (other->is<BrInst>()) {
+            assert(not is_terminated() && it == _insts.end());
+            assert(this->_suc_bbs.empty());
+            for (auto boba : other->operands()) {
+                if (is_a<LabelType>(boba->get_type())) {
+                    auto bb = as_a<BasicBlock>(boba);
+                    this->_suc_bbs.push_back(as_a<BasicBlock>(boba));
+                    bb->_pre_bbs.push_back(this);
+                }
+            }
         }
         auto inst = other->clone(this);
         _insts.insert(it, inst);
@@ -62,17 +75,53 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
 
     // move inst within the same function
     void move_inst(const ilist<Instruction>::iterator &it, Instruction *other) {
-        assert(other->get_parent()->get_func() == get_func());
         auto other_bb = other->get_parent();
         assert(other_bb->get_func() == _func);
-        if (other->is<BrInst>() || other->is<RetInst>()) {
+        // check for RetInst
+        if (other->is<RetInst>()) {
             assert(not is_terminated() && it == _insts.end());
+        }
+        // check for BrInst
+        if (other->is<BrInst>()) {
+            assert(not is_terminated() && it == _insts.end());
+            assert(this->_suc_bbs.empty());
+            for (auto boba : other->operands()) {
+                if (is_a<BasicBlock>(boba)) {
+                    auto bb = as_a<BasicBlock>(boba);
+                    this->_suc_bbs.push_back(as_a<BasicBlock>(boba));
+                    bb->_pre_bbs.push_back(this);
+                }
+            }
         }
         auto inst = other_bb->insts().release(other);
         inst->_parent = this;
         _insts.insert(it, inst);
     }
 
+    void erase_inst(Instruction *inst) {
+        if (is_a<BrInst>(inst)) {
+            for (auto boba : inst->operands()) {
+                if (is_a<BasicBlock>(boba)) {
+                    auto bb = as_a<BasicBlock>(boba);
+                    for (auto iter = this->_suc_bbs.begin();
+                         iter != this->_suc_bbs.end(); iter++) {
+                        if (*iter == bb) {
+                            this->_suc_bbs.erase(iter);
+                            break;
+                        }
+                    }
+                    for (auto iter = bb->_pre_bbs.begin();
+                         iter != bb->_pre_bbs.end(); iter++) {
+                        if (*iter == this) {
+                            bb->_pre_bbs.erase(iter);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        _insts.erase(inst);
+    }
     std::vector<BasicBlock *> &pre_bbs() { return _pre_bbs; }
     std::vector<BasicBlock *> &suc_bbs() { return _suc_bbs; }
     ilist<Instruction> &insts() { return _insts; }
