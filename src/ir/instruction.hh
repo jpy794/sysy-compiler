@@ -25,6 +25,30 @@
         return new INST{prt, *this};                                           \
     }
 
+#define BIN_INST_CLONE(INST)                                                   \
+  private:                                                                     \
+    INST(BasicBlock *prt, const INST &other)                                   \
+        : Instruction(prt, other.get_type(),                                   \
+                      {other.operands().begin(), other.operands().end()}),     \
+          _op(other._op) {}                                                    \
+                                                                               \
+  public:                                                                      \
+    Instruction *clone(BasicBlock *prt) const final {                          \
+        return new INST{prt, *this};                                           \
+    }
+
+#define CMP_INST_CLONE(INST)                                                   \
+  private:                                                                     \
+    INST(BasicBlock *prt, const INST &other)                                   \
+        : Instruction(prt, other.get_type(),                                   \
+                      {other.operands().begin(), other.operands().end()}),     \
+          _cmp_op(other._cmp_op) {}                                            \
+                                                                               \
+  public:                                                                      \
+    Instruction *clone(BasicBlock *prt) const final {                          \
+        return new INST{prt, *this};                                           \
+    }
+
 namespace ir {
 
 class Function;
@@ -108,7 +132,7 @@ class IBinaryInst : public Instruction {
   private:
     IBinOp _op;
 
-    INST_CLONE(IBinaryInst)
+    BIN_INST_CLONE(IBinaryInst)
 };
 
 class FBinaryInst : public Instruction {
@@ -128,7 +152,7 @@ class FBinaryInst : public Instruction {
   private:
     FBinOp _op;
 
-    INST_CLONE(FBinaryInst)
+    BIN_INST_CLONE(FBinaryInst)
 };
 
 class AllocaInst : public Instruction {
@@ -185,7 +209,7 @@ class ICmpInst : public Instruction {
   private:
     ICmpOp _cmp_op;
 
-    INST_CLONE(ICmpInst)
+    CMP_INST_CLONE(ICmpInst)
 };
 
 class FCmpInst : public Instruction {
@@ -203,7 +227,7 @@ class FCmpInst : public Instruction {
   private:
     FCmpOp _cmp_op;
 
-    INST_CLONE(FCmpInst)
+    CMP_INST_CLONE(FCmpInst)
 };
 
 class PhiInst : public Instruction {
