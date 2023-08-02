@@ -2,6 +2,7 @@
 #include "basic_block.hh"
 #include "utils.hh"
 #include <cassert>
+#include <deque>
 #include <stdexcept>
 #include <vector>
 
@@ -14,42 +15,36 @@ void RmUnreachBB::run(PassManager *mgr) {
     for (auto &f_r : m->functions()) {
         if (f_r.is_external)
             continue;
-        auto &bbs = f_r.bbs();
-        auto iter = bbs.begin();
-        ++iter;
-        vector<BasicBlock *> check_reach;
-        while (iter != bbs.end()) {
-            // find which block (not entry) doesn't have pre bb;
-            if (iter->get_pre_bbs().size() == 0) {
-                check_reach.push_back(&*iter);
+        deque<BasicBlock *> work_list;
+        map<BasicBlock *, bool> visited;
+        work_list.push_back(f_r.get_entry_bb());
+        while (not work_list.empty()) {
+            auto top = work_list.front();
+            work_list.pop_front();
+            if (visited[top])
+                continue;
+            visited[top] = true;
+            for (auto suc_bb : top->suc_bbs()) {
+                work_list.push_back(suc_bb);
             }
-            ++iter;
         }
-        // chech reachable and remove unreachable bbs
-        for (unsigned i = 0; i < check_reach.size(); i++) {
-            if (check_reach[i]->get_pre_bbs().size() == 0) { // unreachable
-                for (auto suc_bb : check_reach[i]->suc_bbs()) {
+        for (auto &bb : f_r.bbs()) {
+            if (visited[&bb])
+                continue;
+            else {
+                for (auto suc_bb : bb.suc_bbs()) {
                     auto &pre_suc_bbs = suc_bb->pre_bbs();
                     for (auto pre_suc_bb = pre_suc_bbs.begin();
                          pre_suc_bb != pre_suc_bbs.end(); pre_suc_bb++) {
-                        if (*pre_suc_bb == check_reach[i]) {
+                        if (*pre_suc_bb == &bb) {
                             // remove the unreach_bb from the ilist of the
                             // pre_bb of its suc_bbs
                             pre_suc_bbs.erase(pre_suc_bb);
                             break;
                         }
                     }
-                    // add the unreach_bb's suc bb into check_reach to check
-                    // whether it can be reached
-                    check_reach.push_back(suc_bb);
                 }
-                // remove unreachable bb from functions
-                for (iter = ++bbs.begin(); iter != bbs.end(); ++iter) {
-                    if (&*iter == check_reach[i]) {
-                        bbs.erase(iter);
-                        break;
-                    }
-                }
+                f_r.bbs().erase(&bb);
             }
         }
     }
