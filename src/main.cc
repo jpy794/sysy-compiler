@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
         *os << ll;
     } else {
         // emit asm
-        codegen::CodeGen codegen{std::move(module)};
+        codegen::CodeGen codegen{std::move(module), cfg.optimize};
         *os << codegen;
     }
 

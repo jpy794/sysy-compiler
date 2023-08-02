@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
            false);
 
     // codegen, output stage1 asm only
-    codegen::CodeGen codegen{pm.release_module(), true};
+    codegen::CodeGen codegen{pm.release_module(), false, true};
     ofstream asm_output{output_path / (name_without_extension + ".s")};
     asm_output << codegen;
     asm_output.close();

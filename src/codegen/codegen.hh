@@ -11,6 +11,7 @@
 #include "mir_module.hh"
 #include "mir_register.hh"
 #include "module.hh"
+#include "peephole.hh"
 #include "regalloc.hh"
 
 #include <array>
@@ -50,12 +51,18 @@ class CodeGen {
     } _upgrade_context;
 
   public:
-    CodeGen(std::unique_ptr<ir::Module> &&ir_module, bool stage1_only = false) {
+    CodeGen(std::unique_ptr<ir::Module> &&ir_module, bool optimize,
+            bool stage1_only = false) {
         mir::MIRBuilder builder(std::move(ir_module));
         _mir_module.reset(builder.release());
         _allocator.run(_mir_module.get());
-        if (not stage1_only)
+        if (not stage1_only) {
             upgrade();
+            if (optimize) {
+                PeepholeOpt opt(*_mir_module);
+                opt.run();
+            }
+        }
     }
 
     friend std::ostream &operator<<(std::ostream &os, const CodeGen &c);
