@@ -13,6 +13,7 @@
 #include "DeadCode.hh"
 #include "ast.hh"
 #include "codegen.hh"
+#include "const_propagate.hh"
 #include "depth_order.hh"
 #include "dominator.hh"
 #include "err.hh"
@@ -100,10 +101,11 @@ int main(int argc, char **argv) {
         pm.add_pass<RmUnreachBB>();
         pm.add_pass<Mem2reg>();
         pm.add_pass<LoopInvariant>();
+        pm.add_pass<ConstPro>();
         pm.add_pass<DeadCode>();
 
-        pm.run(
-            {PassID<Mem2reg>(), PassID<LoopInvariant>(), PassID<DeadCode>()});
+        pm.run({PassID<Mem2reg>(), PassID<LoopInvariant>(), PassID<ConstPro>()},
+               true);
 
         module = pm.release_module();
     } else {
