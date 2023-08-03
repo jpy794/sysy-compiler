@@ -32,7 +32,7 @@ class StackObject : public MemObject {
     friend class ValueManager;
 
   public:
-    enum class Reason { Alloca, Spilled, CalleeSave };
+    enum class Reason { Alloca, Spilled, CalleeSave, ArgsOnStack };
 
   private:
     const std::size_t _align;
@@ -51,6 +51,17 @@ class StackObject : public MemObject {
     MIR_INST store_op() const { return mem_op(false); }
     MIR_INST mem_op(bool load) const;
     bool is_float_usage() const;
+};
+
+class ArgsOnStack : public StackObject {
+    friend class ValueManager;
+
+  private:
+    ArgsOnStack(BasicType type)
+        : StackObject(type,
+                      type == BasicType::FLOAT ? BASIC_TYPE_SIZE
+                                               : TARGET_MACHINE_SIZE,
+                      TARGET_MACHINE_SIZE, Reason::ArgsOnStack) {}
 };
 
 class CalleeSave : public StackObject {

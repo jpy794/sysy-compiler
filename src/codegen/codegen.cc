@@ -172,6 +172,7 @@ bool CodeGen::distinguish_stack_usage(PhysicalRegister *rd,
         safe_imm_inst(ADDI, ADD, int_rd, sp, cur_off);
         return false;
     }
+    case StackObject::Reason::ArgsOnStack:
     case StackObject::Reason::Spilled: // need value
         return safe_load_store(stack_object->load_op(), rd, cur_off,
                                tmp_addr_reg);
@@ -199,9 +200,12 @@ CodeGen::ArgInfo CodeGen::split_func_args_logue_ver() const {
         auto &idx = is_float ? f_idx : i_idx;
 
         decltype(ArgInfo::_info::location) location;
-        if (contains(arg_spilled_location, arg))
+        if (contains(arg_spilled_location, arg)) {
+            if (arg_spilled_location.at(arg)->get_reason() ==
+                Reason::ArgsOnStack)
+                continue;
             location = arg_spilled_location.at(arg);
-        else {
+        } else {
             auto preg_id = reg_map.at(arg->get_id()).reg->get_id();
             if (is_float)
                 location = preg_mgr.get_float_reg(preg_id);
@@ -244,6 +248,7 @@ void CodeGen::coordinate_func_args() {
         // arg is allocated to stack during reg allocation
         [&](StackObject *stack_object) {
             assert(not contains(reg_in_use, convetion_reg));
+            assert(stack_object->get_reason() != Reason::ArgsOnStack);
             auto off = func->get_frame().offset.at(stack_object);
             MIR_INST store_op = stack_object->store_op();
             tmp_reg_backup_check(t1);
@@ -450,8 +455,31 @@ void CodeGen::upgrade_step1() {
     map<RegIDType, StackObject *> int_spilled_location, float_spilled_location;
     set<RegIDType> int_callee_saves, float_callee_saves;
 
-    // spilled virtual reg to stack
+    /* spilled virtual reg to stack */
+    // first deal with arguments
+    unsigned iarg_cnt = 0, farg_cnt = 0;
+    for (auto arg : func->get_args()) {
+        bool is_float = is_a<FVReg>(arg);
+        auto &arg_cnt = is_float ? farg_cnt : iarg_cnt;
+        auto &spilled_set = is_float ? float_spilled : int_spilled;
+        arg_cnt++;
+        if (not contains(spilled_set, arg->get_id()))
+            continue;
+        if (arg_cnt <= 8) {
+            // for first 8 arg passed on reg(but spilled in cur func), create a
+            // local space, so leave it for later resolve
+        } else {
+            auto basic_type = is_float ? BasicType::FLOAT : BasicType::INT;
+            auto &spilled_location =
+                is_float ? float_spilled_location : int_spilled_location;
+            spilled_location.insert(
+                {arg->get_id(), func->add_arg_on_caller_stack(basic_type)});
+        }
+    }
+
     for (auto spill_id : int_spilled) {
+        if (contains(int_spilled_location, spill_id))
+            continue;
         // FIXME use more specific size(only pointer use 8 bytes)
         int_spilled_location.insert(
             {spill_id,
@@ -459,14 +487,15 @@ void CodeGen::upgrade_step1() {
                                  TARGET_MACHINE_SIZE, Reason::Spilled)});
     }
     for (auto spill_id : float_spilled) {
-        // FIXME use more specific size(only pointer use 8 bytes)
+        if (contains(float_spilled_location, spill_id))
+            continue;
         float_spilled_location.insert(
             {spill_id, func->add_local_var(BasicType::FLOAT, BASIC_TYPE_SIZE,
                                            BASIC_TYPE_SIZE, Reason::Spilled)});
     }
 
     // 1st pass
-    for (auto label : func->get_labels())
+    for (auto label : func->get_labels()) {
         for (auto &inst : label->get_insts()) {
             bool inst_will_write_reg = inst.will_write_register();
             // special judgment for call's dead code
@@ -523,6 +552,7 @@ void CodeGen::upgrade_step1() {
                 }
             }
         }
+    }
 
     // add physical regs used by function arguments to callee_saves
     for (auto arg : func->get_args()) {
@@ -540,7 +570,7 @@ void CodeGen::upgrade_step1() {
         }
     }
 
-    // NOTE we may save all callee saves whether or not cur func uses them
+    // add callee saves to function
     for (auto preg_id : int_callee_saves)
         func->add_callee_save(BasicType::INT, preg_id);
     for (auto preg_id : float_callee_saves)
@@ -588,7 +618,6 @@ void CodeGen::upgrade_step2() {
             if (inst->get_opcode() == COMMENT)
                 continue;
 
-            // TODO resolve_move!
             switch (inst->get_opcode()) {
             case Ret:
                 resolve_ret();

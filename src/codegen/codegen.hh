@@ -58,10 +58,10 @@ class CodeGen {
         _allocator.run(_mir_module.get());
         if (not stage1_only) {
             upgrade();
-            /* if (optimize) {
-             *     PeepholeOpt opt(*_mir_module);
-             *     opt.run();
-             * } */
+            if (optimize) {
+                PeepholeOpt opt(*_mir_module);
+                opt.run();
+            }
         }
     }
 

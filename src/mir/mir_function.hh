@@ -35,6 +35,7 @@ class Function : public Value {
     std::deque<Label *> _labels; // FIXME the label at 0 is the entry label
 
     // objects in stack
+    std::vector<ArgsOnStack *> _args_on_caller_stack;
     std::vector<StackObject *> _local_vars;
     std::vector<CalleeSave *> _callee_saves;
 
@@ -97,6 +98,12 @@ class Function : public Value {
         for (auto &[k, v] : _frame.offset)
             _frame.offset.at(k) = off - v;
         _frame.size = off;
+        for (unsigned i = 0; i < _args_on_caller_stack.size(); ++i) {
+            auto stack_arg = _args_on_caller_stack[i];
+            _frame.offset[stack_arg] = off;
+            off += stack_arg->get_size();
+            off = ALIGN(off, stack_arg->get_align());
+        }
     }
 
     // the prev/succ for entry is hold inside function
@@ -129,6 +136,12 @@ class Function : public Value {
         _callee_saves.push_back(
             ValueManager::get().create<CalleeSave>(args...));
         return _callee_saves.back();
+    }
+    template <typename... Args>
+    ArgsOnStack *add_arg_on_caller_stack(Args... args) {
+        _args_on_caller_stack.push_back(
+            ValueManager::get().create<ArgsOnStack>(args...));
+        return _args_on_caller_stack.back();
     }
 };
 }; // namespace mir
