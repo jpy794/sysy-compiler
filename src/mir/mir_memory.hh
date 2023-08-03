@@ -57,11 +57,17 @@ class ArgsOnStack : public StackObject {
     friend class ValueManager;
 
   private:
-    ArgsOnStack(BasicType type)
+    unsigned _idx; // ith arg passed on stack, start from 0
+
+    ArgsOnStack(BasicType type, unsigned idx)
         : StackObject(type,
                       type == BasicType::FLOAT ? BASIC_TYPE_SIZE
                                                : TARGET_MACHINE_SIZE,
-                      TARGET_MACHINE_SIZE, Reason::ArgsOnStack) {}
+                      TARGET_MACHINE_SIZE, Reason::ArgsOnStack),
+          _idx(idx) {}
+
+  public:
+    unsigned get_idx() const { return _idx; }
 };
 
 class CalleeSave : public StackObject {

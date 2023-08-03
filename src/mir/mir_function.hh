@@ -100,9 +100,8 @@ class Function : public Value {
         _frame.size = off;
         for (unsigned i = 0; i < _args_on_caller_stack.size(); ++i) {
             auto stack_arg = _args_on_caller_stack[i];
+            auto off = stack_arg->get_idx() * TARGET_MACHINE_SIZE + _frame.size;
             _frame.offset[stack_arg] = off;
-            off += stack_arg->get_size();
-            off = ALIGN(off, stack_arg->get_align());
         }
     }
 

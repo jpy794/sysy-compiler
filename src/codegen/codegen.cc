@@ -201,9 +201,6 @@ CodeGen::ArgInfo CodeGen::split_func_args_logue_ver() const {
 
         decltype(ArgInfo::_info::location) location;
         if (contains(arg_spilled_location, arg)) {
-            if (arg_spilled_location.at(arg)->get_reason() ==
-                Reason::ArgsOnStack)
-                continue;
             location = arg_spilled_location.at(arg);
         } else {
             auto preg_id = reg_map.at(arg->get_id()).reg->get_id();
@@ -306,8 +303,8 @@ void CodeGen::coordinate_func_args() {
                 int_convetion_reg = preg;
             }
         } else if (holds_alternative<StackObject *>(info.location)) {
-            reordered_args_in_stack.insert(reordered_args_in_stack.begin(),
-                                           {off, info});
+            assert(get<StackObject *>(info.location)->get_reason() ==
+                   Reason::ArgsOnStack);
         } else {
             throw unreachable_error{};
         }
@@ -457,12 +454,13 @@ void CodeGen::upgrade_step1() {
 
     /* spilled virtual reg to stack */
     // first deal with arguments
-    unsigned iarg_cnt = 0, farg_cnt = 0;
+    unsigned iarg_cnt = 0, farg_cnt = 0, stack_cnt = 0;
     for (auto arg : func->get_args()) {
         bool is_float = is_a<FVReg>(arg);
         auto &arg_cnt = is_float ? farg_cnt : iarg_cnt;
         auto &spilled_set = is_float ? float_spilled : int_spilled;
-        arg_cnt++;
+        if (arg_cnt++ >= 8)
+            stack_cnt++; // is a reg passed on stack
         if (not contains(spilled_set, arg->get_id()))
             continue;
         if (arg_cnt <= 8) {
@@ -473,7 +471,8 @@ void CodeGen::upgrade_step1() {
             auto &spilled_location =
                 is_float ? float_spilled_location : int_spilled_location;
             spilled_location.insert(
-                {arg->get_id(), func->add_arg_on_caller_stack(basic_type)});
+                {arg->get_id(),
+                 func->add_arg_on_caller_stack(basic_type, stack_cnt - 1)});
         }
     }
 
