@@ -23,7 +23,6 @@ void ConstPro::run(pass::PassManager *mgr) {
         }
         traverse(&f_r);
         replace();
-        combine_continuous_add(&f_r);
     }
 }
 
@@ -190,48 +189,4 @@ Constant *ConstPro::get_const(Value *val) {
         return val2const[val];
     else
         throw logic_error{"this inst can't be constant"};
-}
-
-void ConstPro::combine_continuous_add(Function *func) {
-    auto parese_add_const = [](Instruction *inst) {
-        struct {
-            Value *src{nullptr};
-            int const_v{-1};
-        } ret;
-
-        if (not(is_a<IBinaryInst>(inst) and
-                as_a<IBinaryInst>(inst)->get_ibin_op() == IBinaryInst::ADD))
-            return ret;
-        if (is_a<ConstInt>(inst->get_operand(0)) or
-            is_a<ConstInt>(inst->get_operand(1))) {
-            unsigned const_idx = is_a<ConstInt>(inst->get_operand(0)) ? 0 : 1;
-
-            ret.const_v = as_a<ConstInt>(inst->get_operand(const_idx))->val();
-            ret.src = inst->get_operand(1 - const_idx);
-        }
-        return ret;
-    };
-
-    for (auto &bb_r : func->bbs()) {
-        for (auto &inst_r : bb_r.insts()) {
-            auto inst = &inst_r;
-
-            Value *new_op0 = nullptr;
-            int const_op1 = 0;
-
-            auto new_op = parese_add_const(inst);
-            while (new_op.src) {
-                new_op0 = new_op.src;
-                const_op1 += new_op.const_v;
-
-                if (not is_a<Instruction>(new_op.src))
-                    break;
-                new_op = parese_add_const(as_a<Instruction>(new_op.src));
-            }
-            if (new_op0) {
-                inst->set_operand(0, new_op0);
-                inst->set_operand(1, Constants::get().int_const(const_op1));
-            }
-        }
-    }
 }

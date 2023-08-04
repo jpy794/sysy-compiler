@@ -14,6 +14,7 @@
 #include "ast.hh"
 #include "codegen.hh"
 #include "const_propagate.hh"
+#include "control_flow.hh"
 #include "depth_order.hh"
 #include "dominator.hh"
 #include "err.hh"
@@ -24,6 +25,7 @@
 #include "mem2reg.hh"
 #include "pass.hh"
 #include "raw_ast.hh"
+#include "strength_reduce.hh"
 #include "usedef_chain.hh"
 
 using namespace std;
@@ -103,9 +105,18 @@ int main(int argc, char **argv) {
         pm.add_pass<LoopInvariant>();
         pm.add_pass<ConstPro>();
         pm.add_pass<DeadCode>();
+        pm.add_pass<ControlFlow>();
+        pm.add_pass<StrengthReduce>();
 
-        pm.run({PassID<Mem2reg>(), PassID<LoopInvariant>(), PassID<ConstPro>()},
-               true);
+        pm.run(
+            {
+                PassID<Mem2reg>(),
+                PassID<StrengthReduce>(),
+                PassID<LoopInvariant>(),
+                PassID<ControlFlow>(),
+                PassID<ConstPro>(),
+            },
+            true);
 
         module = pm.release_module();
     } else {

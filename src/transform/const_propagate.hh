@@ -29,7 +29,6 @@ class ConstPro final : public pass::TransformPass {
     ir::Constant *const_folder(ir::Instruction *);
     inline bool check(ir::Instruction *); // check whether inst is able to be
                                           // folded constantly
-    void combine_continuous_add(ir::Function *);
 
   private:
     const pass::UseDefChain::ResultType *use_def;
