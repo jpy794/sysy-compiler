@@ -82,6 +82,44 @@ ICmpInst::ICmpInst(BasicBlock *prt, ICmpOp cmp_op, Value *lhs, Value *rhs)
     assert(is_a<IntType>(rhs->get_type()));
 }
 
+ICmpInst::ICmpOp ICmpInst::opposite_icmp_op(ICmpInst::ICmpOp op) {
+    switch (op) {
+    case EQ:
+        return NE;
+    case NE:
+        return EQ;
+    case GT:
+        return LT;
+    case GE:
+        return LE;
+    case LT:
+        return GT;
+    case LE:
+        return GE;
+    default:
+        throw unreachable_error{};
+    }
+}
+
+ICmpInst::ICmpOp ICmpInst::not_icmp_op(ICmpInst::ICmpOp op) {
+    switch (op) {
+    case EQ:
+        return NE;
+    case NE:
+        return EQ;
+    case GT:
+        return LE;
+    case GE:
+        return LT;
+    case LT:
+        return GE;
+    case LE:
+        return GT;
+    default:
+        throw unreachable_error{};
+    }
+}
+
 FCmpInst::FCmpInst(BasicBlock *prt, FCmpOp cmp_op, Value *lhs, Value *rhs)
     : Instruction(prt, Types::get().bool_type(), {lhs, rhs}), _cmp_op(cmp_op) {
     assert(is_a<FloatType>(lhs->get_type()));

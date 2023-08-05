@@ -124,6 +124,8 @@ class IBinaryInst : public Instruction {
     std::string print() const final;
 
     IBinOp get_ibin_op() const { return _op; }
+    Value *lhs() const { return get_operand(0); }
+    Value *rhs() const { return get_operand(1); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
@@ -200,7 +202,12 @@ class ICmpInst : public Instruction {
     ICmpInst(BasicBlock *prt, ICmpOp cmp_op, Value *lhs, Value *rhs);
     std::string print() const final;
 
+    static ICmpOp opposite_icmp_op(ICmpOp op);
+    static ICmpOp not_icmp_op(ICmpOp op);
+
     ICmpOp get_icmp_op() const { return _cmp_op; }
+    Value *lhs() const { return get_operand(0); }
+    Value *rhs() const { return get_operand(1); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);

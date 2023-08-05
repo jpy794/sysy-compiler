@@ -22,6 +22,7 @@
 #include "ir_builder.hh"
 #include "loop_find.hh"
 #include "loop_invariant.hh"
+#include "loop_unroll.hh"
 #include "mem2reg.hh"
 #include "pass.hh"
 #include "raw_ast.hh"
@@ -103,6 +104,7 @@ int main(int argc, char **argv) {
         pm.add_pass<RmUnreachBB>();
         pm.add_pass<Mem2reg>();
         pm.add_pass<LoopInvariant>();
+        pm.add_pass<LoopUnroll>();
         pm.add_pass<ConstPro>();
         pm.add_pass<DeadCode>();
         pm.add_pass<ControlFlow>();
@@ -113,6 +115,7 @@ int main(int argc, char **argv) {
                 PassID<Mem2reg>(),
                 PassID<StrengthReduce>(),
                 PassID<LoopInvariant>(),
+                PassID<LoopUnroll>(),
                 PassID<ControlFlow>(),
                 PassID<ConstPro>(),
             },

@@ -98,7 +98,8 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
         _insts.insert(it, inst);
     }
 
-    void erase_inst(Instruction *inst) {
+    void erase_inst(const ilist<Instruction>::iterator &it) {
+        auto inst = &*it;
         if (is_a<BrInst>(inst)) {
             for (auto boba : inst->operands()) {
                 if (is_a<BasicBlock>(boba)) {
