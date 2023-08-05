@@ -140,11 +140,11 @@ void handle_func(Function *func, const FuncLoopInfo &loops) {
         }
         preheader->create_inst<BrInst>(header);
 
-        debugs << "invariant of loop " << header->get_name();
-        for (auto &&inst : preheader->insts()) {
-            debugs << ' ' << inst.get_name();
-        }
-        debugs << '\n';
+        /* debugs << "invariant of loop " << header->get_name();
+         * for (auto &&inst : preheader->insts()) {
+         *     debugs << ' ' << inst.get_name();
+         * }
+         * debugs << '\n'; */
     }
 }
 

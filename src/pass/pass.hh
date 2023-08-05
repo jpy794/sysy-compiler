@@ -119,6 +119,7 @@ class PassManager {
     std::map<PassIDType, PassInfo> _passes;
     Ptr<ir::Module> _m; // irbuilder should transfer control to PM
     PassOrder _order;
+    std::list<PassIDType> _pass_record;
 
   public:
     PassManager(Ptr<ir::Module> &&m) : _m(std::move(m)) {}
@@ -158,6 +159,8 @@ class PassManager {
     ir::Module *get_module() { return _m.get(); }
 
     Ptr<ir::Module> release_module() { return std::move(_m); }
+
+    std::string print_passes_runned() const;
 
   private:
     PassInfo &at(PassIDType id) {

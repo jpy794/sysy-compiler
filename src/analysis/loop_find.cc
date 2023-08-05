@@ -38,7 +38,7 @@ void LoopFind::run(pass::PassManager *mgr) {
         }
         _result.loop_info.emplace(&func, std::move(loops));
     }
-    log();
+    // log();
 }
 
 set<BasicBlock *> LoopFind::find_bbs_by_latch(BasicBlock *header,

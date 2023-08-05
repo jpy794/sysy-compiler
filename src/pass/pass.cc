@@ -25,6 +25,7 @@ void PassManager::run(const PassOrder &o, bool post) {
         }
 
         ptr->run(this);
+        _pass_record.push_back(passid);
 
         // invalidation of affected passes
         switch (AU._kt) {
@@ -49,4 +50,13 @@ void PassManager::run(const PassOrder &o, bool post) {
 
         info.mark_valid();
     }
+}
+
+string PassManager::print_passes_runned() const {
+    string ret{"passes runned: "};
+    for (auto passid : _pass_record) {
+        string pass_name = demangle(passid.name());
+        ret += pass_name + " ";
+    }
+    return ret;
 }

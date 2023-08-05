@@ -19,7 +19,9 @@
 #include "dominator.hh"
 #include "err.hh"
 #include "func_info.hh"
+#include "gvn.hh"
 #include "ir_builder.hh"
+#include "log.hh"
 #include "loop_find.hh"
 #include "loop_invariant.hh"
 #include "loop_unroll.hh"
@@ -85,13 +87,18 @@ int main(int argc, char **argv) {
         throw runtime_error{"source file does not exist"};
     }
 
+    { // [DEBUG] input file
+        auto filename = filesystem::path{cfg.in}.filename().c_str();
+        debugs << "=========Debug Info For " << filename << "=========\n";
+    }
+
     ast::AST ast{ast::RawAST{cfg.in}};
 
     IRBuilder builder{ast};
     auto module = builder.release_module();
 
+    PassManager pm{std::move(module)};
     if (cfg.optimize) {
-        PassManager pm{std::move(module)};
 
         // analysis
         pm.add_pass<Dominator>();
@@ -109,6 +116,7 @@ int main(int argc, char **argv) {
         pm.add_pass<DeadCode>();
         pm.add_pass<ControlFlow>();
         pm.add_pass<StrengthReduce>();
+        pm.add_pass<GVN>();
 
         pm.run(
             {
@@ -120,27 +128,25 @@ int main(int argc, char **argv) {
                 PassID<ConstPro>(),
             },
             true);
-
-        module = pm.release_module();
     } else {
-        // minimum passes required by backend
-        PassManager pm{std::move(module)};
-
+        /* minimum passes required by backend */
         // analysis
         pm.add_pass<Dominator>();
         pm.add_pass<UseDefChain>();
         pm.add_pass<FuncInfo>();
         pm.add_pass<DepthOrder>();
-
         // transform
         pm.add_pass<RmUnreachBB>();
         pm.add_pass<Mem2reg>();
         pm.add_pass<DeadCode>();
 
         pm.run({PassID<Mem2reg>(), PassID<DeadCode>()});
-
-        module = pm.release_module();
     }
+
+    { // [DEBUG] runned passes
+        debugs << pm.print_passes_runned() << "\n";
+    }
+    module = pm.release_module();
 
     // output
     ostream *os{nullptr};
