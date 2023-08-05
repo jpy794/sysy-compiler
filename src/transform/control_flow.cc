@@ -125,8 +125,7 @@ void ControlFlow::merge_bb(BasicBlock *redd_bb, BasicBlock *result_bb,
     for (auto iter = redd_bb->insts().begin(); iter != redd_bb->insts().end();
          iter = redd_bb->insts().begin()) {
         assert(not(is_a<BrInst>(&*iter) || is_a<RetInst>(&*iter)));
-        auto inst = redd_bb->insts().release(iter);
-        insert_iter = result_bb->insts().insert(insert_iter, inst);
+        insert_iter = result_bb->move_inst(insert_iter, &*iter);
         ++insert_iter;
     }
     // 6.clear redundant bb

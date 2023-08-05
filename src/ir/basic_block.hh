@@ -48,10 +48,11 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
         return inst;
     }
 
-    // clone a inst, be careful when cloning from another function as this could
-    // invalidate all operands
+    // clone inst within the same function
     Instruction *clone_inst(const ilist<Instruction>::iterator &it,
                             Instruction *other) {
+        auto other_bb = other->get_parent();
+        assert(other_bb->get_func() == _func);
         // check for RetInst
         if (other->is<RetInst>()) {
             assert(not is_terminated() && it == _insts.end());
@@ -73,8 +74,25 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
         return inst;
     }
 
+    // clone only for the private member except for operands which should be
+    // replaced by caller
+    Instruction *clone_inst_skeleton(const ilist<Instruction>::iterator &it,
+                                     Instruction *other) {
+        auto other_bb = other->get_parent();
+        assert(other_bb->get_func() != _func);
+        // check for RetInst
+        if (other->is<RetInst>() || other->is<BrInst>()) {
+            assert(not is_terminated() && it == _insts.end());
+            assert(not is_terminated() && it == _insts.end());
+        }
+        auto inst = other->clone(this);
+        _insts.insert(it, inst);
+        return inst;
+    }
+
     // move inst within the same function
-    void move_inst(const ilist<Instruction>::iterator &it, Instruction *other) {
+    ilist<Instruction>::iterator
+    move_inst(const ilist<Instruction>::iterator &it, Instruction *other) {
         auto other_bb = other->get_parent();
         assert(other_bb->get_func() == _func);
         // check for RetInst
@@ -95,7 +113,7 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
         }
         auto inst = other_bb->insts().release(other);
         inst->_parent = this;
-        _insts.insert(it, inst);
+        return _insts.insert(it, inst);
     }
 
     void erase_inst(const ilist<Instruction>::iterator &it) {
