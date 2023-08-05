@@ -103,11 +103,18 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
         if (other->is<BrInst>()) {
             assert(not is_terminated() && it == _insts.end());
             assert(this->_suc_bbs.empty());
+            other->get_parent()->suc_bbs().clear();
             for (auto boba : other->operands()) {
                 if (is_a<BasicBlock>(boba)) {
+                    // maintain bb's relationship based on BrInst
                     auto bb = as_a<BasicBlock>(boba);
                     this->_suc_bbs.push_back(as_a<BasicBlock>(boba));
-                    bb->_pre_bbs.push_back(this);
+                    for (unsigned i = 0; i < bb->pre_bbs().size(); i++) {
+                        if (bb->pre_bbs()[i] == other->get_parent()) {
+                            bb->pre_bbs()[i] = this;
+                            break;
+                        }
+                    }
                 }
             }
         }
