@@ -19,6 +19,7 @@
 #include "dominator.hh"
 #include "err.hh"
 #include "func_info.hh"
+#include "inline.hh"
 #include "gvn.hh"
 #include "ir_builder.hh"
 #include "log.hh"
@@ -116,6 +117,7 @@ int main(int argc, char **argv) {
         pm.add_pass<DeadCode>();
         pm.add_pass<ControlFlow>();
         pm.add_pass<StrengthReduce>();
+        pm.add_pass<Inline>();
         pm.add_pass<GVN>();
 
         pm.run(
@@ -126,6 +128,7 @@ int main(int argc, char **argv) {
                 PassID<LoopUnroll>(),
                 PassID<ControlFlow>(),
                 PassID<ConstPro>(),
+                PassID<Inline>(),
             },
             true);
     } else {

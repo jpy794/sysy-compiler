@@ -23,6 +23,9 @@ class ConstPro final : public pass::TransformPass {
         AU.add_post<pass::DeadCode>();
     }
     virtual void run(pass::PassManager *mgr) override;
+
+    virtual bool always_invalid() const override { return true; }
+
     void traverse(ir::Function *);
     void replace();
     ir::Constant *get_const(ir::Value *);

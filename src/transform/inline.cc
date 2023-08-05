@@ -22,20 +22,32 @@ bool Inline::is_inline(Function *func) {
 void Inline::run(PassManager *mgr) {
     auto m = mgr->get_module();
     _use_def_chain = &mgr->get_result<UseDefChain>();
+    const unsigned upper_times = 1; // set iter_expanded upper times
+    deque<Instruction *> call_work_list{};
+    unsigned iter_times = 0;
+    Function *main_func;
     for (auto &f_r : m->functions()) {
-        if (f_r.get_name() == "@main") {
-            for (auto &bb_r : f_r.bbs()) {
-                for (auto iter = bb_r.insts().begin();
-                     iter != bb_r.insts().end(); ++iter) {
-                    if (is_a<CallInst>(&*iter) &&
-                        is_inline(as_a<Function>(iter->get_operand(0)))) {
-                        clee2cler.clear();
-                        inline_bb.clear();
-                        inline_func(iter);
-                        return;
-                    }
+        if (f_r.get_name() == "@main")
+            main_func = &f_r;
+    }
+    while (iter_times++ < upper_times) { // find which call can be expanded
+        for (auto &bb_r : main_func->bbs()) {
+            for (auto iter = bb_r.insts().begin(); iter != bb_r.insts().end();
+                 ++iter) {
+                if (is_a<CallInst>(&*iter) &&
+                    is_inline(as_a<Function>(iter->get_operand(0)))) {
+                    call_work_list.push_back(&*iter);
                 }
             }
+        }
+        if (call_work_list.empty())
+            break;
+        while (not call_work_list.empty()) {
+            auto top = call_work_list.front();
+            call_work_list.pop_front();
+            clee2cler.clear();
+            inline_bb.clear();
+            inline_func(top);
         }
     }
 }
@@ -51,9 +63,6 @@ void Inline::inline_func(ilist<ir::Instruction>::iterator callee) {
     clone(callee_func, caller_func);
     replace(callee);
     trivial(callee);
-    // for (auto bb : inline_bb) {
-    //     cout << bb->print() << endl;
-    // }
 }
 
 void Inline::clone(Function *callee, Function *caller) {
@@ -147,9 +156,8 @@ void Inline::trivial(ilist<ir::Instruction>::iterator call_iter) {
                 break;
         }
     }
-    map_exit_bb->suc_bbs() = parent_bb->suc_bbs();
     // step3 replace call_inst with a jump inst to map_entry_bb
     auto map_entry_bb = as_a<BasicBlock>(clee2cler[callee->get_entry_bb()]);
-    parent_bb->insts().erase(&*call_iter);
+    parent_bb->erase_inst(call_iter);
     parent_bb->create_inst<BrInst>(map_entry_bb);
 }

@@ -21,9 +21,10 @@ class Inline final : public pass::TransformPass {
         AU.set_kill_type(KillType::All);
         AU.add_require<pass::UseDefChain>();
         AU.add_require<DepthOrder>();
-        // AU.add_post<RmUnreachBB>();
-        // AU.add_post<ConstPro>();
+        AU.add_post<RmUnreachBB>();
+        AU.add_post<ConstPro>();
     }
+
     virtual void run(pass::PassManager *mgr) override;
 
   private:
