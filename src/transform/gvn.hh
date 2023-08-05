@@ -42,7 +42,7 @@ class GVN final : public pass::TransformPass {
 
     template <class T, typename... Args>
     std::shared_ptr<T> create_expr(Args... args) {
-        return std::make_shared<T>(this, std::forward<Args>(args)...);
+        return std::make_shared<T>(std::forward<Args>(args)...);
     }
 
     // Expression
@@ -62,7 +62,7 @@ class GVN final : public pass::TransformPass {
             e_load,
             e_store
         };
-        Expression(GVN *gvn, expr_type op) : _parent(gvn), _op(op) {}
+        Expression(expr_type op) : _op(op) {}
         expr_type get_op() const { return _op; }
         virtual std::string print() = 0;
         template <typename T>
@@ -75,9 +75,6 @@ class GVN final : public pass::TransformPass {
                 return false;
             if (this == &other)
                 return true;
-            if (_parent->expr_cmp_visited[{this, &other}])
-                assert(false);
-            _parent->expr_cmp_visited[{this, &other}] = true;
             bool cmp_resu = true;
             switch (_op) {
             case expr_type::e_const:
@@ -117,12 +114,10 @@ class GVN final : public pass::TransformPass {
                 cmp_resu = equal_as<StoreExpr>(this, &other);
                 break;
             }
-            _parent->expr_cmp_visited[{this, &other}] = false;
             return cmp_resu;
         }
 
       private:
-        GVN *_parent;
         expr_type _op;
     };
     friend Expression;
@@ -130,8 +125,8 @@ class GVN final : public pass::TransformPass {
     // Expr that takes Expr as args
     class ConstExpr final : public Expression {
       public:
-        ConstExpr(GVN *gvn, ir::Value *con)
-            : Expression(gvn, expr_type::e_const),
+        ConstExpr(ir::Value *con)
+            : Expression(expr_type::e_const),
               _const(::as_a<ir::Constant>(con)) {}
 
         bool operator==(const ConstExpr &other) const {
@@ -149,8 +144,8 @@ class GVN final : public pass::TransformPass {
     // happen in depth_priority_oder
     class UniqueExpr final : public Expression { // load/store/alloca
       public:
-        UniqueExpr(GVN *gvn, ir::Value *val)
-            : Expression(gvn, expr_type::e_unique), _val(val) {}
+        UniqueExpr(ir::Value *val)
+            : Expression(expr_type::e_unique), _val(val) {}
 
         bool operator==(const UniqueExpr &other) const {
             return _val == other._val;
@@ -166,12 +161,11 @@ class GVN final : public pass::TransformPass {
     // For non-pure functions, it will be as the basic ValueExpression
     class CallExpr final : public Expression {
       public:
-        CallExpr(GVN *gvn, ir::Instruction *inst)
-            : Expression(gvn, expr_type::e_call), _inst(inst) {
-        } // non-pure function
-        CallExpr(GVN *gvn, ir::Function *func,
+        CallExpr(ir::Instruction *inst)
+            : Expression(expr_type::e_call), _inst(inst) {} // non-pure function
+        CallExpr(ir::Function *func,
                  std::vector<std::shared_ptr<Expression>> &&params)
-            : Expression(gvn, expr_type::e_call), _func(func), _params(params) {
+            : Expression(expr_type::e_call), _func(func), _params(params) {
         } // pure function
 
         bool operator==(const CallExpr &other) const {
@@ -202,8 +196,8 @@ class GVN final : public pass::TransformPass {
     };
     class LoadExpr final : public Expression {
       public:
-        LoadExpr(GVN *gvn, std::shared_ptr<Expression> addr)
-            : Expression(gvn, expr_type::e_load), _addr(addr) {}
+        LoadExpr(std::shared_ptr<Expression> addr)
+            : Expression(expr_type::e_load), _addr(addr) {}
 
         bool operator==(const LoadExpr &other) const {
             return false && *_addr == *other._addr;
@@ -219,9 +213,9 @@ class GVN final : public pass::TransformPass {
 
     class StoreExpr final : public Expression {
       public:
-        StoreExpr(GVN *gvn, std::shared_ptr<Expression> val,
+        StoreExpr(std::shared_ptr<Expression> val,
                   std::shared_ptr<Expression> addr)
-            : Expression(gvn, expr_type::e_store), _val(val), _addr(addr) {}
+            : Expression(expr_type::e_store), _val(val), _addr(addr) {}
 
         bool operator==(const StoreExpr &other) const {
             return false && *_addr == *other._addr &&
@@ -242,8 +236,8 @@ class GVN final : public pass::TransformPass {
     // absolutely different
     class UnitExpr final : public Expression { // zext/fp2si/si2fp
       public:
-        UnitExpr(GVN *gvn, std::shared_ptr<Expression> oper)
-            : Expression(gvn, expr_type::e_unit), _unit(oper) {}
+        UnitExpr(std::shared_ptr<Expression> oper)
+            : Expression(expr_type::e_unit), _unit(oper) {}
 
         bool operator==(const UnitExpr &other) const {
             return *_unit == *other._unit;
@@ -259,9 +253,9 @@ class GVN final : public pass::TransformPass {
 
     class BinExpr : public Expression {
       public:
-        BinExpr(GVN *gvn, expr_type ty, std::shared_ptr<Expression> lhs,
+        BinExpr(expr_type ty, std::shared_ptr<Expression> lhs,
                 std::shared_ptr<Expression> rhs)
-            : Expression(gvn, ty), _lhs(lhs), _rhs(rhs) {}
+            : Expression(ty), _lhs(lhs), _rhs(rhs) {}
         std::shared_ptr<Expression> get_lhs() const { return _lhs; }
         std::shared_ptr<Expression> get_rhs() const { return _rhs; }
 
@@ -271,10 +265,9 @@ class GVN final : public pass::TransformPass {
 
     class IBinExpr final : public BinExpr {
       public:
-        IBinExpr(GVN *gvn, ir::IBinaryInst::IBinOp op,
-                 std::shared_ptr<Expression> lhs,
+        IBinExpr(ir::IBinaryInst::IBinOp op, std::shared_ptr<Expression> lhs,
                  std::shared_ptr<Expression> rhs)
-            : BinExpr(gvn, expr_type::e_ibin, lhs, rhs), _op(op) {}
+            : BinExpr(expr_type::e_ibin, lhs, rhs), _op(op) {}
 
         bool operator==(const IBinExpr &other) const {
             if (_op == ir::IBinaryInst::ADD or _op == ir::IBinaryInst::MUL)
@@ -300,10 +293,9 @@ class GVN final : public pass::TransformPass {
 
     class FBinExpr final : public BinExpr {
       public:
-        FBinExpr(GVN *gvn, ir::FBinaryInst::FBinOp op,
-                 std::shared_ptr<Expression> lhs,
+        FBinExpr(ir::FBinaryInst::FBinOp op, std::shared_ptr<Expression> lhs,
                  std::shared_ptr<Expression> rhs)
-            : BinExpr(gvn, expr_type::e_fbin, lhs, rhs), _op(op) {}
+            : BinExpr(expr_type::e_fbin, lhs, rhs), _op(op) {}
 
         bool operator==(const FBinExpr &other) const {
             if (_op == ir::FBinaryInst::FADD or _op == ir::FBinaryInst::FMUL)
@@ -329,10 +321,9 @@ class GVN final : public pass::TransformPass {
 
     class ICmpExpr final : public BinExpr {
       public:
-        ICmpExpr(GVN *gvn, ir::ICmpInst::ICmpOp op,
-                 std::shared_ptr<Expression> lhs,
+        ICmpExpr(ir::ICmpInst::ICmpOp op, std::shared_ptr<Expression> lhs,
                  std::shared_ptr<Expression> rhs)
-            : BinExpr(gvn, expr_type::e_icmp, lhs, rhs), _op(op) {}
+            : BinExpr(expr_type::e_icmp, lhs, rhs), _op(op) {}
 
         bool operator==(const ICmpExpr &other) const {
             return _op == other._op && *get_lhs() == *other.get_lhs() &&
@@ -353,10 +344,9 @@ class GVN final : public pass::TransformPass {
 
     class FCmpExpr final : public BinExpr {
       public:
-        FCmpExpr(GVN *gvn, ir::FCmpInst::FCmpOp op,
-                 std::shared_ptr<Expression> lhs,
+        FCmpExpr(ir::FCmpInst::FCmpOp op, std::shared_ptr<Expression> lhs,
                  std::shared_ptr<Expression> rhs)
-            : BinExpr(gvn, expr_type::e_fcmp, lhs, rhs), _op(op) {}
+            : BinExpr(expr_type::e_fcmp, lhs, rhs), _op(op) {}
 
         bool operator==(const FCmpExpr &other) const {
             return _op == other._op && *get_lhs() == *other.get_lhs() &&
@@ -377,8 +367,8 @@ class GVN final : public pass::TransformPass {
 
     class GepExpr final : public Expression {
       public:
-        GepExpr(GVN *gvn, std::vector<std::shared_ptr<Expression>> &&idxs)
-            : Expression(gvn, expr_type::e_gep), _idxs(idxs) {}
+        GepExpr(std::vector<std::shared_ptr<Expression>> &&idxs)
+            : Expression(expr_type::e_gep), _idxs(idxs) {}
 
         bool operator==(const GepExpr &other) const {
             for (unsigned i = 0; i < _idxs.size(); i++) {
@@ -396,11 +386,11 @@ class GVN final : public pass::TransformPass {
 
     class PhiExpr final : public Expression {
       public:
-        PhiExpr(GVN *gvn, ir::BasicBlock *bb)
-            : Expression(gvn, expr_type::e_phi), _ori_bb(bb), _vals{} {}
-        PhiExpr(GVN *gvn, ir::BasicBlock *bb,
+        PhiExpr(ir::BasicBlock *bb)
+            : Expression(expr_type::e_phi), _ori_bb(bb), _vals{} {}
+        PhiExpr(ir::BasicBlock *bb,
                 std::vector<std::shared_ptr<Expression>> &&vals)
-            : Expression(gvn, expr_type::e_phi), _ori_bb(bb), _vals(vals) {}
+            : Expression(expr_type::e_phi), _ori_bb(bb), _vals(vals) {}
         size_t size() const { return _vals.size(); }
         std::shared_ptr<Expression> get_val(size_t i) { return _vals[i]; }
 
@@ -523,8 +513,6 @@ class GVN final : public pass::TransformPass {
     partitions TOP{create_cc(0)};
     ir::Function *_func;
     ir::BasicBlock *_bb;
-    std::map<std::pair<const Expression *, const Expression *>, bool>
-        expr_cmp_visited{};
     const pass::FuncInfo::ResultType *_func_info;
     const pass::UseDefChain::ResultType *_usedef_chain;
     const pass::DepthOrder::ResultType *_depth_order;

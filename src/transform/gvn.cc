@@ -227,6 +227,9 @@ void GVN::detect_equivalences(Function *func) {
                                     // as a basic ValueExpression
                     continue;
                 _pout[_bb] = transfer_function(&inst_r, _pout[_bb]);
+                // special judgement to prevent from large number of CC
+                // if (_pout[_bb].size() > 200)
+                //     return;
             }
             non_copy_pout[_bb] = clone(_pout[_bb]);
             for (auto suc_bb : _bb->suc_bbs()) {
