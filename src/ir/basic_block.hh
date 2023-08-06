@@ -6,42 +6,41 @@
 #include "type.hh"
 #include "utils.hh"
 #include <cassert>
+#include <stdexcept>
 #include <type_traits>
 
 namespace ir {
 
 class Function;
 
+/* - prev/succ links: maintain by BrInst automatically
+ * - use-chain: User's constructor and destructor will take care it
+ * need take care of:
+ * - !terminated: ret/br will check not termination, but other insts donot, so i
+ * - !insert position: the ret/br should be inserted to end only
+ */
 class BasicBlock : public Value, public ilist<BasicBlock>::node {
+    friend class BrInst;
+
+    using InstIter = ilist<Instruction>::iterator;
+
   public:
     BasicBlock(Function *func);
 
     template <typename Inst, typename... Args>
     Inst *create_inst(Args &&...args) {
-        // whenever append inst to bb, bb should not be terminated
         assert(not is_terminated());
-
-        // check for BrInst
-        if constexpr (std::is_same<BrInst, Inst>::value) {
-            _link(std::forward<Args>(args)...);
-        }
-
         _insts.push_back(new Inst{this, std::forward<Args>(args)...});
         return as_a<Inst>(&_insts.back());
     }
 
     template <typename Inst, typename... Args>
-    Inst *insert_inst(const ilist<Instruction>::iterator &it, Args &&...args) {
-        // check for RetInst
-        if constexpr (std::is_same<RetInst, Inst>::value) {
-            assert(not is_terminated());
-            assert(it != _insts.end());
-        }
-        // check for BrInst
-        if constexpr (std::is_same<BrInst, Inst>::value) {
-            assert(not is_terminated());
-            assert(it != _insts.end());
-            _link(std::forward<Args>(args)...);
+    Inst *insert_inst(const InstIter &it, Args &&...args) {
+        avoid_push_back_when_terminated(it);
+        // check for RetInst and BrInst
+        if (std::is_same<RetInst, Inst>::value or
+            std::is_same<BrInst, Inst>::value) {
+            assert(it == _insts.end());
         }
         auto inst = new Inst{this, std::forward<Args>(args)...};
         _insts.insert(it, inst);
@@ -49,120 +48,32 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
     }
 
     // clone inst within the same function
-    Instruction *clone_inst(const ilist<Instruction>::iterator &it,
-                            Instruction *other) {
-        auto other_bb = other->get_parent();
-        assert(other_bb->get_func() == _func);
-        // check for RetInst
-        if (other->is<RetInst>()) {
-            assert(not is_terminated() && it == _insts.end());
-        }
-        // check for BrInst
-        if (other->is<BrInst>()) {
-            assert(not is_terminated() && it == _insts.end());
-            assert(this->_suc_bbs.empty());
-            for (auto boba : other->operands()) {
-                if (is_a<LabelType>(boba->get_type())) {
-                    auto bb = as_a<BasicBlock>(boba);
-                    this->_suc_bbs.push_back(as_a<BasicBlock>(boba));
-                    bb->_pre_bbs.push_back(this);
-                }
-            }
-        }
-        auto inst = other->clone(this);
-        _insts.insert(it, inst);
-        return inst;
-    }
+    Instruction *clone_inst(const InstIter &it, Instruction *other);
 
-    // clone only for the private member except for operands which should be
-    // replaced by caller
-    Instruction *clone_inst_skeleton(const ilist<Instruction>::iterator &it,
-                                     Instruction *other) {
-        auto other_bb = other->get_parent();
-        assert(other_bb->get_func() != _func);
-        // check for RetInst
-        if (other->is<RetInst>() || other->is<BrInst>()) {
-            assert(not is_terminated() && it == _insts.end());
-            assert(not is_terminated() && it == _insts.end());
-        }
-        auto inst = other->clone(this);
-        _insts.insert(it, inst);
-        return inst;
-    }
+    /* // @deprecated
+     * // clone only for the private member except for operands which should be
+     * // replaced by caller
+     * Instruction *clone_inst_skeleton(const InstIter &it, Instruction *other);
+     */
 
+    // TODO make return void cause move_inst is ptr invariant
     // move inst within the same function
-    ilist<Instruction>::iterator
-    move_inst(const ilist<Instruction>::iterator &it, Instruction *other) {
-        auto other_bb = other->get_parent();
-        assert(other_bb->get_func() == _func);
-        // check for RetInst
-        if (other->is<RetInst>()) {
-            assert(not is_terminated() && it == _insts.end());
-        }
-        // check for BrInst
-        if (other->is<BrInst>()) {
-            assert(not is_terminated() && it == _insts.end());
-            assert(this->_suc_bbs.empty());
-            other->get_parent()->suc_bbs().clear();
-            for (auto boba : other->operands()) {
-                if (is_a<BasicBlock>(boba)) {
-                    // maintain bb's relationship based on BrInst
-                    auto bb = as_a<BasicBlock>(boba);
-                    this->_suc_bbs.push_back(as_a<BasicBlock>(boba));
-                    for (unsigned i = 0; i < bb->pre_bbs().size(); i++) {
-                        if (bb->pre_bbs()[i] == other->get_parent()) {
-                            bb->pre_bbs()[i] = this;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        auto inst = other_bb->insts().release(other);
-        inst->_parent = this;
-        return _insts.insert(it, inst);
-    }
+    Instruction *move_inst(const InstIter &it, Instruction *other);
+    // erase inst in this block
+    // you should handle inst's occur at other places
+    InstIter erase_inst(Instruction *inst);
 
-    void erase_inst(const ilist<Instruction>::iterator &it) {
-        auto inst = &*it;
-        if (is_a<BrInst>(inst)) {
-            for (auto boba : inst->operands()) {
-                if (is_a<BasicBlock>(boba)) {
-                    auto bb = as_a<BasicBlock>(boba);
-                    for (auto iter = this->_suc_bbs.begin();
-                         iter != this->_suc_bbs.end(); iter++) {
-                        if (*iter == bb) {
-                            this->_suc_bbs.erase(iter);
-                            break;
-                        }
-                    }
-                    for (auto iter = bb->_pre_bbs.begin();
-                         iter != bb->_pre_bbs.end(); iter++) {
-                        if (*iter == this) {
-                            bb->_pre_bbs.erase(iter);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        _insts.erase(inst);
-    }
-    std::vector<BasicBlock *> &pre_bbs() { return _pre_bbs; }
-    std::vector<BasicBlock *> &suc_bbs() { return _suc_bbs; }
-    ilist<Instruction> &insts() { return _insts; }
+    bool is_terminated() const;
+    std::string print() const final;
 
     Function *get_func() const { return _func; }
-    const std::vector<BasicBlock *> &get_pre_bbs() const { return _pre_bbs; }
-    const std::vector<BasicBlock *> &get_suc_bbs() const { return _suc_bbs; }
-    const ilist<Instruction> &get_insts() const { return _insts; }
-
-    bool is_terminated() const {
-        return _insts.size() != 0 and (is_a<const BrInst>(&_insts.back()) or
-                                       is_a<const RetInst>(&_insts.back()));
-    }
-
-    std::string print() const final;
+    ilist<Instruction> &insts() { return _insts; }
+    /* @deprecated: donot return variable vectors anymore!
+     * std::vector<BasicBlock *> &pre_bbs() { return _pre_bbs; }
+     * std::vector<BasicBlock *> &suc_bbs() { return _suc_bbs; } */
+    const std::vector<BasicBlock *> &pre_bbs() const { return _pre_bbs; }
+    const std::vector<BasicBlock *> &suc_bbs() const { return _suc_bbs; }
+    const ilist<Instruction> &insts() const { return _insts; }
 
   private:
     std::vector<BasicBlock *> _pre_bbs;
@@ -170,21 +81,15 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
     ilist<Instruction> _insts;
     Function *const _func;
 
-    // possible_to maybe bool or BasicBlock
-    template <typename boba, typename... BBs>
-    void _link(boba *possible_to, BBs... rest) {
-        if constexpr (std::is_base_of<Instruction, boba>::value) {
-            assert(is_a<BoolType>(possible_to->get_type()));
-        } else if constexpr (std::is_same<BasicBlock, boba>::value) {
-            possible_to->_pre_bbs.push_back(this);
-            this->_suc_bbs.push_back(possible_to);
-        } else {
-            throw unreachable_error{"wrong type"};
-        }
-        _link(std::forward<BBs>(rest)...);
+    // avoid push inst back to a terminated block
+    void avoid_push_back_when_terminated(const InstIter &it) {
+        if (it == _insts.end() and is_terminated())
+            throw std::logic_error{"trying to push back to a terminated block"};
     }
-    // function to maintain pre_bbs/suc_bbs
-    void _link() {}
+
+    // for BrInst use, better to leave them private!
+    static void link(BasicBlock *source, BasicBlock *dest);
+    static void unlink(BasicBlock *source, BasicBlock *dest);
 };
 
 } // namespace ir

@@ -76,7 +76,7 @@ void Inline::clone(Function *callee, Function *caller) {
         auto map_bb = as_a<BasicBlock>(clee2cler[top]);
         bb_work_list.pop_front();
         // step1 create successor bb to be inserted
-        for (auto suc_bb : top->get_suc_bbs()) {
+        for (auto suc_bb : top->suc_bbs()) {
             if (clee2cler[suc_bb] == nullptr) {
                 auto bb = caller->create_bb();
                 clee2cler[suc_bb] = bb;
@@ -149,7 +149,7 @@ void Inline::trivial(ilist<ir::Instruction>::iterator call_iter) {
             if (is_a<PhiInst>(&inst_r)) {
                 for (unsigned i = 1; i < inst_r.operands().size(); i += 2) {
                     if (inst_r.operands()[i] == parent_bb) {
-                        inst_r.operands()[i] = map_exit_bb;
+                        inst_r.set_operand(i, map_exit_bb);
                     }
                 }
             } else
@@ -158,6 +158,6 @@ void Inline::trivial(ilist<ir::Instruction>::iterator call_iter) {
     }
     // step3 replace call_inst with a jump inst to map_entry_bb
     auto map_entry_bb = as_a<BasicBlock>(clee2cler[callee->get_entry_bb()]);
-    parent_bb->erase_inst(call_iter);
+    parent_bb->erase_inst(&*call_iter);
     parent_bb->create_inst<BrInst>(map_entry_bb);
 }

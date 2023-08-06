@@ -3,7 +3,6 @@
 #include "function.hh"
 #include "instruction.hh"
 #include "pass.hh"
-#include "usedef_chain.hh"
 #include <deque>
 #include <unordered_map>
 
@@ -16,7 +15,6 @@ class DeadCode final : public pass::TransformPass {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
         AU.add_require<pass::FuncInfo>();
-        AU.add_kill<pass::UseDefChain>();
     }
     virtual void run(pass::PassManager *mgr) override;
 

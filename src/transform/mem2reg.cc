@@ -16,7 +16,6 @@ using namespace std;
 
 void Mem2reg::run(PassManager *mgr) {
     _dominator = &mgr->get_result<Dominator>();
-    _usedef_chain = &mgr->get_result<UseDefChain>();
     auto m = mgr->get_module();
     for (auto &f : m->functions()) {
         if (f.bbs().size() >= 1) {
@@ -85,11 +84,9 @@ void Mem2reg::re_name(BasicBlock *bb) {
             if (!is_a<GlobalVariable>(l_val) &&
                 !is_a<GetElementPtrInst>(l_val)) {
                 if (_var_new_name[l_val].size()) {
-                    _usedef_chain->replace_all_use_with(
-                        inst, _var_new_name[l_val].back());
+                    inst->replace_all_use_with(_var_new_name[l_val].back());
                 } else { // the inst loads an undef value
-                    _usedef_chain->replace_all_use_with(
-                        inst, Constants::get().undef(inst));
+                    inst->replace_all_use_with(Constants::get().undef(inst));
                 }
                 wait_delete[bb].insert(inst);
             }
@@ -150,7 +147,7 @@ void Mem2reg::re_name(BasicBlock *bb) {
     for (auto bb_inst_pair : wait_delete) {
         auto bb = bb_inst_pair.first;
         for (auto inst : bb_inst_pair.second) {
-            bb->insts().erase(inst);
+            bb->erase_inst(inst);
         }
     }
 }

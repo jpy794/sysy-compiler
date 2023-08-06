@@ -74,14 +74,18 @@ BasicBlock *create_preheader(BasicBlock *header, const LoopInfo &loop) {
     // so here we only process prebb of header bb
     auto func = header->get_func();
     auto preheader = func->create_bb();
-    for (auto in_bb : header->get_pre_bbs()) {
+    for (auto in_bb : header->pre_bbs()) {
         if (not contains(loop.latches, in_bb)) {
             // pre_bb of preheader
             preheader->pre_bbs().push_back(in_bb);
             // suc_bb of in_bb
             auto br = &in_bb->insts().back();
-            replace(br->operands().begin(), br->operands().end(), header,
-                    preheader);
+
+            /* replace(br->operands().begin(), br->operands().end(), header,
+             *         preheader); */
+            header->replace_all_use_with_if(
+                preheader, [&](const Use &use) { return use.user == br; });
+
             replace(in_bb->suc_bbs().begin(), in_bb->suc_bbs().end(), header,
                     preheader);
         }

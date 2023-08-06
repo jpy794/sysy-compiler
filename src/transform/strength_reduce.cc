@@ -11,12 +11,11 @@ using namespace pass;
 using namespace std;
 
 void StrengthReduce::run(PassManager *mgr) {
-    use_def = &mgr->get_result<UseDefChain>();
     for (auto &f_r : mgr->get_module()->functions()) {
         if (f_r.is_external)
             continue;
         combine_continuous_add(&f_r);
-        // algebraic_combine(&f_r);
+        algebraic_combine(&f_r);
     }
 }
 
@@ -182,7 +181,7 @@ void StrengthReduce::algebraic_combine(ir::Function *func) {
             }
             new_inst = bb_r.insert_inst<IBinaryInst>(inst, tree.common.binop,
                                                      new_inst, tree.common.op);
-            use_def->replace_all_use_with(inst, new_inst);
+            inst->replace_all_use_with(new_inst);
 
             for (auto add : tree.add_group)
                 marked.insert(add);

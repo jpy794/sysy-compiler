@@ -2,7 +2,6 @@
 #include "dominator.hh"
 #include "instruction.hh"
 #include "pass.hh"
-#include "usedef_chain.hh"
 #include "value.hh"
 #include <iostream>
 #include <map>
@@ -19,7 +18,6 @@ class Mem2reg final : public pass::TransformPass {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
         AU.add_require<pass::Dominator>();
-        AU.add_require<pass::UseDefChain>();
     }
     virtual void run(pass::PassManager *mgr) override;
 
@@ -27,7 +25,6 @@ class Mem2reg final : public pass::TransformPass {
     void generate_phi(ir::Function *f);
     void re_name(ir::BasicBlock *bb);
     const pass::Dominator::ResultType *_dominator;
-    const pass::UseDefChain::ResultType *_usedef_chain;
 
     std::set<std::pair<ir::Value *, ir::BasicBlock *>> _phi_table;
     std::map<ir::PhiInst *, ir::Value *> _phi_lval;

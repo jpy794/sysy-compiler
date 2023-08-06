@@ -14,7 +14,6 @@ using namespace ir;
 
 void ConstPro::run(pass::PassManager *mgr) {
     auto m = mgr->get_module();
-    use_def = &mgr->get_result<UseDefChain>();
     for (auto &f_r : m->functions()) {
         {
             const_propa.clear();
@@ -45,10 +44,10 @@ void ConstPro::replace() {
         if (check(inst) and not contains(const_propa, inst)) {
             if (not contains(val2const, dynamic_cast<Value *>(inst)))
                 val2const[inst] = const_folder(inst);
-            for (auto use : use_def->users.at(inst)) {
-                work_list.push_back(as_a<Instruction>(use.user));
+            for (auto &[user, _] : inst->get_use_list()) {
+                work_list.push_back(as_a<Instruction>(user));
             }
-            use_def->replace_all_use_with(inst, val2const[inst]);
+            inst->replace_all_use_with(val2const[inst]);
             const_propa.insert(inst);
         }
     }

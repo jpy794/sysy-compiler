@@ -32,18 +32,6 @@ void RmUnreachBB::run(PassManager *mgr) {
             if (visited[&bb])
                 continue;
             else {
-                for (auto suc_bb : bb.suc_bbs()) {
-                    auto &pre_suc_bbs = suc_bb->pre_bbs();
-                    for (auto pre_suc_bb = pre_suc_bbs.begin();
-                         pre_suc_bb != pre_suc_bbs.end(); pre_suc_bb++) {
-                        if (*pre_suc_bb == &bb) {
-                            // remove the unreach_bb from the ilist of the
-                            // pre_bb of its suc_bbs
-                            pre_suc_bbs.erase(pre_suc_bb);
-                            break;
-                        }
-                    }
-                }
                 f_r.bbs().erase(&bb);
             }
         }

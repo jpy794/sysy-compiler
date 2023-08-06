@@ -19,13 +19,13 @@
 #include "dominator.hh"
 #include "err.hh"
 #include "func_info.hh"
-#include "inline.hh"
 #include "gvn.hh"
+// #include "inline.hh"
 #include "ir_builder.hh"
 #include "log.hh"
 #include "loop_find.hh"
-#include "loop_invariant.hh"
-#include "loop_unroll.hh"
+// #include "loop_invariant.hh"
+// #include "loop_unroll.hh"
 #include "mem2reg.hh"
 #include "pass.hh"
 #include "raw_ast.hh"
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
     }
 
     { // [DEBUG] input file
-        auto filename = filesystem::path{cfg.in}.filename().c_str();
+        auto filename = filesystem::path{cfg.in}.filename();
         debugs << "=========Debug Info For " << filename << "=========\n";
     }
 
@@ -111,24 +111,23 @@ int main(int argc, char **argv) {
         // transform
         pm.add_pass<RmUnreachBB>();
         pm.add_pass<Mem2reg>();
-        pm.add_pass<LoopInvariant>();
-        pm.add_pass<LoopUnroll>();
+        // pm.add_pass<LoopInvariant>();
+        // pm.add_pass<LoopUnroll>();
         pm.add_pass<ConstPro>();
         pm.add_pass<DeadCode>();
         pm.add_pass<ControlFlow>();
         pm.add_pass<StrengthReduce>();
-        pm.add_pass<Inline>();
+        // pm.add_pass<Inline>();
         pm.add_pass<GVN>();
 
         pm.run(
             {
-                PassID<Mem2reg>(),
-                PassID<StrengthReduce>(),
-                PassID<LoopInvariant>(),
-                PassID<LoopUnroll>(),
-                PassID<ControlFlow>(),
+                PassID<Mem2reg>(), PassID<StrengthReduce>(),
+                // PassID<LoopInvariant>(),
+                // PassID<LoopUnroll>(),
+                // PassID<ControlFlow>(),
                 PassID<ConstPro>(),
-                PassID<Inline>(),
+                // PassID<Inline>(),
             },
             true);
     } else {

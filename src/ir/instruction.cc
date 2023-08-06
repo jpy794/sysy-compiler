@@ -26,15 +26,55 @@ Instruction::Instruction(BasicBlock *prt, Type *type,
 
 RetInst::RetInst(BasicBlock *prt, Value *ret_val)
     : Instruction(prt, Types::get().void_type(), {ret_val}) {
+    assert(not prt->is_terminated());
     assert(ret_val->get_type() == prt->get_func()->get_return_type());
 }
 
+RetInst::RetInst(BasicBlock *prt)
+    : Instruction(prt, Types::get().void_type(), {}) {
+    assert(not prt->is_terminated());
+}
+
 BrInst::BrInst(BasicBlock *prt, BasicBlock *to)
-    : Instruction(prt, Types::get().void_type(), {to}) {}
+    : Instruction(prt, Types::get().void_type(), {to}) {
+    assert(not prt->is_terminated());
+    link();
+}
 
 BrInst::BrInst(BasicBlock *prt, Value *cond, BasicBlock *TBB, BasicBlock *FBB)
     : Instruction(prt, Types::get().void_type(), {cond, TBB, FBB}) {
     assert(is_a<BoolType>(cond->get_type()));
+    assert(not prt->is_terminated());
+    link();
+}
+
+BrInst::~BrInst() { unlink(); }
+
+void BrInst::link() {
+    for (auto boba : operands()) {
+        if (is_a<BasicBlock>(boba)) {
+            BasicBlock::link(_parent, as_a<BasicBlock>(boba));
+        }
+    }
+}
+
+void BrInst::unlink() {
+    for (auto boba : operands()) {
+        if (is_a<BasicBlock>(boba)) {
+            BasicBlock::unlink(_parent, as_a<BasicBlock>(boba));
+        }
+    }
+}
+void BrInst::set_operand(size_t idx, Value *value, bool modify_op_use) {
+    if (is_a<BasicBlock>(value)) {
+        BasicBlock *cur_bb = _parent;
+        BasicBlock *old_dest = as_a<BasicBlock>(operands().at(idx));
+        BasicBlock *new_dest = as_a<BasicBlock>(value);
+
+        BasicBlock::unlink(cur_bb, old_dest);
+        BasicBlock::link(cur_bb, new_dest);
+    }
+    User::set_operand(idx, value, modify_op_use);
 }
 
 IBinaryInst::IBinaryInst(BasicBlock *prt, IBinOp op, Value *lhs, Value *rhs)
@@ -135,6 +175,25 @@ void PhiInst::add_phi_param(Value *val, BasicBlock *bb) {
 PhiInst::PhiInst(BasicBlock *prt, Value *base)
     : Instruction(prt, base->get_type()->as<PointerType>()->get_elem_type(),
                   {}) {}
+
+std::vector<PhiInst::Pair> PhiInst::to_pairs() const {
+    std::vector<Pair> ret;
+    for (auto it = operands().begin(); it != operands().end(); it += 2) {
+        auto op = *it;
+        auto bb = *(it + 1);
+        ret.emplace_back(op, bb->as<BasicBlock>());
+    }
+    return ret;
+}
+
+void PhiInst::from_pairs(const std::vector<Pair> &pairs) {
+    release_all_use();
+    for (auto [op, bb] : pairs) {
+        assert(op->get_type() == get_type());
+        add_operand(op);
+        add_operand(bb);
+    }
+}
 
 CallInst::CallInst(BasicBlock *prt, Function *func, vector<Value *> &&params)
     : Instruction(prt, func->get_return_type(), _mix2vec(func, params)) {

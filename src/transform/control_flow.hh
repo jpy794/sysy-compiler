@@ -5,7 +5,7 @@
 #include "instruction.hh"
 #include "pass.hh"
 #include "remove_unreach_bb.hh"
-#include "usedef_chain.hh"
+#include <vector>
 
 namespace pass {
 
@@ -34,6 +34,7 @@ class ControlFlow final : public pass::TransformPass {
   private:
     const DepthOrder::ResultType *_depth_order;
     std::list<ir::BasicBlock *> post_order;
+    std::vector<ir::BasicBlock *> redd_bbs_to_del;
 };
 
 }; // namespace pass

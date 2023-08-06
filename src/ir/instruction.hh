@@ -55,8 +55,6 @@ class Function;
 class BasicBlock;
 class InstructionVisitor;
 
-// NOTE: the Instruction class(and dereived) does not care about inserting back
-// to parent BB's instruction list.
 class Instruction : public User, public ilist<Instruction>::node {
 
     // a workaround for move_inst, which requires modify parent bb
@@ -80,7 +78,6 @@ class Instruction : public User, public ilist<Instruction>::node {
         return ret;
     }
 
-  private:
     BasicBlock *_parent;
 };
 
@@ -89,7 +86,7 @@ class RetInst : public Instruction {
     // return a value
     RetInst(BasicBlock *prt, Value *ret_val);
     // void return
-    RetInst(BasicBlock *prt) : Instruction(prt, Types::get().void_type(), {}) {}
+    RetInst(BasicBlock *prt);
 
     std::string print() const final;
 
@@ -100,19 +97,31 @@ class RetInst : public Instruction {
     INST_CLONE(RetInst)
 };
 
+/* @Constructor: link automatically
+ * @Destructor: unlink automatically */
 class BrInst : public Instruction {
   public:
     // unconditional jump
     BrInst(BasicBlock *prt, BasicBlock *to);
     // conditional br
     BrInst(BasicBlock *prt, Value *cond, BasicBlock *TBB, BasicBlock *FBB);
+
+    ~BrInst();
+
     std::string print() const final;
 
-    virtual std::any accept(InstructionVisitor *visitor) const {
+    std::any accept(InstructionVisitor *visitor) const override {
         return visitor->visit(this);
     }
 
+    void set_operand(size_t idx, Value *value,
+                     bool modify_op_use = true) override;
+
     INST_CLONE(BrInst)
+
+  private:
+    void link();
+    void unlink();
 };
 
 class IBinaryInst : public Instruction {
@@ -246,24 +255,8 @@ class PhiInst : public Instruction {
 
     using Pair = std::pair<Value *, BasicBlock *>;
 
-    std::vector<Pair> to_pairs() const {
-        std::vector<Pair> ret;
-        for (auto it = operands().begin(); it != operands().end(); it += 2) {
-            auto op = *it;
-            auto bb = *(it + 1);
-            ret.emplace_back(op, bb->as<BasicBlock>());
-        }
-        return ret;
-    }
-
-    void from_pairs(const std::vector<Pair> &pairs) {
-        operands() = {};
-        for (auto [op, bb] : pairs) {
-            assert(op->get_type() == get_type());
-            operands().emplace_back(op);
-            operands().emplace_back(bb);
-        }
-    }
+    std::vector<Pair> to_pairs() const;
+    void from_pairs(const std::vector<Pair> &pairs);
 
     std::string print() const final;
 

@@ -7,6 +7,7 @@
 #include "pass.hh"
 #include "usedef_chain.hh"
 #include "utils.hh"
+#include "value.hh"
 
 using namespace pass;
 using namespace ir;
@@ -203,11 +204,19 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop,
                 continue;
             }
             auto new_inst = bb->clone_inst(bb->insts().end(), &inst);
-            for (auto &op : new_inst->operands()) {
-                if (contains(old2new, op)) {
-                    op = old2new[op];
-                }
-            }
+
+            /* for (auto &op : new_inst->operands()) {
+             *     if (contains(old2new, op)) {
+             *         op = old2new[op];
+             *     }
+             * } */
+            new_inst->set_operand_for_each_if(
+                [&](Value *op) -> pair<bool, Value *> {
+                    if (contains(old2new, op))
+                        return {true, old2new[op]};
+                    else
+                        return {false, nullptr};
+                });
             old2new[&inst] = new_inst;
             if (contains(phi2dst, static_cast<Value *>(&inst))) {
                 old2new[phi2dst[&inst]] = new_inst;
@@ -228,11 +237,11 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop,
     }
 
     // connect exit
-    simple_loop.header->erase_inst(--simple_loop.header->insts().end());
+    simple_loop.header->erase_inst(&*simple_loop.header->insts().rbegin());
     bb->create_inst<BrInst>(simple_loop.exit);
 
     // connect preheader
-    simple_loop.preheader->erase_inst(--simple_loop.preheader->insts().end());
+    simple_loop.preheader->erase_inst(&*simple_loop.preheader->insts().rend());
     simple_loop.preheader->create_inst<BrInst>(bb);
 
     // remove old bbs

@@ -6,7 +6,6 @@
 #include "instruction.hh"
 #include "pass.hh"
 #include "remove_unreach_bb.hh"
-#include "usedef_chain.hh"
 #include "value.hh"
 #include <deque>
 #include <unordered_map>
@@ -19,7 +18,6 @@ class Inline final : public pass::TransformPass {
     virtual void get_analysis_usage(pass::AnalysisUsage &AU) const override {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
-        AU.add_require<pass::UseDefChain>();
         AU.add_require<DepthOrder>();
         AU.add_post<RmUnreachBB>();
         AU.add_post<ConstPro>();
@@ -35,7 +33,6 @@ class Inline final : public pass::TransformPass {
     void trivial(ilist<ir::Instruction>::iterator);
     std::unordered_map<const ir::Value *, ir::Value *> clee2cler;
     std::deque<ir::BasicBlock *> inline_bb;
-    const pass::UseDefChain::ResultType *_use_def_chain;
 };
 
 }; // namespace pass

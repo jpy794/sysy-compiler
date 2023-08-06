@@ -61,7 +61,8 @@ void DeadCode::sweep(Function *func) {
                 ++iter;
                 continue;
             }
-            iter = insts.erase(iter);
+            iter->replace_all_use_with(nullptr);
+            iter = bb.erase_inst(&*iter);
         }
     }
 }

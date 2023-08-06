@@ -1,10 +1,11 @@
 #include "control_flow.hh"
+#include "basic_block.hh"
+#include "constant.hh"
 #include "depth_order.hh"
 #include "err.hh"
 #include "function.hh"
 #include "ilist.hh"
 #include "instruction.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include <cassert>
 
@@ -25,6 +26,7 @@ void ControlFlow::run(pass::PassManager *mgr) {
 }
 
 void ControlFlow::clean(ir::Function *func) {
+    redd_bbs_to_del.clear();
     for (auto bb : post_order) {
         if (bb == func->get_entry_bb())
             continue;
@@ -33,9 +35,17 @@ void ControlFlow::clean(ir::Function *func) {
             if (is_branch(inst)) {
                 auto TBB = as_a<BasicBlock>(inst->operands()[1]);
                 auto FBB = as_a<BasicBlock>(inst->operands()[2]);
-                if (TBB == FBB) {
+                if (TBB == FBB or is_a<ConstBool>(inst->operands()[0])) {
+                    BasicBlock *target_bb = nullptr;
+                    if (TBB == FBB)
+                        target_bb = TBB;
+                    else {
+                        auto const_cond =
+                            as_a<ConstBool>(inst->operands()[0])->val();
+                        target_bb = const_cond ? TBB : FBB;
+                    }
                     bb->erase_inst(inst);
-                    bb->create_inst<BrInst>(TBB);
+                    bb->create_inst<BrInst>(target_bb);
                 }
             }
             inst = &bb->insts().back();
@@ -56,6 +66,8 @@ void ControlFlow::clean(ir::Function *func) {
             }
         }
     }
+    for (auto redd_bb : redd_bbs_to_del)
+        func->bbs().erase(redd_bb);
 }
 
 // regard result_bb as the result merged bb by default
@@ -81,7 +93,7 @@ void ControlFlow::merge_bb(BasicBlock *redd_bb, BasicBlock *result_bb,
             if (is_a<PhiInst>(&inst_r)) {
                 for (unsigned i = 1; i < inst_r.operands().size(); i += 2) {
                     if (inst_r.operands()[i] == redd_bb) {
-                        inst_r.operands()[i] = pre_bbs[0];
+                        inst_r.set_operand(i, pre_bbs[0]);
                         for (unsigned j = 1; j < pre_bbs.size(); j++) {
                             as_a<PhiInst>(&inst_r)->add_phi_param(
                                 inst_r.operands()[i - 1], pre_bbs[j]);
@@ -97,27 +109,14 @@ void ControlFlow::merge_bb(BasicBlock *redd_bb, BasicBlock *result_bb,
             auto &br = pre_bb->insts().back();
             for (unsigned i = 0; i < br.operands().size(); i++) {
                 if (br.operands()[i] == redd_bb) {
-                    br.operands()[i] = result_bb;
+                    br.set_operand(i, result_bb);
                 }
             }
         }
     }
-    // 2.place predecessors of redundant bb into predecessor of result bb
-    result_bb->pre_bbs().insert(result_bb->pre_bbs().end(), pre_bbs.begin(),
-                                pre_bbs.end());
-    // 3.change successor bbs of predecessor bbs of redundant bb from bb1 to bb2
-    for (unsigned i = 0; i < pre_bbs.size(); i++) {
-        auto &pre_suc_bbs = pre_bbs[i]->suc_bbs();
-        for (unsigned j = 0; j < pre_suc_bbs.size(); j++) {
-            if (pre_suc_bbs[j] == redd_bb) {
-                pre_suc_bbs[j] = result_bb;
-                break;
-            }
-        }
-    }
-    // 4.remove BrInst of redundant bb
+    // 2.remove BrInst of redundant bb
     redd_bb->erase_inst(&redd_bb->insts().back());
-    // 5.move redundant bb's insts into result bb's begin position
+    // 3.move redundant bb's insts into result bb's begin position
     auto insert_iter = result_bb->insts().begin();
     for (; is_a<PhiInst>(&*insert_iter);
          ++insert_iter) // PhiInst should all be in the front of BB
@@ -128,12 +127,12 @@ void ControlFlow::merge_bb(BasicBlock *redd_bb, BasicBlock *result_bb,
         insert_iter = result_bb->move_inst(insert_iter, &*iter);
         ++insert_iter;
     }
-    // 6.clear redundant bb
-    func->bbs().erase(redd_bb);
+    // 4.record redundant bb
+    redd_bbs_to_del.push_back(redd_bb);
 }
 
 bool ControlFlow::is_branch(ir::Instruction *inst) {
-    return is_a<BrInst>(inst) && is_a<Instruction>(inst->get_operand(0));
+    return is_a<BrInst>(inst) && not is_a<BasicBlock>(inst->get_operand(0));
 }
 bool ControlFlow::is_jump(ir::Instruction *inst) {
     return is_a<BrInst>(inst) && is_a<BasicBlock>(inst->get_operand(0));

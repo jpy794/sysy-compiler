@@ -66,7 +66,7 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
             auto label = mir_funtion->add_label(mir_funtion->get_name() + "." +
                                                 BB.get_name());
             value_map[&BB] = label;
-            for (auto &instruction : BB.get_insts()) {
+            for (auto &instruction : BB.insts()) {
                 if (not should_save_map(&instruction))
                     continue;
                 auto type = instruction.get_type();
@@ -93,12 +93,12 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
         for (auto &BB : ir_function.get_bbs()) {
             cur_label = as_a<Label>(value_map.at(&BB));
             // maintain prev-succ-info for labels
-            for (auto prev_bb : BB.get_pre_bbs())
+            for (auto prev_bb : BB.pre_bbs())
                 cur_label->add_prev(as_a<Label>(value_map.at(prev_bb)));
-            for (auto succ_bb : BB.get_suc_bbs())
+            for (auto succ_bb : BB.suc_bbs())
                 cur_label->add_succ(as_a<Label>(value_map.at(succ_bb)));
             // translate ir-instruction to asm-instruction
-            for (auto &inst : BB.get_insts()) {
+            for (auto &inst : BB.insts()) {
                 auto reg = inst.accept(this);
             }
         }
