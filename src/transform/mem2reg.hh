@@ -20,6 +20,7 @@ class Mem2reg final : public pass::TransformPass {
         AU.add_require<pass::Dominator>();
     }
     virtual void run(pass::PassManager *mgr) override;
+    bool always_invalid() const override { return true; }
 
   private:
     void generate_phi(ir::Function *f);
