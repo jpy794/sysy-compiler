@@ -117,7 +117,17 @@ class BrInst : public Instruction {
     void set_operand(size_t idx, Value *value,
                      bool modify_op_use = true) override;
 
-    INST_CLONE(BrInst)
+    virtual Instruction *clone(BasicBlock *prt) const final {
+        if (this->operands().size() == 3) {
+            return new BrInst(prt, this->get_operand(0),
+                              as_a<BasicBlock>(this->get_operand(1)),
+                              as_a<BasicBlock>(this->get_operand(2)));
+        } else if (this->operands().size() == 1) {
+            return new BrInst(prt, as_a<BasicBlock>(this->get_operand(0)));
+        } else {
+            throw unreachable_error{};
+        }
+    }
 
   private:
     void link();
