@@ -19,6 +19,7 @@
 #include "dominator.hh"
 #include "err.hh"
 #include "func_info.hh"
+#include "global_localize.hh"
 #include "gvn.hh"
 // #include "inline.hh"
 #include "ir_builder.hh"
@@ -119,10 +120,12 @@ int main(int argc, char **argv) {
         pm.add_pass<StrengthReduce>();
         // pm.add_pass<Inline>();
         pm.add_pass<GVN>();
+        pm.add_pass<GlobalVarLocalize>();
 
         pm.run(
             {
-                PassID<Mem2reg>(), PassID<StrengthReduce>(),
+                PassID<GlobalVarLocalize>(), PassID<Mem2reg>(),
+                PassID<StrengthReduce>(),
                 // PassID<LoopInvariant>(),
                 // PassID<LoopUnroll>(),
                 // PassID<ControlFlow>(),
