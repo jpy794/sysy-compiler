@@ -1,5 +1,6 @@
 #pragma once
 #include "depth_order.hh"
+#include "dominator.hh"
 #include "function.hh"
 #include "inst_visitor.hh"
 #include "instruction.hh"
@@ -12,10 +13,13 @@ namespace pass {
 class ControlFlow final : public pass::TransformPass {
   public:
     ControlFlow() = default;
+
     virtual void get_analysis_usage(pass::AnalysisUsage &AU) const override {
         using KillType = pass::AnalysisUsage::KillType;
         AU.add_require<DepthOrder>();
         AU.add_post<RmUnreachBB>();
+        AU.add_kill<DepthOrder>();
+        AU.add_kill<Dominator>();
         AU.set_kill_type(KillType::Normal);
     }
 

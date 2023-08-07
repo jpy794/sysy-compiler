@@ -8,6 +8,7 @@
 #include "instruction.hh"
 #include "utils.hh"
 #include <cassert>
+#include <utility>
 
 using namespace std;
 using namespace pass;
@@ -35,15 +36,10 @@ void ControlFlow::clean(ir::Function *func) {
             if (is_branch(inst)) {
                 auto TBB = as_a<BasicBlock>(inst->operands()[1]);
                 auto FBB = as_a<BasicBlock>(inst->operands()[2]);
-                if (TBB == FBB or is_a<ConstBool>(inst->operands()[0])) {
+                if (TBB == FBB) {
                     BasicBlock *target_bb = nullptr;
                     if (TBB == FBB)
                         target_bb = TBB;
-                    else {
-                        auto const_cond =
-                            as_a<ConstBool>(inst->operands()[0])->val();
-                        target_bb = const_cond ? TBB : FBB;
-                    }
                     bb->erase_inst(inst);
                     bb->create_inst<BrInst>(target_bb);
                 }
@@ -78,7 +74,7 @@ void ControlFlow::merge_bb(BasicBlock *redd_bb, BasicBlock *result_bb,
         for (auto pre_res_bb : result_bb->pre_bbs()) {
             for (auto pre_red_bb : pre_bbs) {
                 // for phi op1-bb1, op2-bb2, op3-bb3...
-                // merge will add op4-bb4, and if bb4 equal to one of phi's
+                // merge will add op4-bb4, and if bb4 equal to any of phi's
                 // bbs， it'll be confusing for backend
                 if (pre_res_bb == pre_red_bb)
                     return;
@@ -93,10 +89,11 @@ void ControlFlow::merge_bb(BasicBlock *redd_bb, BasicBlock *result_bb,
             if (is_a<PhiInst>(&inst_r)) {
                 for (unsigned i = 1; i < inst_r.operands().size(); i += 2) {
                     if (inst_r.operands()[i] == redd_bb) {
-                        inst_r.set_operand(i, pre_bbs[0]);
-                        for (unsigned j = 1; j < pre_bbs.size(); j++) {
+                        inst_r.set_operand(i, *pre_bbs.begin());
+                        for (auto iter = ++pre_bbs.begin();
+                             iter != pre_bbs.end(); iter++) {
                             as_a<PhiInst>(&inst_r)->add_phi_param(
-                                inst_r.operands()[i - 1], pre_bbs[j]);
+                                inst_r.operands()[i - 1], *iter);
                         }
                     }
                 }
@@ -105,13 +102,17 @@ void ControlFlow::merge_bb(BasicBlock *redd_bb, BasicBlock *result_bb,
         }
         // replace redundant_bb in BrInst of predecessor of redundant bb with
         // result_bb
+        list<pair<Instruction *, unsigned>> rep_br_inst;
         for (auto pre_bb : pre_bbs) {
             auto &br = pre_bb->insts().back();
             for (unsigned i = 0; i < br.operands().size(); i++) {
                 if (br.operands()[i] == redd_bb) {
-                    br.set_operand(i, result_bb);
+                    rep_br_inst.push_back({&br, i});
                 }
             }
+        }
+        for (auto [br, i] : rep_br_inst) {
+            br->set_operand(i, result_bb);
         }
     }
     // 2.remove BrInst of redundant bb
