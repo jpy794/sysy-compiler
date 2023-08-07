@@ -1,9 +1,14 @@
 #include "DeadCode.hh"
 #include "func_info.hh"
 #include "function.hh"
+#include "global_variable.hh"
 #include "instruction.hh"
+#include "module.hh"
 #include "utils.hh"
 
+#include <vector>
+
+using namespace std;
 using namespace pass;
 using namespace ir;
 
@@ -14,6 +19,7 @@ void DeadCode::run(PassManager *mgr) {
         auto f = &f_r;
         mark_sweep(f);
     }
+    sweep_globally(m);
 }
 
 void DeadCode::mark_sweep(Function *func) {
@@ -74,4 +80,21 @@ bool DeadCode::is_critical(Instruction *inst) {
         not _func_info->is_pure_function(as_a<Function>(inst->operands()[0])))
         return true;
     return false;
+}
+
+void DeadCode::sweep_globally(Module *m) {
+    vector<Function *> unused_funcs;
+    vector<GlobalVariable *> unused_globals;
+    for (auto &f_r : m->functions()) {
+        if (f_r.get_use_list().size() == 0 and &f_r != m->get_main())
+            unused_funcs.push_back(&f_r);
+    }
+    for (auto &glob_var_r : m->global_vars()) {
+        if (glob_var_r.get_use_list().size() == 0)
+            unused_globals.push_back(&glob_var_r);
+    }
+    for (auto func : unused_funcs)
+        m->functions().erase(func);
+    for (auto glob : unused_globals)
+        m->global_vars().erase(glob);
 }

@@ -2,6 +2,7 @@
 #include "func_info.hh"
 #include "function.hh"
 #include "instruction.hh"
+#include "module.hh"
 #include "pass.hh"
 #include <deque>
 #include <unordered_map>
@@ -24,6 +25,7 @@ class DeadCode final : public pass::TransformPass {
     void mark_sweep(ir::Function *);
     void mark();
     void sweep(ir::Function *);
+    void sweep_globally(ir::Module *);
     bool is_critical(ir::Instruction *);
 
     const pass::FuncInfo::ResultType *_func_info;
