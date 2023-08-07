@@ -176,6 +176,8 @@ PhiInst::PhiInst(BasicBlock *prt, Value *base)
     : Instruction(prt, base->get_type()->as<PointerType>()->get_elem_type(),
                   {}) {}
 
+PhiInst::PhiInst(BasicBlock *prt, Type *type) : Instruction(prt, type, {}) {}
+
 std::vector<PhiInst::Pair> PhiInst::to_pairs() const {
     std::vector<Pair> ret;
     for (auto it = operands().begin(); it != operands().end(); it += 2) {

@@ -1,13 +1,6 @@
 #include "loop_unroll.hh"
-#include "basic_block.hh"
-#include "constant.hh"
-#include "err.hh"
-#include "instruction.hh"
 #include "log.hh"
-#include "pass.hh"
-#include "usedef_chain.hh"
-#include "utils.hh"
-#include "value.hh"
+#include <codecvt>
 
 using namespace pass;
 using namespace ir;
@@ -19,40 +12,37 @@ LoopUnroll::parse_simple_loop(BasicBlock *header, const LoopInfo &loop) {
 
     ret.bbs = loop.bbs;
 
-    // loop bbs
-    ret.header = header;
     // the loop has too many bbs
     if (loop.bbs.size() > 2) {
         return nullopt;
     }
+
+    // parse header
+    ret.header = header;
+
+    // parse body
     for (auto &&bb : loop.bbs) {
         if (bb != header) {
             ret.body = bb;
         }
     }
+
     // the loop has too many exiting edges
-    if (ret.body->suc_bbs().size() > 1) {
+    if (loop.exits.size() > 1) {
         return nullopt;
     }
 
-    for (auto &suc : header->suc_bbs()) {
-        if (not contains(loop.bbs, suc)) {
-            ret.exit = suc;
-        }
+    // the exiting bb is not header
+    auto [exiting, exit] = *loop.exits.begin();
+    if (exiting != header) {
+        return nullopt;
     }
-    assert(header->suc_bbs().size() == 2);
-    assert(ret.exit != nullptr);
 
-    // the exit is simple so that we do not need to handle phi in exit
-    assert(ret.exit->pre_bbs().size() == 1);
+    // parse exit
+    ret.exit = exit;
 
-    for (auto &pre : header->pre_bbs()) {
-        if (not contains(loop.bbs, pre)) {
-            ret.preheader = pre;
-        }
-    }
-    assert(header->pre_bbs().size() == 2);
-    assert(ret.preheader != nullptr);
+    // parse preheader
+    ret.preheader = loop.preheader;
 
     // induction var
     auto br_inst = ret.header->insts().back().as<BrInst>();
@@ -153,8 +143,7 @@ bool LoopUnroll::should_unroll(const SimpleLoopInfo &simple_loop) {
     return estimate < UNROLL_MAX;
 }
 
-void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop,
-                                    const UseDefRes &use_def) {
+void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
     map<Value *, Value *> old2new, phi2dst;
     // set phi_var_map to initial value
     for (auto &&inst : simple_loop.header->insts()) {
@@ -205,11 +194,6 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop,
             }
             auto new_inst = bb->clone_inst(bb->insts().end(), &inst);
 
-            /* for (auto &op : new_inst->operands()) {
-             *     if (contains(old2new, op)) {
-             *         op = old2new[op];
-             *     }
-             * } */
             new_inst->set_operand_for_each_if(
                 [&](Value *op) -> pair<bool, Value *> {
                     if (contains(old2new, op))
@@ -233,7 +217,7 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop,
     clone2bb(simple_loop.header);
 
     for (auto [old_inst, new_inst] : old2new) {
-        use_def.replace_all_use_with(old_inst, new_inst);
+        old_inst->replace_all_use_with(new_inst);
     }
 
     // connect exit
@@ -241,8 +225,7 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop,
     bb->create_inst<BrInst>(simple_loop.exit);
 
     // connect preheader
-    simple_loop.preheader->erase_inst(&*simple_loop.preheader->insts().rend());
-    simple_loop.preheader->create_inst<BrInst>(bb);
+    simple_loop.preheader->br_inst().replace_operand(simple_loop.header, bb);
 
     // remove old bbs
     for (auto it = func->bbs().begin(); it != func->bbs().end();) {
@@ -254,8 +237,7 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop,
     }
 }
 
-void LoopUnroll::handle_func(Function *func, const FuncLoopInfo &loops,
-                             const UseDefRes &use_def) {
+void LoopUnroll::handle_func(Function *func, const FuncLoopInfo &loops) {
     for (auto &&[header, loop] : loops) {
         auto simple_loop = parse_simple_loop(header, loop);
         if (not simple_loop.has_value()) {
@@ -265,18 +247,17 @@ void LoopUnroll::handle_func(Function *func, const FuncLoopInfo &loops,
             continue;
         }
         debugs << "unrolling " + simple_loop->header->get_name() << '\n';
-        unroll_simple_loop(simple_loop.value(), use_def);
+        unroll_simple_loop(simple_loop.value());
     }
 }
 
-void LoopUnroll::run(pass::PassManager *mgr) {
+void LoopUnroll::run(PassManager *mgr) {
     auto &&loop_info = mgr->get_result<LoopFind>().loop_info;
-    auto &&use_def = mgr->get_result<UseDefChain>();
     auto m = mgr->get_module();
     for (auto &&func : m->functions()) {
         if (func.is_external) {
             continue;
         }
-        handle_func(&func, loop_info.at(&func), use_def);
+        handle_func(&func, loop_info.at(&func));
     }
 }

@@ -3,6 +3,7 @@
 #include "dead_code.hh"
 #include "loop_find.hh"
 #include "loop_invariant.hh"
+#include "loop_simplify.hh"
 #include "pass.hh"
 #include "usedef_chain.hh"
 
@@ -14,13 +15,11 @@ class LoopUnroll final : public TransformPass {
     void get_analysis_usage(AnalysisUsage &AU) const final {
         using KillType = AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
+        AU.add_require<LoopSimplify>();
         AU.add_require<LoopFind>();
-        // require preheader
-        AU.add_require<LoopInvariant>();
-        AU.add_require<UseDefChain>();
         AU.add_post<DeadCode>();
     }
-    void run(pass::PassManager *mgr) final;
+    void run(PassManager *mgr) final;
 
   private:
     static constexpr int UNROLL_MAX = 1000;
@@ -44,11 +43,9 @@ class LoopUnroll final : public TransformPass {
 
     static bool should_unroll(const SimpleLoopInfo &simple_loop);
 
-    static void unroll_simple_loop(const SimpleLoopInfo &simple_loop,
-                                   const UseDefRes &use_def);
+    static void unroll_simple_loop(const SimpleLoopInfo &simple_loop);
 
-    static void handle_func(ir::Function *func, const FuncLoopInfo &loops,
-                            const UseDefRes &use_def);
+    static void handle_func(ir::Function *func, const FuncLoopInfo &loops);
 };
 
 }; // namespace pass

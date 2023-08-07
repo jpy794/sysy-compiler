@@ -260,6 +260,7 @@ class PhiInst : public Instruction {
   public:
     // @values: the definition list.
     PhiInst(BasicBlock *prt, Value *base);
+    PhiInst(BasicBlock *prt, Type *type);
 
     void add_phi_param(Value *val, BasicBlock *bb);
 

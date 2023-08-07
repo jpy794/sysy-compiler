@@ -41,6 +41,16 @@ class User : public Value {
         }
     }
 
+    void replace_operand(Value *old_val, Value *new_val) {
+        set_operand_for_each_if([&](Value *op) -> std::pair<bool, Value *> {
+            if (op == old_val) {
+                return {true, new_val};
+            } else {
+                return {false, nullptr};
+            }
+        });
+    }
+
     Value *get_operand(size_t index) const {
         assert(index < _operands.size());
         return _operands[index];

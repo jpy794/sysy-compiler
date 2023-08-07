@@ -10,11 +10,11 @@
 #include <string>
 #include <vector>
 
-#include "dead_code.hh"
 #include "ast.hh"
 #include "codegen.hh"
 #include "const_propagate.hh"
 #include "control_flow.hh"
+#include "dead_code.hh"
 #include "depth_order.hh"
 #include "dominator.hh"
 #include "err.hh"
@@ -25,8 +25,9 @@
 #include "ir_builder.hh"
 #include "log.hh"
 #include "loop_find.hh"
-// #include "loop_invariant.hh"
-// #include "loop_unroll.hh"
+#include "loop_invariant.hh"
+#include "loop_simplify.hh"
+#include "loop_unroll.hh"
 #include "mem2reg.hh"
 #include "pass.hh"
 #include "raw_ast.hh"
@@ -112,8 +113,9 @@ int main(int argc, char **argv) {
         // transform
         pm.add_pass<RmUnreachBB>();
         pm.add_pass<Mem2reg>();
-        // pm.add_pass<LoopInvariant>();
-        // pm.add_pass<LoopUnroll>();
+        pm.add_pass<LoopSimplify>();
+        pm.add_pass<LoopInvariant>();
+        pm.add_pass<LoopUnroll>();
         pm.add_pass<ConstPro>();
         pm.add_pass<DeadCode>();
         pm.add_pass<ControlFlow>();
@@ -124,15 +126,15 @@ int main(int argc, char **argv) {
 
         pm.run(
             {
-                PassID<GlobalVarLocalize>(), PassID<Mem2reg>(),
+                PassID<GlobalVarLocalize>(),
+                PassID<Mem2reg>(),
                 PassID<StrengthReduce>(),
-                // PassID<LoopInvariant>(),
-                // PassID<LoopUnroll>(),
+                PassID<LoopInvariant>(),
+                PassID<LoopUnroll>(),
                 PassID<ConstPro>(),
-                //  PassID<ControlFlow>(),
+                PassID<ControlFlow>(),
                 PassID<Inline>(),
                 PassID<GVN>(),
-
             },
             true);
     } else {

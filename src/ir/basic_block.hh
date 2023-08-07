@@ -62,7 +62,7 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
     Instruction *move_inst(const InstIter &it, Instruction *other);
     // erase inst in this block
     // you should handle inst's occur at other places
-    InstIter erase_inst(Instruction *inst);
+    InstIter erase_inst(const InstIter &it);
 
     bool is_terminated() const;
     std::string print() const final;
@@ -75,6 +75,11 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
     const std::set<BasicBlock *> &pre_bbs() const { return _pre_bbs; }
     const std::set<BasicBlock *> &suc_bbs() const { return _suc_bbs; }
     const ilist<Instruction> &insts() const { return _insts; }
+
+    BrInst &br_inst() {
+        assert(is_terminated());
+        return *as_a<BrInst>(&_insts.back());
+    }
 
   private:
     std::set<BasicBlock *> _pre_bbs;

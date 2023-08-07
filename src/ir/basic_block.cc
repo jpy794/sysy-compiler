@@ -81,7 +81,8 @@ Instruction *BasicBlock::move_inst(const InstIter &it, Instruction *other) {
     return &*_insts.insert(it, inst);
 }
 
-BasicBlock::InstIter BasicBlock::erase_inst(Instruction *inst) {
+BasicBlock::InstIter BasicBlock::erase_inst(const InstIter &it) {
+    auto inst = &*it;
     if (inst->get_use_list().size())
         throw logic_error{
             "you cannot erase this inst because there is someone using it"};
