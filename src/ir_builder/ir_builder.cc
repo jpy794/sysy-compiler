@@ -451,6 +451,7 @@ any IRBuilderImpl::visit(const Root &node) {
     scope.enter();
     for (auto &gv_ptr : node.globals)
         visit(*gv_ptr);
+    _m->set_main(as_a<Function>(scope.find("main")));
     scope.exit();
     return {};
 }
