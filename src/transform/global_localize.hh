@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DeadCode.hh"
+#include "dead_code.hh"
 #include "const_propagate.hh"
 #include "function.hh"
 #include "global_variable.hh"

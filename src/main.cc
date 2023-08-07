@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "DeadCode.hh"
+#include "dead_code.hh"
 #include "ast.hh"
 #include "codegen.hh"
 #include "const_propagate.hh"

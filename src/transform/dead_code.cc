@@ -1,4 +1,4 @@
-#include "DeadCode.hh"
+#include "dead_code.hh"
 #include "func_info.hh"
 #include "function.hh"
 #include "global_variable.hh"

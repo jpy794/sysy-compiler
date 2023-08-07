@@ -1,5 +1,5 @@
 #pragma once
-#include "DeadCode.hh"
+#include "dead_code.hh"
 #include "basic_block.hh"
 #include "constant.hh"
 #include "depth_order.hh"

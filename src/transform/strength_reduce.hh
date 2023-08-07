@@ -1,5 +1,5 @@
 #pragma once
-#include "DeadCode.hh"
+#include "dead_code.hh"
 #include "pass.hh"
 
 namespace pass {
