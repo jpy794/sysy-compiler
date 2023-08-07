@@ -7,8 +7,8 @@ using namespace ir;
 using namespace pass;
 
 void Dominator::run(PassManager *mgr) {
-    _depth_order = &mgr->get_result<DepthOrder>();
     clear();
+    _depth_order = &mgr->get_result<DepthOrder>();
     auto m = mgr->get_module();
     for (auto &f_r : m->functions()) {
         f = &f_r;
@@ -61,7 +61,7 @@ void Dominator::create_idom(Function *f) {
             BasicBlock *new_idom = pred;
             for (auto p : bb->pre_bbs()) {
                 if (_idom[p]) { // _idom[p]==nullptr means that p comes after bb
-                                // in depth-first order
+                    // in depth-first order
                     new_idom = intersect(p, new_idom);
                 }
             }
