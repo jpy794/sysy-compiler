@@ -3,7 +3,6 @@
 #include "basic_block.hh"
 #include "constant.hh"
 #include "depth_order.hh"
-#include "dominator.hh"
 #include "func_info.hh"
 #include "instruction.hh"
 #include "mem2reg.hh"
@@ -31,10 +30,7 @@ class GVN final : public pass::TransformPass {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::Normal);
         AU.add_require<FuncInfo>();
-        AU.add_require<UseDefChain>();
         AU.add_require<DepthOrder>();
-        AU.add_require<Mem2reg>();
-        AU.add_kill<UseDefChain>();
         AU.add_kill<DeadCode>();
         AU.add_post<DeadCode>();
     }
@@ -387,16 +383,23 @@ class GVN final : public pass::TransformPass {
     class PhiExpr final : public Expression {
       public:
         PhiExpr(ir::BasicBlock *bb)
-            : Expression(expr_type::e_phi), _ori_bb(bb), _vals{} {}
+            : Expression(expr_type::e_phi), _ori_bb(bb),
+              _pre_bbs({bb->pre_bbs().begin(), bb->pre_bbs().end()}), _vals{} {}
         PhiExpr(ir::BasicBlock *bb,
                 std::vector<std::shared_ptr<Expression>> &&vals)
-            : Expression(expr_type::e_phi), _ori_bb(bb), _vals(vals) {}
-        size_t size() const { return _vals.size(); }
-        std::shared_ptr<Expression> get_val(size_t i) { return _vals[i]; }
+            : Expression(expr_type::e_phi), _ori_bb(bb),
+              _pre_bbs({bb->pre_bbs().begin(), bb->pre_bbs().end()}),
+              _vals(vals) {}
 
-        void add_val(std::shared_ptr<Expression> ve) { _vals.push_back(ve); }
+        size_t size() const { return _vals.size(); }
 
         ir::BasicBlock *get_ori_bb() { return _ori_bb; }
+
+        std::shared_ptr<Expression> get_val(size_t i) { return _vals[i]; }
+
+        ir::BasicBlock *get_pre_bb(size_t i) { return _pre_bbs[i]; }
+
+        void add_val(std::shared_ptr<Expression> ve) { _vals.push_back(ve); }
 
         bool operator==(const PhiExpr &other) const {
             if (_ori_bb != other._ori_bb)
@@ -419,6 +422,7 @@ class GVN final : public pass::TransformPass {
 
       private:
         ir::BasicBlock *_ori_bb;
+        std::vector<ir::BasicBlock *> _pre_bbs;
         std::vector<std::shared_ptr<Expression>> _vals;
     };
 
@@ -514,7 +518,6 @@ class GVN final : public pass::TransformPass {
     ir::Function *_func;
     ir::BasicBlock *_bb;
     const pass::FuncInfo::ResultType *_func_info;
-    const pass::UseDefChain::ResultType *_usedef_chain;
     const pass::DepthOrder::ResultType *_depth_order;
     std::map<ir::BasicBlock *, partitions> _pin, _pout;
 

@@ -21,7 +21,7 @@
 #include "func_info.hh"
 #include "global_localize.hh"
 #include "gvn.hh"
-// #include "inline.hh"
+#include "inline.hh"
 #include "ir_builder.hh"
 #include "log.hh"
 #include "loop_find.hh"
@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
         pm.add_pass<DeadCode>();
         pm.add_pass<ControlFlow>();
         pm.add_pass<StrengthReduce>();
-        // pm.add_pass<Inline>();
+        pm.add_pass<Inline>();
         pm.add_pass<GVN>();
         pm.add_pass<GlobalVarLocalize>();
 
@@ -128,9 +128,11 @@ int main(int argc, char **argv) {
                 PassID<StrengthReduce>(),
                 // PassID<LoopInvariant>(),
                 // PassID<LoopUnroll>(),
-                // PassID<ControlFlow>(),
                 PassID<ConstPro>(),
-                // PassID<Inline>(),
+                //  PassID<ControlFlow>(),
+                PassID<Inline>(),
+                PassID<GVN>(),
+
             },
             true);
     } else {

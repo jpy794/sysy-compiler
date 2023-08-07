@@ -21,7 +21,6 @@ bool Inline::is_inline(Function *func) {
 
 void Inline::run(PassManager *mgr) {
     auto m = mgr->get_module();
-    _use_def_chain = &mgr->get_result<UseDefChain>();
     const unsigned upper_times = 1; // set iter_expanded upper times
     deque<Instruction *> call_work_list{};
     unsigned iter_times = 0;
@@ -52,7 +51,7 @@ void Inline::run(PassManager *mgr) {
     }
 }
 
-void Inline::inline_func(ilist<ir::Instruction>::iterator callee) {
+void Inline::inline_func(InstIter callee) {
     auto caller_func = callee->get_parent()->get_func();
     auto callee_func = as_a<Function>(callee->get_operand(0));
     // cast args to parameters
@@ -83,24 +82,19 @@ void Inline::clone(Function *callee, Function *caller) {
                 bb_work_list.push_back(suc_bb);
                 inline_bb.push_back(bb);
             }
-            // maintain pre/suc relationship
-            auto bb = as_a<BasicBlock>(clee2cler[suc_bb]);
-            map_bb->suc_bbs().push_back(bb);
-            bb->pre_bbs().push_back(map_bb);
         }
         // step2 clone inst from callee function into caller function
         for (auto &inst_r : top->insts()) {
             auto inst = &inst_r;
             auto map_inst =
-                map_bb->clone_inst_skeleton(map_bb->insts().end(), inst);
+                map_bb->clone_inst(map_bb->insts().end(), inst, true);
             clee2cler[inst] = map_inst;
         }
     }
 }
 
-void Inline::replace(
-    ilist<ir::Instruction>::iterator call_iter) { // replace operands of inst
-                                                  // with map_val because the
+void Inline::replace(InstIter call_iter) { // replace operands of inst
+                                           // with map_val because the
     // operands now belong to callee function
     for (auto bb : inline_bb) {
         for (auto &inst_r : bb->insts()) {
@@ -122,21 +116,19 @@ void Inline::replace(
     if (is_a<VoidType>(callee_func->get_return_type()))
         return;
     // replace call result with return val
-    if (_use_def_chain->users.find(&*call_iter) != _use_def_chain->users.end())
-        _use_def_chain->replace_all_use_with(
-            &*call_iter, map_exit_bb->insts().back().get_operand(0));
+    call_iter->replace_all_use_with(map_exit_bb->insts().back().get_operand(0));
 }
 
-void Inline::trivial(ilist<ir::Instruction>::iterator call_iter) {
+void Inline::trivial(InstIter call_iter) {
     // step1 erase return inst within map_exit_bb
     auto callee = as_a<Function>(call_iter->get_operand(0));
     auto map_exit_bb = as_a<BasicBlock>(clee2cler[callee->get_exit_bb()]);
-    map_exit_bb->insts().erase(&map_exit_bb->insts().back());
+    map_exit_bb->erase_inst(&map_exit_bb->insts().back());
     // step2 move insts after call_inst from parent_bb to map_exit_bb
     auto parent_bb = call_iter->get_parent();
     auto move_iter = call_iter;
     // count which instructions need to be moved
-    deque<Instruction *> move_insts;
+    list<Instruction *> move_insts;
     for (++move_iter; move_iter != parent_bb->insts().end(); ++move_iter) {
         move_insts.push_back(&*move_iter);
     }

@@ -48,7 +48,8 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
     }
 
     // clone inst within the same function
-    Instruction *clone_inst(const InstIter &it, Instruction *other);
+    Instruction *clone_inst(const InstIter &it, Instruction *other,
+                            bool diff_func = false);
 
     /* // @deprecated
      * // clone only for the private member except for operands which should be
@@ -69,15 +70,15 @@ class BasicBlock : public Value, public ilist<BasicBlock>::node {
     Function *get_func() const { return _func; }
     ilist<Instruction> &insts() { return _insts; }
     /* @deprecated: donot return variable vectors anymore!
-     * std::vector<BasicBlock *> &pre_bbs() { return _pre_bbs; }
-     * std::vector<BasicBlock *> &suc_bbs() { return _suc_bbs; } */
-    const std::vector<BasicBlock *> &pre_bbs() const { return _pre_bbs; }
-    const std::vector<BasicBlock *> &suc_bbs() const { return _suc_bbs; }
+     * std::set<BasicBlock*> &pre_bbs() { return _pre_bbs; }
+     * std::set<BasicBlock*> &suc_bbs() { return _suc_bbs; } */
+    const std::set<BasicBlock *> &pre_bbs() const { return _pre_bbs; }
+    const std::set<BasicBlock *> &suc_bbs() const { return _suc_bbs; }
     const ilist<Instruction> &insts() const { return _insts; }
 
   private:
-    std::vector<BasicBlock *> _pre_bbs;
-    std::vector<BasicBlock *> _suc_bbs;
+    std::set<BasicBlock *> _pre_bbs;
+    std::set<BasicBlock *> _suc_bbs;
     ilist<Instruction> _insts;
     Function *const _func;
 

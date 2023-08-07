@@ -35,9 +35,10 @@ string BasicBlock::print() const {
     return bb_ir;
 }
 
-Instruction *BasicBlock::clone_inst(const InstIter &it, Instruction *other) {
+Instruction *BasicBlock::clone_inst(const InstIter &it, Instruction *other,
+                                    bool diff_func) {
     auto other_bb = other->get_parent();
-    assert(other_bb->get_func() == _func);
+    assert(diff_func || other_bb->get_func() == _func);
     avoid_push_back_when_terminated(it);
     // check for RetInst and BrInst
     if (other->is<RetInst>() or other->is<BrInst>())
@@ -90,12 +91,12 @@ BasicBlock::InstIter BasicBlock::erase_inst(Instruction *inst) {
 void BasicBlock::link(BasicBlock *src, BasicBlock *dest) {
     auto &src_succ_bbs = src->_suc_bbs;
     auto &dest_prev_bbs = dest->_pre_bbs;
-    assert(not contains(src_succ_bbs, dest));
-    assert(not contains(dest_prev_bbs, src));
     // add dest bb to src's succ
-    src_succ_bbs.push_back(dest);
+    if (not contains(src_succ_bbs, dest))
+        src_succ_bbs.insert(dest);
     // add src bb to dest's succ
-    dest_prev_bbs.push_back(src);
+    if (not contains(dest_prev_bbs, src))
+        dest_prev_bbs.insert(src);
 }
 
 void BasicBlock::unlink(BasicBlock *src, BasicBlock *dest) {
@@ -103,12 +104,12 @@ void BasicBlock::unlink(BasicBlock *src, BasicBlock *dest) {
     auto &dest_prev_bbs = dest->_pre_bbs;
     { // remove dest bb from src's succ
         auto iter = find(src_succ_bbs.begin(), src_succ_bbs.end(), dest);
-        assert(iter != src_succ_bbs.end());
-        src_succ_bbs.erase(iter);
+        if (iter != src_succ_bbs.end())
+            src_succ_bbs.erase(iter);
     }
     { // remove src bb from dest's pre
         auto iter = find(dest_prev_bbs.begin(), dest_prev_bbs.end(), src);
-        assert(iter != dest_prev_bbs.end());
-        dest_prev_bbs.erase(iter);
+        if (iter != dest_prev_bbs.end())
+            dest_prev_bbs.erase(iter);
     }
 }

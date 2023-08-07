@@ -77,7 +77,6 @@ bool GVN::CongruenceClass::operator==(const CongruenceClass &other) const {
 
 void GVN::run(PassManager *mgr) {
     _func_info = &mgr->get_result<FuncInfo>();
-    _usedef_chain = &mgr->get_result<UseDefChain>();
     _depth_order = &mgr->get_result<DepthOrder>();
 
     auto m = mgr->get_module();
@@ -219,7 +218,7 @@ void GVN::detect_equivalences(Function *func) {
                 if (::is_a<BrInst>(&inst_r) || ::is_a<PhiInst>(&inst_r) ||
                     ::is_a<RetInst>(&inst_r) ||
                     (::is_a<CallInst>(&inst_r) &&
-                     _usedef_chain->users.at(&inst_r)
+                     inst_r.get_use_list()
                          .empty())) // For pure_func, if it isn't used, it
                                     // will be optimized by mem2reg
                                     // Thus, this case must be a non-pure_func
@@ -228,8 +227,8 @@ void GVN::detect_equivalences(Function *func) {
                     continue;
                 _pout[_bb] = transfer_function(&inst_r, _pout[_bb]);
                 // special judgement to prevent from large number of CC
-                // if (_pout[_bb].size() > 200)
-                //     return;
+                if (_pout[_bb].size() > 200)
+                    return;
             }
             non_copy_pout[_bb] = clone(_pout[_bb]);
             for (auto suc_bb : _bb->suc_bbs()) {
@@ -420,7 +419,7 @@ std::shared_ptr<GVN::PhiExpr> GVN::valuePhiFunc(shared_ptr<Expression> ve) {
         default:
             assert(false);
         }
-        auto pout_i = _pout[phi_lhs->get_ori_bb()->pre_bbs()[i]];
+        auto pout_i = _pout[phi_lhs->get_pre_bb(i)];
         auto vn = getVN(pout_i, tmp);
         if (vn == nullptr)
             vn = valuePhiFunc(tmp);
@@ -468,12 +467,13 @@ void GVN::replace_cc_members() {
             for (auto &member : cc->members) {
                 if (member != cc->leader and not ::is_a<Constant>(member)) {
                     assert(cc->leader);
-                    _usedef_chain->replace_use_when(
-                        member, cc->leader, [bb](User *user, unsigned idx) {
-                            if (auto inst = dynamic_cast<Instruction *>(user)) {
+                    member->replace_all_use_with_if(
+                        cc->leader, [bb](const Use &use) -> bool {
+                            if (auto inst =
+                                    dynamic_cast<Instruction *>(use.user)) {
                                 auto parent = inst->get_parent();
                                 if (::is_a<PhiInst>(inst))
-                                    return inst->get_operand(idx + 1) ==
+                                    return inst->get_operand(use.op_idx + 1) ==
                                            bb; // only replace the
                                                // operand of the
                                                // user from current
