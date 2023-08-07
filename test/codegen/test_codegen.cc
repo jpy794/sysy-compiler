@@ -1,4 +1,4 @@
-#include "DeadCode.hh"
+#include "dead_code.hh"
 #include "ast.hh"
 #include "codegen.hh"
 #include "dominator.hh"
