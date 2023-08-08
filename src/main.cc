@@ -101,29 +101,29 @@ int main(int argc, char **argv) {
     auto module = builder.release_module();
 
     PassManager pm{std::move(module)};
+
+    // analysis
+    pm.add_pass<Dominator>();
+    pm.add_pass<UseDefChain>();
+    pm.add_pass<LoopFind>();
+    pm.add_pass<FuncInfo>();
+    pm.add_pass<DepthOrder>();
+
+    // transform
+    pm.add_pass<RmUnreachBB>();
+    pm.add_pass<Mem2reg>();
+    pm.add_pass<LoopSimplify>();
+    pm.add_pass<LoopInvariant>();
+    pm.add_pass<LoopUnroll>();
+    pm.add_pass<ConstPro>();
+    pm.add_pass<DeadCode>();
+    pm.add_pass<ControlFlow>();
+    pm.add_pass<StrengthReduce>();
+    pm.add_pass<Inline>();
+    pm.add_pass<GVN>();
+    pm.add_pass<GlobalVarLocalize>();
+
     if (cfg.optimize) {
-
-        // analysis
-        pm.add_pass<Dominator>();
-        pm.add_pass<UseDefChain>();
-        pm.add_pass<LoopFind>();
-        pm.add_pass<FuncInfo>();
-        pm.add_pass<DepthOrder>();
-
-        // transform
-        pm.add_pass<RmUnreachBB>();
-        pm.add_pass<Mem2reg>();
-        pm.add_pass<LoopSimplify>();
-        pm.add_pass<LoopInvariant>();
-        pm.add_pass<LoopUnroll>();
-        pm.add_pass<ConstPro>();
-        pm.add_pass<DeadCode>();
-        pm.add_pass<ControlFlow>();
-        pm.add_pass<StrengthReduce>();
-        pm.add_pass<Inline>();
-        pm.add_pass<GVN>();
-        pm.add_pass<GlobalVarLocalize>();
-
         pm.run(
             {
                 PassID<GlobalVarLocalize>(),
@@ -132,25 +132,14 @@ int main(int argc, char **argv) {
                 PassID<LoopInvariant>(),
                 PassID<LoopUnroll>(),
                 PassID<ConstPro>(),
-                PassID<ControlFlow>(),
                 PassID<Inline>(),
-                PassID<GVN>(),
+                // PassID<GVN>(),
+                PassID<ControlFlow>(),
+                PassID<DeadCode>(),
             },
             true);
-    } else {
-        /* minimum passes required by backend */
-        // analysis
-        pm.add_pass<Dominator>();
-        pm.add_pass<UseDefChain>();
-        pm.add_pass<FuncInfo>();
-        pm.add_pass<DepthOrder>();
-        // transform
-        pm.add_pass<RmUnreachBB>();
-        pm.add_pass<Mem2reg>();
-        pm.add_pass<DeadCode>();
-
+    } else
         pm.run({PassID<Mem2reg>(), PassID<DeadCode>()});
-    }
 
     { // [DEBUG] runned passes
         debugs << pm.print_passes_runned() << "\n";
