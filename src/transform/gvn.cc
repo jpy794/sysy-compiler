@@ -227,8 +227,10 @@ void GVN::detect_equivalences(Function *func) {
                     continue;
                 _pout[_bb] = transfer_function(&inst_r, _pout[_bb]);
                 // special judgement to prevent from large number of CC
-                if (_pout[_bb].size() > 200)
+                if (_pout[_bb].size() > 200) {
+                    non_copy_pout.clear();
                     return;
+                }
             }
             non_copy_pout[_bb] = clone(_pout[_bb]);
             for (auto suc_bb : _bb->suc_bbs()) {
@@ -467,6 +469,12 @@ void GVN::replace_cc_members() {
             for (auto &member : cc->members) {
                 if (member != cc->leader and not ::is_a<Constant>(member)) {
                     assert(cc->leader);
+                    if (::is_a<PhiInst>(cc->leader) &&
+                        ::is_a<PhiInst>(member) &&
+                        ::as_a<PhiInst>(member)->get_parent() !=
+                            ::as_a<PhiInst>(cc->leader)->get_parent()) {
+                        continue;
+                    }
                     member->replace_all_use_with_if(
                         cc->leader, [bb](const Use &use) -> bool {
                             if (auto inst =

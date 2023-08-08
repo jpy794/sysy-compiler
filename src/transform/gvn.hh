@@ -1,7 +1,7 @@
 #pragma once
-#include "dead_code.hh"
 #include "basic_block.hh"
 #include "constant.hh"
+#include "dead_code.hh"
 #include "depth_order.hh"
 #include "func_info.hh"
 #include "instruction.hh"
@@ -31,7 +31,6 @@ class GVN final : public pass::TransformPass {
         AU.set_kill_type(KillType::Normal);
         AU.add_require<FuncInfo>();
         AU.add_require<DepthOrder>();
-        AU.add_kill<DeadCode>();
         AU.add_post<DeadCode>();
     }
     virtual void run(pass::PassManager *mgr) override;
@@ -367,6 +366,8 @@ class GVN final : public pass::TransformPass {
             : Expression(expr_type::e_gep), _idxs(idxs) {}
 
         bool operator==(const GepExpr &other) const {
+            if (this->_idxs.size() != other._idxs.size())
+                return false;
             for (unsigned i = 0; i < _idxs.size(); i++) {
                 if (not(*_idxs[i] == *other._idxs[i]))
                     return false;
