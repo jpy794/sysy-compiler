@@ -121,6 +121,7 @@ int main(int argc, char **argv) {
     pm.add_pass<StrengthReduce>();
     pm.add_pass<Inline>();
     pm.add_pass<GVN>();
+    pm.add_pass<GlobalVarLocalize>();
 
     if (cfg.optimize) {
         pm.run(
@@ -130,10 +131,9 @@ int main(int argc, char **argv) {
                 PassID<StrengthReduce>(),
                 PassID<LoopInvariant>(),
                 PassID<LoopUnroll>(),
-                PassID<GVN>(),
                 PassID<Inline>(),
+                PassID<GVN>(),
                 PassID<ControlFlow>(),
-
             },
             true);
     } else
