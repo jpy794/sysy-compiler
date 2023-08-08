@@ -1,16 +1,27 @@
-#include "dead_code.hh"
 #include "ast.hh"
 #include "codegen.hh"
+#include "const_propagate.hh"
+#include "control_flow.hh"
+#include "dead_code.hh"
+#include "depth_order.hh"
 #include "dominator.hh"
+#include "err.hh"
 #include "func_info.hh"
+#include "global_localize.hh"
+#include "gvn.hh"
+#include "inline.hh"
 #include "ir_builder.hh"
+#include "log.hh"
 #include "loop_find.hh"
 #include "loop_invariant.hh"
+#include "loop_simplify.hh"
+#include "loop_unroll.hh"
 #include "mem2reg.hh"
 #include "pass.hh"
 #include "raw_ast.hh"
-#include "remove_unreach_bb.hh"
+#include "strength_reduce.hh"
 #include "usedef_chain.hh"
+
 #include <filesystem>
 #include <fstream>
 
@@ -40,6 +51,7 @@ int main(int argc, char **argv) {
 
     // optimize
     pass::PassManager pm(builder.release_module());
+
     // analysis
     pm.add_pass<Dominator>();
     pm.add_pass<UseDefChain>();
@@ -50,11 +62,31 @@ int main(int argc, char **argv) {
     // transform
     pm.add_pass<RmUnreachBB>();
     pm.add_pass<Mem2reg>();
+    pm.add_pass<LoopSimplify>();
     pm.add_pass<LoopInvariant>();
+    pm.add_pass<LoopUnroll>();
+    pm.add_pass<ConstPro>();
     pm.add_pass<DeadCode>();
+    pm.add_pass<ControlFlow>();
+    pm.add_pass<StrengthReduce>();
+    pm.add_pass<Inline>();
+    pm.add_pass<GVN>();
+    pm.add_pass<GlobalVarLocalize>();
 
-    pm.run({PassID<Mem2reg>(), PassID<LoopInvariant>(), PassID<DeadCode>()},
-           false);
+    pm.run(
+        {
+            PassID<GlobalVarLocalize>(),
+            PassID<Mem2reg>(),
+            PassID<StrengthReduce>(),
+            PassID<LoopInvariant>(),
+            PassID<LoopUnroll>(),
+            PassID<ConstPro>(),
+            PassID<Inline>(),
+            // PassID<GVN>(),
+            PassID<ControlFlow>(),
+            PassID<DeadCode>(),
+        },
+        true);
 
     // codegen, output stage1 asm only
     codegen::CodeGen codegen{pm.release_module(), false, true};
