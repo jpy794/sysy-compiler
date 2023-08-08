@@ -1,7 +1,7 @@
 #pragma once
 
-#include "dead_code.hh"
 #include "const_propagate.hh"
+#include "dead_code.hh"
 #include "function.hh"
 #include "global_variable.hh"
 #include "mem2reg.hh"
@@ -27,6 +27,8 @@ class GlobalVarLocalize : public TransformPass {
             AU.add_post<ConstPro>();
         AU.add_post<DeadCode>();
     }
+
+    virtual bool always_invalid() const override { return true; }
 
   private:
     enum Action { BaseTypeSink, ConstArrProp, JustSkip };

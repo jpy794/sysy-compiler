@@ -5,6 +5,7 @@
 #include "global_localize.hh"
 #include "ilist.hh"
 #include "instruction.hh"
+#include "loop_invariant.hh"
 #include "pass.hh"
 #include "remove_unreach_bb.hh"
 #include "value.hh"
@@ -26,6 +27,7 @@ class Inline final : public pass::TransformPass {
         AU.add_post<RmUnreachBB>();
         AU.add_post<ConstPro>();
         AU.add_post<GlobalVarLocalize>();
+        AU.add_post<LoopInvariant>();
     }
 
     virtual void run(pass::PassManager *mgr) override;

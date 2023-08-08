@@ -16,6 +16,8 @@ class LoopInvariant final : public TransformPass {
     }
     void run(PassManager *mgr) final;
 
+    bool always_invalid() const override { return true; }
+
   private:
     using LoopInfo = LoopFind::ResultType::LoopInfo;
     using FuncLoopInfo = LoopFind::ResultType::FuncLoopInfo;
