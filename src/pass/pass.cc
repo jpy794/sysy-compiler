@@ -16,7 +16,7 @@ void PassManager::run(const PassOrder &o, bool post) {
         if (not info.need_run())
             continue;
         AnalysisUsage AU;
-        ptr->get_analysis_usage(AU);
+        ptr->get_analysis_usage(AU); // get relyed pass
 
         // recursively run relied pass
         for (auto relyid : AU._relys) {
@@ -26,6 +26,8 @@ void PassManager::run(const PassOrder &o, bool post) {
 
         ptr->run(this);
         _pass_record.push_back(passid);
+
+        ptr->get_analysis_usage(AU); // get passes killed and suggest post
 
         // invalidation of affected passes
         switch (AU._kt) {
