@@ -27,6 +27,9 @@ class Mem2reg final : public pass::TransformPass {
     void re_name(ir::BasicBlock *bb);
     const pass::Dominator::ResultType *_dominator;
 
+    bool is_wanted_phi(ir::Value *);
+    void clear();
+
     std::set<std::pair<ir::Value *, ir::BasicBlock *>> _phi_table;
     std::map<ir::PhiInst *, ir::Value *> _phi_lval;
     std::map<ir::Value *, std::vector<ir::Value *>> _var_new_name;
