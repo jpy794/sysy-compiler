@@ -17,8 +17,8 @@ jobs:
       run: |
         git clone "https://oauth2:${TOKEN}@gitlab.eduxiji.net/202310358201729/compiler2023-ggvm.git" submit
         rm -r submit/* || true
-        cp src/**/*.cc src/**/*.hh submit
-        cp build/antlr4_generated_src/**/*.h build/antlr4_generated_src/**/*.cpp submit
+        cp src/**/*.cc src/**/*.hh src/*.cc src/*.hh submit
+        cp build/antlr4_generated_src/*.h build/antlr4_generated_src/*.cpp submit
         cd submit
         git add .
         git config --local user.email "actions@github.com"
