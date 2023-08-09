@@ -1,4 +1,5 @@
 #pragma once
+#include "dead_code.hh"
 #include "dominator.hh"
 #include "instruction.hh"
 #include "pass.hh"
@@ -18,6 +19,7 @@ class Mem2reg final : public pass::TransformPass {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
         AU.add_require<pass::Dominator>();
+        AU.add_post<DeadCode>();
     }
     virtual void run(pass::PassManager *mgr) override;
     bool always_invalid() const override { return true; }

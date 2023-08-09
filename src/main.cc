@@ -134,7 +134,6 @@ int main(int argc, char **argv) {
                 PassID<GVN>(),
                 PassID<Inline>(),
                 PassID<ContinuousAdd>(),
-                PassID<DeadCode>(),
                 PassID<LoopInvariant>(),
                 PassID<LoopUnroll>(),
                 PassID<ControlFlow>(),

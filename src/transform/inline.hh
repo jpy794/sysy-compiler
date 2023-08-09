@@ -24,7 +24,6 @@ class Inline final : public pass::TransformPass {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
         AU.add_require<DepthOrder>();
-        AU.add_post<RmUnreachBB>();
         AU.add_post<GlobalVarLocalize>();
         AU.add_post<ConstPro>();
     }
