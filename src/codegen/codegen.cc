@@ -1145,6 +1145,8 @@ void CodeGen::resolve_stack() {
     // 2. allocate a temp regsiter for each StackObject
     deque<StackObject *> load_order; // order: floats then ints
     map<StackObject *, PhysicalRegister *> tmp_reg_map;
+    // the idx is zero if find_tmp_reg is never called
+    // else the first unused t reg (used as normal reg or tmp for stack obj)
     unsigned i_idx = 0, f_idx = 0;
     // TODO:
     // - select rd as tmp reg first as we do not need to save rd, though it
@@ -1152,9 +1154,9 @@ void CodeGen::resolve_stack() {
     // - try selecting a reg that is not critical
     auto find_tmp_reg = [&](bool for_float) {
         auto &idx = for_float ? f_idx : i_idx;
-        PhysicalRegister *tmp_reg = preg_mgr.get_temp_reg(idx, for_float);
+        PhysicalRegister *tmp_reg = preg_mgr.get_temp_reg(idx++, for_float);
         while (contains(tmp_regs_in_use, tmp_reg))
-            tmp_reg = preg_mgr.get_temp_reg(++idx, for_float);
+            tmp_reg = preg_mgr.get_temp_reg(idx++, for_float);
         tmp_regs_in_use.insert(tmp_reg);
         return tmp_reg;
     };
@@ -1194,6 +1196,16 @@ void CodeGen::resolve_stack() {
     // 4. parse critical regs(wipe off the dest reg), which are to be saved
     auto critical_iregs = current_critical_regs(false, Saver::ALL);
     auto critical_fregs = current_critical_regs(true, Saver::ALL);
+
+    // erase rd from critical_xregs
+    // because we'll use critical_xregs later when allocating tmp reg for offset
+    if (rd_info.rd_exist and is_a<PhysicalRegister>(rd_info.rd_location)) {
+        // wipe off the dest reg, because it will be overwriten right away
+        auto preg = as_a<PhysicalRegister>(rd_info.rd_location);
+        critical_iregs.erase(preg);
+        critical_fregs.erase(preg);
+    }
+
     decltype(tmp_regs_save_if_critical) critical_tmp_iregs, critical_tmp_fregs;
     set_intersection(tmp_regs_save_if_critical.begin(),
                      tmp_regs_save_if_critical.end(), critical_iregs.begin(),
@@ -1203,12 +1215,7 @@ void CodeGen::resolve_stack() {
                      tmp_regs_save_if_critical.end(), critical_fregs.begin(),
                      critical_fregs.end(),
                      inserter(critical_tmp_fregs, critical_tmp_fregs.begin()));
-    if (rd_info.rd_exist and is_a<PhysicalRegister>(rd_info.rd_location)) {
-        // wipe off the dest reg, because it will be overwriten right away
-        auto preg = as_a<PhysicalRegister>(rd_info.rd_location);
-        critical_tmp_iregs.erase(preg);
-        critical_tmp_fregs.erase(preg);
-    }
+
     Offset stack_grow_size = critical_tmp_iregs.size() * TARGET_MACHINE_SIZE +
                              critical_tmp_fregs.size() * BASIC_TYPE_SIZE;
 
