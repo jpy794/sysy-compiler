@@ -82,13 +82,14 @@ set<BasicBlock *> LoopFind::find_bbs_by_latch(BasicBlock *header,
     ret.insert(header);
     queue<BasicBlock *> bfs;
     bfs.push(latch);
+    ret.insert(latch);
     while (not bfs.empty()) {
         auto bb = bfs.front();
         bfs.pop();
-        ret.insert(bb);
         for (auto &&pre_bb : bb->pre_bbs()) {
             if (not contains(ret, pre_bb)) {
                 bfs.push(pre_bb);
+                ret.insert(pre_bb);
             }
         }
     }

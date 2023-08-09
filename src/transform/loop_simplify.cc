@@ -1,4 +1,5 @@
 #include "loop_simplify.hh"
+#include "instruction.hh"
 #include "utils.hh"
 
 using namespace pass;
@@ -25,24 +26,17 @@ BasicBlock *LoopSimplify::create_preheader(BasicBlock *header,
     auto func = header->get_func();
     auto preheader = func->create_bb();
 
-    // to avoid iterator invalidation
-    auto in_bbs = header->pre_bbs();
-    for (auto in_bb : in_bbs) {
-        if (not contains(loop.latches, in_bb)) {
-            // connect in_bb to preheader
-            in_bb->br_inst().replace_operand(header, preheader);
-        }
-    }
-
-    // connect preheader to header
-    preheader->create_inst<BrInst>(header);
-
-    // phi
+    // collect phi first (in case iterator invalidation)
+    vector<PhiInst *> phis;
     for (auto &&inst : header->insts()) {
         if (not inst.is<PhiInst>()) {
             break;
         }
-        auto phi = inst.as<PhiInst>();
+        phis.push_back(inst.as<PhiInst>());
+    }
+
+    // modify phi inst
+    for (auto &&phi : phis) {
         auto [inner, outer] = split_phi_op(phi, loop);
         if (outer.size() == 0) {
             // all defs are from inside, do not modify
@@ -50,7 +44,7 @@ BasicBlock *LoopSimplify::create_preheader(BasicBlock *header,
         }
         if (inner.size() == 0) {
             // all defs are from outside, move to preheader
-            preheader->move_inst(preheader->insts().end(), phi);
+            preheader->move_inst(preheader->insts().begin(), phi);
             continue;
         }
         if (outer.size() == 1) {
@@ -66,6 +60,21 @@ BasicBlock *LoopSimplify::create_preheader(BasicBlock *header,
         inner.emplace_back(phi_outer, preheader);
         phi->from_pairs(inner);
     }
+
+    // connect preheader to other bbs
+
+    // to avoid iterator invalidation
+    auto in_bbs = header->pre_bbs();
+    for (auto in_bb : in_bbs) {
+        if (not contains(loop.latches, in_bb)) {
+            // connect in_bb to preheader
+            in_bb->br_inst().replace_operand(header, preheader);
+        }
+    }
+
+    // connect preheader to header
+    preheader->create_inst<BrInst>(header);
+
     return preheader;
 }
 
