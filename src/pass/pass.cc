@@ -27,6 +27,8 @@ void PassManager::run(const PassOrder &o, bool post) {
         ptr->run(this);
         _pass_record.push_back(passid);
 
+        AU.clear();
+
         ptr->get_analysis_usage(AU); // get passes killed and suggest post
 
         // invalidation of affected passes

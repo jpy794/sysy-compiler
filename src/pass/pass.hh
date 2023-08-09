@@ -48,12 +48,18 @@ class AnalysisUsage {
     // for conservation, all analysis result may be killed
     KillType _kt{All};
     // passes in _relys must be executed in advance
-    PassOrder _relys;
+    PassOrder _relys{};
     // passes in _posts may be executed depending on PM
-    PassOrder _posts;
+    PassOrder _posts{};
     // after the host pass run, the results of _kills is invalidate
-    PassOrder _kills;
+    PassOrder _kills{};
     // may need a preserve list
+
+    void clear() {
+        _relys.clear();
+        _posts.clear();
+        _kills.clear();
+    }
 
   public:
     AnalysisUsage() = default;
