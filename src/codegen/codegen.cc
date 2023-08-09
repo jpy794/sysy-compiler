@@ -775,13 +775,15 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
 
     class OrderParser {
         using NeedByVec = vector<unsigned>;
-        using AssignOrder = vector<unsigned>;
+        using AssignOrder = deque<unsigned>;
 
       private:
         // ai is need by a_k, k is in neeby[i]
         array<NeedByVec, ARG_REGS> needby;
         // if ai has been checked, to detect cycle
         array<bool, ARG_REGS> vis{};
+        // assign args using tmp reg as far as possible
+        vector<unsigned> value_in_tmp_first;
         deque<unsigned> queue;
 
         const decltype(ArgInfo::int_args_in_reg) &location_info;
@@ -790,13 +792,13 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
       public:
         unsigned arg_cnt;
         AssignOrder order;
-        array<bool, ARG_REGS> backup{};      // if ai need a backup
-        vector<unsigned> value_in_tmp_first; // assign args use tmp reg first
+        array<bool, ARG_REGS> backup{}; // if ai need a backup
 
         explicit OrderParser(decltype(location_info) l, decltype(res) r)
             : location_info(l), res(r) {
             gen_rely_graph();
             gen_order();
+            check();
         }
 
       private:
@@ -815,6 +817,7 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
                     needby.at(preg->get_arg_idx()).push_back(arg_idx);
                 }
                 // assign values that is in t0, t1 or ft0 first!
+                // keys of res.changed contains tmp regs used during stack pass
                 if (contains(res.changed, preg))
                     value_in_tmp_first.push_back(arg_idx);
             }
@@ -823,12 +826,13 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
         }
 
         void gen_order() {
-            auto is_valid_arg_idx = [&](unsigned i) {
-                return i < arg_cnt and not contains(value_in_tmp_first, i);
-            };
+            // initialize
             for (unsigned i = 0; i < arg_cnt; ++i)
-                if (is_valid_arg_idx(i))
-                    queue.push_back(i); // initialize
+                queue.push_back(i);
+            // value in tmp regs
+            for (auto arg_idx : value_in_tmp_first)
+                order.push_back(arg_idx);
+            // resolve relying graph
             while (not queue.empty()) {
                 auto i = queue.front();
                 queue.pop_front();
@@ -845,28 +849,39 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
                     assign = false;
 
                 if (assign) {
-                    order.push_back(i);
+                    bool front = false;
                     for (unsigned j = 0; j < arg_cnt; ++j) {
                         // eliminate rely links
                         auto &need_vec = needby.at(j);
                         auto iter = find(need_vec.begin(), need_vec.end(), i);
                         if (iter != need_vec.end()) {
                             need_vec.erase(iter);
-                            if (need_vec.size() == 0 and is_valid_arg_idx(j))
+                            front = contains(value_in_tmp_first, j);
+                            if (need_vec.size() == 0)
                                 queue.push_front(j);
                             break; // a_i relys on 1 a{} at most
                         }
                     }
+                    if (front)
+                        order.push_front(i);
+                    else
+                        order.push_back(i);
                 } else
                     queue.push_back(i);
 
                 vis[i] = true;
             }
         }
+        void check() const {
+            for (unsigned i = 0; i < arg_cnt; ++i)
+                assert(needby.at(i).size() == 0 or backup.at(i));
+            for (unsigned i : value_in_tmp_first)
+                assert(needby.at(i).size() == 0);
+            assert(order.size() == arg_cnt);
+        }
     };
 
     OrderParser order_parser(location_info, res);
-    const auto &value_in_tmp_first = order_parser.value_in_tmp_first;
     const auto &order = order_parser.order;
     const auto &backup = order_parser.backup;
 
@@ -875,17 +890,6 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
 
     /* 2. pass arg */
     PhysicalRegister *target_reg;
-    assert(value_in_tmp_first.size() + order.size() == order_parser.arg_cnt);
-    // args relying on t0/t1/ft0
-    for (auto i : value_in_tmp_first) {
-        target_reg = preg_mgr.get_arg_reg(i, for_float);
-        auto preg = get<PhysicalRegister *>(location_info.at(i).location);
-        if (res.changed.at(preg)) {
-            safe_load_store(load_op, preg, tmp_arg_off.at(preg), nullptr);
-            res.changed.at(preg) = false;
-        }
-        move_same_type(target_reg, preg);
-    }
 
     const auto backup_op = for_float ? FMVXW : move_op;
     const auto recvoer_op = for_float ? FMVWX : move_op;
@@ -899,13 +903,21 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
         [&](PhysicalRegister *preg) {
             insert_inst(COMMENT,
                         {target_reg, value_mgr.create<Comment>("="), preg});
-            assert(not contains(tmp_arg_off, preg));
-            if (backup.at(target_reg->get_arg_idx()))
-                insert_inst(backup_op, {t1, target_reg});
-            if (preg->is_arg_reg() and backup.at(preg->get_arg_idx()))
-                insert_inst(recvoer_op, {target_reg, t1});
-            else
+            if (contains(res.changed, preg)) { // preg is tmp reg
+                if (res.changed.at(preg)) {
+                    safe_load_store(load_op, preg, tmp_arg_off.at(preg),
+                                    nullptr);
+                    res.changed.at(preg) = false;
+                }
                 move_same_type(target_reg, preg);
+            } else { // preg is not tmp reg
+                if (backup.at(target_reg->get_arg_idx()))
+                    insert_inst(backup_op, {t1, target_reg});
+                if (preg->is_arg_reg() and backup.at(preg->get_arg_idx()))
+                    insert_inst(recvoer_op, {target_reg, t1});
+                else
+                    move_same_type(target_reg, preg);
+            }
         },
         [&](mir::Immediate *imm) {
             if (is_a<FImm32bit>(imm)) {
