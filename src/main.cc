@@ -13,6 +13,7 @@
 #include "ast.hh"
 #include "codegen.hh"
 #include "const_propagate.hh"
+#include "continuous_addition.hh"
 #include "control_flow.hh"
 #include "dead_code.hh"
 #include "depth_order.hh"
@@ -122,6 +123,7 @@ int main(int argc, char **argv) {
     pm.add_pass<Inline>();
     pm.add_pass<GVN>();
     pm.add_pass<GlobalVarLocalize>();
+    pm.add_pass<ContinuousAdd>();
 
     if (cfg.optimize) {
         pm.run(
@@ -129,10 +131,12 @@ int main(int argc, char **argv) {
                 PassID<GlobalVarLocalize>(),
                 PassID<Mem2reg>(),
                 PassID<StrengthReduce>(),
+                PassID<GVN>(),
+                PassID<Inline>(),
+                PassID<ContinuousAdd>(),
+                PassID<DeadCode>(),
                 PassID<LoopInvariant>(),
                 PassID<LoopUnroll>(),
-                PassID<Inline>(),
-                PassID<GVN>(),
                 PassID<ControlFlow>(),
             },
             true);
