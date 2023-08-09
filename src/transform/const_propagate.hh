@@ -1,6 +1,6 @@
 #pragma once
-#include "dead_code.hh"
 #include "constant.hh"
+#include "dead_code.hh"
 #include "function.hh"
 #include "instruction.hh"
 #include "pass.hh"
