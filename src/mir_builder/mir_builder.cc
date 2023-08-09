@@ -42,7 +42,9 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
       value_mgr(ValueManager::get()), preg_mgr(PhysicalRegisterManager::get()) {
 
     // external function
-    memset_plt_func = create<Function>(false, "memset@plt", BasicType::VOID);
+    vector<VirtualRegister *> memset_arg(3, create<IVReg>());
+    memset_plt_func =
+        create<Function>(false, "memset@plt", BasicType::VOID, memset_arg);
 
     for (auto &glob_var : ir_module->get_global_vars()) {
         value_map[&glob_var] = mir_moduler->add_global(&glob_var);
@@ -57,14 +59,14 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
         auto &ir_args = ir_function.get_args();
         if (mir_funtion->is_definition())
             for (unsigned i = 0; i < ir_args.size(); ++i) {
-                value_map[ir_args[i]] = mir_funtion->get_args(i);
+                value_map[ir_args[i]] = mir_funtion->get_arg(i);
             }
         // Blocks to label
         for (auto &BB : ir_function.get_bbs()) {
             auto label = mir_funtion->add_label(mir_funtion->get_name() + "." +
                                                 BB.get_name());
             value_map[&BB] = label;
-            for (auto &instruction : BB.get_insts()) {
+            for (auto &instruction : BB.insts()) {
                 if (not should_save_map(&instruction))
                     continue;
                 auto type = instruction.get_type();
@@ -91,12 +93,12 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
         for (auto &BB : ir_function.get_bbs()) {
             cur_label = as_a<Label>(value_map.at(&BB));
             // maintain prev-succ-info for labels
-            for (auto prev_bb : BB.get_pre_bbs())
+            for (auto prev_bb : BB.pre_bbs())
                 cur_label->add_prev(as_a<Label>(value_map.at(prev_bb)));
-            for (auto succ_bb : BB.get_suc_bbs())
+            for (auto succ_bb : BB.suc_bbs())
                 cur_label->add_succ(as_a<Label>(value_map.at(succ_bb)));
             // translate ir-instruction to asm-instruction
-            for (auto &inst : BB.get_insts()) {
+            for (auto &inst : BB.insts()) {
                 auto reg = inst.accept(this);
             }
         }
@@ -340,10 +342,10 @@ any MIRBuilder::visit(const ir::ZextInst *instruction) {
         // interger register
         auto res =
             binary_helper(fcmp->operands()[0], fcmp->operands()[1], false);
-        auto freg1 = is_int_reg(res.op1)
+        auto freg1 = res.op1->is_int_reg()
                          ? reinterpret_i2f(as_a<Register>(res.op1))
                          : as_a<FVReg>(res.op1);
-        auto freg2 = is_int_reg(res.op2)
+        auto freg2 = res.op2->is_int_reg()
                          ? reinterpret_i2f(as_a<Register>(res.op2))
                          : as_a<FVReg>(res.op2);
         auto op = reversed ? FCMP_OP_REVERSED.at(fcmp->get_fcmp_op())
@@ -694,10 +696,10 @@ any MIRBuilder::visit(const ir::FBinaryInst *instruction) {
     auto operands = instruction->operands();
     // load immediate to integer reg if exists
     auto res = binary_helper(operands[0], operands[1], false);
-    if (is_int_reg(res.op1)) {
+    if (res.op1->is_int_reg()) {
         res.op1 = reinterpret_i2f(as_a<Register>(res.op1));
     }
-    if (is_int_reg(res.op2)) {
+    if (res.op2->is_int_reg()) {
         res.op2 = reinterpret_i2f(as_a<Register>(res.op2));
     }
 

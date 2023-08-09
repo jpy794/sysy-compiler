@@ -49,7 +49,7 @@ class Function : public Value, public ilist<Function>::node {
     std::string print() const final;
 
     // external symbol
-    bool is_external;
+    const bool is_external;
 
   private:
     std::vector<Argument *> _args;

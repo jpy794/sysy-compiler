@@ -68,9 +68,6 @@ class MIRBuilder : public ir::InstructionVisitor {
 
     void phi_elim_at_the_end();
 
-    // FIXME
-    // if imm is 0, we may return imm[0] directly or something else to match x0
-    // for stage 2?
     // load Immediate into virtual register
     Register *load_imm(int imm, IVReg *target_reg = nullptr) {
         if (imm) {

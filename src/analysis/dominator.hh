@@ -35,6 +35,9 @@ class Dominator final : public pass::AnalysisPass {
     virtual void clear() override {
         _result.dom_frontier.clear();
         _result.dom_tree_succ_blocks.clear();
+        _idom.clear();
+        _depth_order = nullptr;
+        f = nullptr;
     }
 
   private:

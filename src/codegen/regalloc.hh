@@ -1,18 +1,13 @@
 #pragma once
 
 #include "err.hh"
+#include "liveness.hh"
 #include "mir_module.hh"
 #include "mir_register.hh"
 
-#include <algorithm>
-#include <cstdint>
-#include <limits>
 #include <map>
-#include <memory>
 #include <queue>
 #include <set>
-#include <string>
-#include <unordered_set>
 
 namespace codegen {
 
@@ -38,90 +33,12 @@ struct RegInfo {
     }
 };
 
-// liveness info
-using LiveVarSet = std::set<mir::Register::RegIDType>;
-using LivenessInfo = std::vector<LiveVarSet>;
-// control flow info
-using LabelOrder = std::vector<const mir::Label *>;
-using ProgramPoint = unsigned;
-using InstructionID = ProgramPoint;
-using InstIDMap = std::map<const mir::Instruction *, InstructionID>;
 // register info
 using RegisterPool = std::priority_queue<RegInfo>;
 using RegisterMap = std::map<mir::Register::RegIDType, RegInfo>;
 using SpilledSet = std::set<mir::Register::RegIDType>;
 // allocation result, all result is function level
 template <class T> using FuncResultMap = std::map<const mir::Function *, T>;
-
-inline ProgramPoint IN_POINT(InstructionID id) { return 2 * id; }
-inline ProgramPoint OUT_POINT(InstructionID id) { return 2 * id + 1; }
-
-struct ControlFlowInfo {
-    LabelOrder label_order;
-    InstIDMap instid;
-
-    explicit ControlFlowInfo(const mir::Function *func) {
-        get_dfs_order(func);
-        get_inst_id();
-    }
-    ControlFlowInfo(const ControlFlowInfo &) = delete;
-    ControlFlowInfo(ControlFlowInfo &&other) = default;
-
-  private:
-    void get_dfs_order(const mir::Function *);
-    void get_inst_id();
-};
-
-struct LivenessAnalysis {
-    LivenessInfo live_info;
-
-    LivenessAnalysis(const ControlFlowInfo &cfg_info, bool want_float);
-    LivenessAnalysis(const LivenessAnalysis &) = delete;
-    LivenessAnalysis(LivenessAnalysis &&) = default;
-
-    void clear() { live_info.clear(); }
-    void reset(size_t inst_count) {
-        clear();
-        live_info.resize(2 * inst_count);
-    }
-};
-
-struct LiveInterVal {
-    const mir::IPReg::RegIDType vreg_id;
-    ProgramPoint start{std::numeric_limits<ProgramPoint>::max()}, end{0};
-
-    LiveInterVal(mir::IPReg::RegIDType id) : vreg_id(id) {}
-    LiveInterVal(mir::IPReg::RegIDType id, ProgramPoint l, ProgramPoint r)
-        : vreg_id(id), start(l), end(r) {}
-    void update(ProgramPoint p) {
-        start = std::min(start, p);
-        end = std::max(end, p);
-    }
-    bool check() { // sanity check only for now
-        if (start < end)
-            return true;
-        if (start == end) {
-            assert(start == 0);
-            return true; // valid case: arg used only once at start
-        }
-        throw unreachable_error{};
-    }
-
-    struct IncreasingStartPoint {
-        bool operator()(const LiveInterVal &l1, const LiveInterVal &l2) const {
-            if (l1.start != l2.start)
-                return l1.start < l2.start;
-            return &l1 < &l2;
-        }
-    };
-    struct IncreasingEndPoint {
-        bool operator()(const LiveInterVal &l1, const LiveInterVal &l2) const {
-            if (l1.end != l2.end)
-                return l1.end < l2.end;
-            return &l1 < &l2;
-        }
-    };
-};
 
 // TODO add pre allocated map
 // used on function, and 1 instance can only parse int/float

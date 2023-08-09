@@ -2,7 +2,6 @@
 #include "function.hh"
 #include "instruction.hh"
 #include "pass.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include <deque>
 #include <set>

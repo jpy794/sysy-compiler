@@ -1,10 +1,9 @@
 #pragma once
-#include "DeadCode.hh"
+#include "dead_code.hh"
 #include "constant.hh"
 #include "function.hh"
 #include "instruction.hh"
 #include "pass.hh"
-#include "usedef_chain.hh"
 #include "value.hh"
 #include <deque>
 #include <map>
@@ -18,11 +17,12 @@ class ConstPro final : public pass::TransformPass {
     virtual void get_analysis_usage(pass::AnalysisUsage &AU) const override {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
-        AU.add_require<pass::UseDefChain>();
-        AU.add_kill<pass::UseDefChain>();
         AU.add_post<pass::DeadCode>();
     }
     virtual void run(pass::PassManager *mgr) override;
+
+    virtual bool always_invalid() const override { return true; }
+
     void traverse(ir::Function *);
     void replace();
     ir::Constant *get_const(ir::Value *);
@@ -31,7 +31,6 @@ class ConstPro final : public pass::TransformPass {
                                           // folded constantly
 
   private:
-    const pass::UseDefChain::ResultType *use_def;
     std::set<ir::Instruction *> const_propa;
     std::map<ir::Value *, ir::Constant *> val2const;
     std::deque<ir::Instruction *> work_list{};

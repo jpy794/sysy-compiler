@@ -3,10 +3,12 @@
 #include "constant.hh"
 #include "depth_order.hh"
 #include "dominator.hh"
+#include "err.hh"
 #include "func_info.hh"
 #include "function.hh"
+#include "global_variable.hh"
 #include "instruction.hh"
-#include "log.hh"
+
 #include "type.hh"
 #include "usedef_chain.hh"
 #include "utils.hh"
@@ -75,7 +77,6 @@ bool GVN::CongruenceClass::operator==(const CongruenceClass &other) const {
 
 void GVN::run(PassManager *mgr) {
     _func_info = &mgr->get_result<FuncInfo>();
-    _usedef_chain = &mgr->get_result<UseDefChain>();
     _depth_order = &mgr->get_result<DepthOrder>();
 
     auto m = mgr->get_module();
@@ -151,19 +152,29 @@ GVN::intersect(shared_ptr<CongruenceClass> Ci, shared_ptr<CongruenceClass> Cj) {
         }
     }
     assert(Ck->leader || Ck->members.empty());
-    if (!Ck->members.empty() and
-        Ck->val_expr == nullptr) { // FIXME: more than two predecessor blocks?
-                                   // Ck->index = next_value_number++;
-        // the leader must be a phi inst under the case that there is no
-        // other non-phi inst
+    if (!Ck->members.empty() and Ck->val_expr == nullptr) {
         if (::is_a<PhiInst>(Ck->leader)) {
-            Ck->phi_expr = create_expr<PhiExpr>(
-                _bb,
-                vector<shared_ptr<Expression>>{Ci->val_expr, Cj->val_expr});
-            Ck->val_expr = Ck->phi_expr;
-            for (auto mem : Ck->members) {
-                _val2expr[mem] = Ck->val_expr;
+            Ck->phi_expr = create_expr<PhiExpr>(_bb);
+            assert(phi_construct_point);
+            if (phi_construct_point == 1) {
+                Ck->phi_expr->add_val(Ci->val_expr);
+            } else {
+                if (not is_a<PhiExpr>(Ci->val_expr) ||
+                    as_a<PhiExpr>(Ci->val_expr)->get_ori_bb() != _bb ||
+                    as_a<PhiExpr>(Ci->val_expr)->size() >
+                        phi_construct_point) { // this case guarantee that
+                                               // Ci->val_expr must be the same
+                                               // data in previous predecessor
+                    for (unsigned i = 0; i < phi_construct_point; i++) {
+                        Ck->phi_expr->add_val(Ci->val_expr);
+                    }
+                } else {
+                    Ck->phi_expr = Ci->phi_expr;
+                }
             }
+            Ck->phi_expr->add_val(Cj->val_expr);
+            Ck->val_expr = Ck->phi_expr;
+            assert(Ck->phi_expr->size() == (phi_construct_point + 1));
         } else {
             Ck->val_expr = Ci->index > Cj->index ? Ci->val_expr : Cj->val_expr;
         }
@@ -179,9 +190,8 @@ void GVN::detect_equivalences(Function *func) {
         _pout[&bb] = TOP;
     }
     for (auto arg : func->get_args()) {
-        _val2expr[arg] = create_expr<UniqueExpr>(arg);
-        auto cc =
-            create_cc(next_value_number++, arg, _val2expr[arg], nullptr, arg);
+        auto cc = create_cc(next_value_number++, arg,
+                            create_expr<UniqueExpr>(arg), nullptr, arg);
         _pin[func->get_entry_bb()].insert(cc);
     }
     bool changed = false;
@@ -193,8 +203,11 @@ void GVN::detect_equivalences(Function *func) {
             auto &pre_bbs = _bb->pre_bbs();
             partitions origin_pout = _pout[_bb];
             partitions pin = TOP;
-            for (auto pre_bb : pre_bbs)
+            phi_construct_point = 0;
+            for (auto pre_bb : pre_bbs) {
                 pin = join(pin, _pout[pre_bb]);
+                phi_construct_point++;
+            }
             if (_bb == func->get_entry_bb()) {
                 _pout[_bb] = clone(_pin[_bb]);
             } else {
@@ -203,9 +216,9 @@ void GVN::detect_equivalences(Function *func) {
             }
             for (auto &inst_r : _bb->insts()) {
                 if (::is_a<BrInst>(&inst_r) || ::is_a<PhiInst>(&inst_r) ||
-                    ::is_a<StoreInst>(&inst_r) || ::is_a<RetInst>(&inst_r) ||
+                    ::is_a<RetInst>(&inst_r) ||
                     (::is_a<CallInst>(&inst_r) &&
-                     _usedef_chain->users.at(&inst_r)
+                     inst_r.get_use_list()
                          .empty())) // For pure_func, if it isn't used, it
                                     // will be optimized by mem2reg
                                     // Thus, this case must be a non-pure_func
@@ -213,7 +226,13 @@ void GVN::detect_equivalences(Function *func) {
                                     // as a basic ValueExpression
                     continue;
                 _pout[_bb] = transfer_function(&inst_r, _pout[_bb]);
+                // special judgement to prevent from large number of CC
+                if (_pout[_bb].size() > 200) {
+                    non_copy_pout.clear();
+                    return;
+                }
             }
+            non_copy_pout[_bb] = clone(_pout[_bb]);
             for (auto suc_bb : _bb->suc_bbs()) {
                 if (_pout[_bb] == TOP)
                     break;
@@ -241,25 +260,22 @@ void GVN::detect_equivalences(Function *func) {
                             }
                         }
                         bool flag = true;
-                        for (auto &CC : _pout[_bb]) {
-                            if (contains(CC->members, oper)) {
-                                CC->members.insert(inst);
-                                if (not _val2expr[inst])
-                                    _val2expr[inst] = CC->val_expr;
+                        for (auto &cc : _pout[_bb]) {
+                            if (contains(cc->members, oper)) {
+                                cc->members.insert(inst);
                                 flag = false;
                                 break;
                             }
                         }
                         assert(not flag || not ::is_a<Instruction>(oper));
                         if (flag) {
-                            assert(_val2expr[oper] || ::is_a<Constant>(oper));
-                            if (not _val2expr[oper])
-                                _val2expr[oper] = valueExpr(oper);
-                            auto cc = create_cc(next_value_number++, oper,
-                                                _val2expr[oper], nullptr, oper);
+                            assert(::is_a<Constant>(oper) ||
+                                   ::is_a<GlobalVariable>(oper));
+                            shared_ptr<Expression> ve;
+                            ve = valueExpr(oper, _pout[_bb]);
+                            auto cc = create_cc(next_value_number++, oper, ve,
+                                                nullptr, oper);
                             cc->members.insert(inst);
-                            if (not _val2expr[inst])
-                                _val2expr[inst] = cc->val_expr;
                             _pout[_bb].insert(cc);
                         }
                     } else
@@ -270,7 +286,7 @@ void GVN::detect_equivalences(Function *func) {
                 changed = true;
             }
         }
-        assert(times++ < 10);
+        assert(times++ < 100);
     } while (changed);
 }
 
@@ -279,9 +295,11 @@ GVN::partitions GVN::transfer_function(Instruction *inst, partitions &pin) {
     for (auto cc : pout) {
         if (contains(cc->members, static_cast<Value *>(inst))) {
             cc->members.erase(inst);
+            if (cc->members.size() == 0)
+                pout.erase(cc);
         }
     }
-    auto ve = valueExpr(inst);
+    auto ve = valueExpr(inst, pin);
     auto vpf = valuePhiFunc(ve);
     bool exist_cc = false;
     if (pout == TOP)
@@ -289,7 +307,6 @@ GVN::partitions GVN::transfer_function(Instruction *inst, partitions &pin) {
     for (auto cc : pout) {
         if (cc->val_expr == ve || (vpf != nullptr && cc->phi_expr == vpf)) {
             cc->members.insert(inst);
-            _val2expr[inst] = cc->val_expr;
             exist_cc = true;
             break;
         }
@@ -301,21 +318,25 @@ GVN::partitions GVN::transfer_function(Instruction *inst, partitions &pin) {
     }
     return pout;
 }
-shared_ptr<GVN::Expression> GVN::valueExpr(Value *val) {
+shared_ptr<GVN::Expression> GVN::valueExpr(Value *val, partitions &pin) {
     assert(val);
-    std::shared_ptr<Expression> ve;
     if (::is_a<Constant>(val)) {
-        ve = create_expr<ConstExpr>(val);
-    } else if (::is_a<CallInst>(val)) {
+        if (_val2expr[val])
+            return _val2expr[val];
+        return _val2expr[val] = create_expr<ConstExpr>(val);
+    } else if (::is_a<GlobalVariable>(val)) {
+        return _val2expr[val];
+    }
+    std::shared_ptr<Expression> ve = get_ve(val, pin);
+    if (ve)
+        return ve;
+    else if (::is_a<CallInst>(val)) {
         auto call = ::as_a<CallInst>(val);
         auto func = call->operands()[0]->as<Function>();
         if (_func_info->is_pure_function(func)) {
             vector<shared_ptr<Expression>> params;
             for (unsigned i = 1; i < call->operands().size(); i++) {
-                if (_val2expr[call->operands()[i]])
-                    params.push_back(_val2expr[call->operands()[i]]);
-                else
-                    params.push_back(valueExpr(call->operands()[i]));
+                params.push_back(valueExpr(call->operands()[i], pin));
             }
             ve = create_expr<CallExpr>(func, std::move(params));
         } else {
@@ -324,50 +345,42 @@ shared_ptr<GVN::Expression> GVN::valueExpr(Value *val) {
     } else if (::is_a<ZextInst>(val) || ::is_a<Fp2siInst>(val) ||
                ::is_a<Si2fpInst>(val)) {
         auto oper = ::as_a<Instruction>(val)->get_operand(0);
-        if (_val2expr[oper])
-            ve = create_expr<UnitExpr>(_val2expr[oper]);
-        else
-            ve = create_expr<UnitExpr>(valueExpr(oper));
+        ve = create_expr<UnitExpr>(valueExpr(oper, pin));
     } else if (::is_a<IBinaryInst>(val)) {
         auto op = ::as_a<IBinaryInst>(val)->get_ibin_op();
-        ve = create_BinOperExpr<IBinExpr, IBinaryInst>(op, val);
+        ve = create_BinOperExpr<IBinExpr, IBinaryInst>(op, val, pin);
     } else if (::is_a<FBinaryInst>(val)) {
         auto op = ::as_a<FBinaryInst>(val)->get_fbin_op();
-        ve = create_BinOperExpr<FBinExpr, FBinaryInst>(op, val);
+        ve = create_BinOperExpr<FBinExpr, FBinaryInst>(op, val, pin);
     } else if (::is_a<ICmpInst>(val)) {
         auto op = ::as_a<ICmpInst>(val)->get_icmp_op();
-        ve = create_BinOperExpr<ICmpExpr, ICmpInst>(op, val);
+        ve = create_BinOperExpr<ICmpExpr, ICmpInst>(op, val, pin);
     } else if (::is_a<FCmpInst>(val)) {
         auto op = ::as_a<FCmpInst>(val)->get_fcmp_op();
-        ve = create_BinOperExpr<FCmpExpr, FCmpInst>(op, val);
+        ve = create_BinOperExpr<FCmpExpr, FCmpInst>(op, val, pin);
     } else if (::is_a<GetElementPtrInst>(val)) {
         auto gep = ::as_a<GetElementPtrInst>(val);
         vector<shared_ptr<Expression>> idxs;
         for (unsigned i = 0; i < gep->operands().size(); i++) {
-            if (_val2expr[gep->operands()[i]])
-                idxs.push_back(_val2expr[gep->operands()[i]]);
-            else
-                idxs.push_back(valueExpr(gep->operands()[i]));
+            idxs.push_back(valueExpr(gep->operands()[i], pin));
         }
         ve = create_expr<GepExpr>(std::move(idxs));
     } else if (::is_a<PhiInst>(val)) {
-        if (_val2expr[val])
-            ve = _val2expr[val];
-        else
-            assert(false);
-    } else if (::is_a<LoadInst>(val) || ::is_a<StoreInst>(val) ||
-               ::is_a<AllocaInst>(val)) {
-        if (_val2expr[val])
-            ve = _val2expr[val];
-        else
-            ve = create_expr<UniqueExpr>(val);
+        throw unreachable_error{};
+    } else if (::is_a<AllocaInst>(val)) {
+        ve = create_expr<UniqueExpr>(val);
+    } else if (::is_a<LoadInst>(val)) {
+        ve = create_expr<LoadExpr>(
+            valueExpr(::as_a<LoadInst>(val)->get_operand(0), pin));
+    } else if (::is_a<StoreInst>(val)) {
+        ve = create_expr<StoreExpr>(
+            valueExpr(::as_a<StoreInst>(val)->get_operand(0), pin),
+            valueExpr(::as_a<StoreInst>(val)->get_operand(1), pin));
     } else {
-        if (_val2expr[val])
-            ve = _val2expr[val];
-        else
-            throw logic_error{"Can't create a temporary expression"};
+        throw logic_error{"Can't create a temporary expression"};
     }
-    return _val2expr[val] = ve;
+    assert(ve);
+    return ve;
 }
 std::shared_ptr<GVN::PhiExpr> GVN::valuePhiFunc(shared_ptr<Expression> ve) {
     if (not is_a<BinExpr>(ve))
@@ -408,7 +421,7 @@ std::shared_ptr<GVN::PhiExpr> GVN::valuePhiFunc(shared_ptr<Expression> ve) {
         default:
             assert(false);
         }
-        auto pout_i = _pout[phi_lhs->get_ori_bb()->pre_bbs()[i]];
+        auto pout_i = _pout[phi_lhs->get_pre_bb(i)];
         auto vn = getVN(pout_i, tmp);
         if (vn == nullptr)
             vn = valuePhiFunc(tmp);
@@ -419,6 +432,14 @@ std::shared_ptr<GVN::PhiExpr> GVN::valuePhiFunc(shared_ptr<Expression> ve) {
         }
     }
     return res_phi;
+}
+
+std::shared_ptr<GVN::Expression> GVN::get_ve(Value *val, partitions &pin) {
+    for (auto cc : pin) {
+        if (contains(cc->members, val))
+            return cc->val_expr;
+    }
+    return nullptr;
 }
 
 std::shared_ptr<GVN::Expression> GVN::getVN(partitions &pin,
@@ -439,33 +460,36 @@ GVN::partitions GVN::clone(const GVN::partitions &p) {
 }
 
 void GVN::replace_cc_members() {
-    for (auto &[bb_r, part] : _pout) {
+    for (auto &[bb_r, part] : non_copy_pout) { // if it is a copy statement, it
+                                               // shouldn't replace any inst
         auto bb = bb_r;
         for (auto &cc : part) {
             if (cc->index == 0)
                 continue;
             for (auto &member : cc->members) {
-                // if it is a copy statement, it shouldn't replace any inst
-                bool member_is_phi = ::is_a<PhiInst>(member);
-                bool member_not_copy = cc->val_expr == _val2expr[member];
-                assert(not(!member_is_phi && !member_not_copy));
-                if (member != cc->leader and not ::is_a<Constant>(member) and
-                    (!member_is_phi or member_not_copy)) {
+                if (member != cc->leader and not ::is_a<Constant>(member)) {
                     assert(cc->leader);
-                    _usedef_chain->replace_use_when(
-                        member, cc->leader, [bb](User *user, unsigned idx) {
-                            if (auto inst = dynamic_cast<Instruction *>(user)) {
+                    if (::is_a<PhiInst>(cc->leader) &&
+                        ::is_a<PhiInst>(member) &&
+                        ::as_a<PhiInst>(member)->get_parent() !=
+                            ::as_a<PhiInst>(cc->leader)->get_parent()) {
+                        continue;
+                    }
+                    member->replace_all_use_with_if(
+                        cc->leader, [bb](const Use &use) -> bool {
+                            if (auto inst =
+                                    dynamic_cast<Instruction *>(use.user)) {
                                 auto parent = inst->get_parent();
                                 if (::is_a<PhiInst>(inst))
-                                    return inst->get_operand(idx + 1) ==
+                                    return inst->get_operand(use.op_idx + 1) ==
                                            bb; // only replace the
                                                // operand of the
                                                // user from current
                                                // bb for phi
                                 else
-                                    return parent ==
-                                           bb; // replace the members if users
-                                               // are in the same block as bb
+                                    return parent == bb; // replace the members
+                                                         // if users are in the
+                                                         // same block as bb
                             }
                             return false;
                         });

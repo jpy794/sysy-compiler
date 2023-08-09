@@ -25,14 +25,36 @@
         return new INST{prt, *this};                                           \
     }
 
+#define BIN_INST_CLONE(INST)                                                   \
+  private:                                                                     \
+    INST(BasicBlock *prt, const INST &other)                                   \
+        : Instruction(prt, other.get_type(),                                   \
+                      {other.operands().begin(), other.operands().end()}),     \
+          _op(other._op) {}                                                    \
+                                                                               \
+  public:                                                                      \
+    Instruction *clone(BasicBlock *prt) const final {                          \
+        return new INST{prt, *this};                                           \
+    }
+
+#define CMP_INST_CLONE(INST)                                                   \
+  private:                                                                     \
+    INST(BasicBlock *prt, const INST &other)                                   \
+        : Instruction(prt, other.get_type(),                                   \
+                      {other.operands().begin(), other.operands().end()}),     \
+          _cmp_op(other._cmp_op) {}                                            \
+                                                                               \
+  public:                                                                      \
+    Instruction *clone(BasicBlock *prt) const final {                          \
+        return new INST{prt, *this};                                           \
+    }
+
 namespace ir {
 
 class Function;
 class BasicBlock;
 class InstructionVisitor;
 
-// NOTE: the Instruction class(and dereived) does not care about inserting back
-// to parent BB's instruction list.
 class Instruction : public User, public ilist<Instruction>::node {
 
     // a workaround for move_inst, which requires modify parent bb
@@ -56,7 +78,6 @@ class Instruction : public User, public ilist<Instruction>::node {
         return ret;
     }
 
-  private:
     BasicBlock *_parent;
 };
 
@@ -65,7 +86,7 @@ class RetInst : public Instruction {
     // return a value
     RetInst(BasicBlock *prt, Value *ret_val);
     // void return
-    RetInst(BasicBlock *prt) : Instruction(prt, Types::get().void_type(), {}) {}
+    RetInst(BasicBlock *prt);
 
     std::string print() const final;
 
@@ -76,19 +97,41 @@ class RetInst : public Instruction {
     INST_CLONE(RetInst)
 };
 
+/* @Constructor: link automatically
+ * @Destructor: unlink automatically */
 class BrInst : public Instruction {
   public:
     // unconditional jump
     BrInst(BasicBlock *prt, BasicBlock *to);
     // conditional br
     BrInst(BasicBlock *prt, Value *cond, BasicBlock *TBB, BasicBlock *FBB);
+
+    ~BrInst();
+
     std::string print() const final;
 
-    virtual std::any accept(InstructionVisitor *visitor) const {
+    std::any accept(InstructionVisitor *visitor) const override {
         return visitor->visit(this);
     }
 
-    INST_CLONE(BrInst)
+    void set_operand(size_t idx, Value *value,
+                     bool modify_op_use = true) override;
+
+    virtual Instruction *clone(BasicBlock *prt) const final {
+        if (this->operands().size() == 3) {
+            return new BrInst(prt, this->get_operand(0),
+                              as_a<BasicBlock>(this->get_operand(1)),
+                              as_a<BasicBlock>(this->get_operand(2)));
+        } else if (this->operands().size() == 1) {
+            return new BrInst(prt, as_a<BasicBlock>(this->get_operand(0)));
+        } else {
+            throw unreachable_error{};
+        }
+    }
+
+  private:
+    void link();
+    void unlink();
 };
 
 class IBinaryInst : public Instruction {
@@ -100,6 +143,8 @@ class IBinaryInst : public Instruction {
     std::string print() const final;
 
     IBinOp get_ibin_op() const { return _op; }
+    Value *lhs() const { return get_operand(0); }
+    Value *rhs() const { return get_operand(1); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
@@ -108,7 +153,7 @@ class IBinaryInst : public Instruction {
   private:
     IBinOp _op;
 
-    INST_CLONE(IBinaryInst)
+    BIN_INST_CLONE(IBinaryInst)
 };
 
 class FBinaryInst : public Instruction {
@@ -128,7 +173,7 @@ class FBinaryInst : public Instruction {
   private:
     FBinOp _op;
 
-    INST_CLONE(FBinaryInst)
+    BIN_INST_CLONE(FBinaryInst)
 };
 
 class AllocaInst : public Instruction {
@@ -176,7 +221,12 @@ class ICmpInst : public Instruction {
     ICmpInst(BasicBlock *prt, ICmpOp cmp_op, Value *lhs, Value *rhs);
     std::string print() const final;
 
+    static ICmpOp opposite_icmp_op(ICmpOp op);
+    static ICmpOp not_icmp_op(ICmpOp op);
+
     ICmpOp get_icmp_op() const { return _cmp_op; }
+    Value *lhs() const { return get_operand(0); }
+    Value *rhs() const { return get_operand(1); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
@@ -185,7 +235,7 @@ class ICmpInst : public Instruction {
   private:
     ICmpOp _cmp_op;
 
-    INST_CLONE(ICmpInst)
+    CMP_INST_CLONE(ICmpInst)
 };
 
 class FCmpInst : public Instruction {
@@ -203,36 +253,21 @@ class FCmpInst : public Instruction {
   private:
     FCmpOp _cmp_op;
 
-    INST_CLONE(FCmpInst)
+    CMP_INST_CLONE(FCmpInst)
 };
 
 class PhiInst : public Instruction {
   public:
     // @values: the definition list.
     PhiInst(BasicBlock *prt, Value *base);
+    PhiInst(BasicBlock *prt, Type *type);
 
     void add_phi_param(Value *val, BasicBlock *bb);
 
     using Pair = std::pair<Value *, BasicBlock *>;
 
-    std::vector<Pair> to_pairs() const {
-        std::vector<Pair> ret;
-        for (auto it = operands().begin(); it != operands().end(); it += 2) {
-            auto op = *it;
-            auto bb = *(it + 1);
-            ret.emplace_back(op, bb->as<BasicBlock>());
-        }
-        return ret;
-    }
-
-    void from_pairs(const std::vector<Pair> &pairs) {
-        operands() = {};
-        for (auto [op, bb] : pairs) {
-            assert(op->get_type() == get_type());
-            operands().emplace_back(op);
-            operands().emplace_back(bb);
-        }
-    }
+    std::vector<Pair> to_pairs() const;
+    void from_pairs(const std::vector<Pair> &pairs);
 
     std::string print() const final;
 

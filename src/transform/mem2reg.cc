@@ -2,8 +2,10 @@
 #include "basic_block.hh"
 #include "constant.hh"
 #include "dominator.hh"
+#include "err.hh"
 #include "global_variable.hh"
 #include "instruction.hh"
+#include "type.hh"
 #include "usedef_chain.hh"
 #include "utils.hh"
 #include "value.hh"
@@ -14,18 +16,37 @@ using namespace pass;
 using namespace ir;
 using namespace std;
 
+bool pointer_is_basic_alloc(Value *v) {
+    assert(v->get_type()->is<PointerType>());
+    if (is_a<GlobalVariable>(v) or is_a<GetElementPtrInst>(v))
+        return false;
+    else if (is_a<AllocaInst>(v))
+        return v->get_type()
+            ->as<PointerType>()
+            ->get_elem_type()
+            ->is_basic_type();
+    else
+        throw unreachable_error{};
+}
+
+void Mem2reg::clear() {
+    _phi_table.clear();
+    _phi_lval.clear();
+    _var_new_name.clear();
+}
+
 void Mem2reg::run(PassManager *mgr) {
+    clear();
     _dominator = &mgr->get_result<Dominator>();
-    _usedef_chain = &mgr->get_result<UseDefChain>();
     auto m = mgr->get_module();
     for (auto &f : m->functions()) {
         if (f.bbs().size() >= 1) {
             generate_phi(&f);
             re_name(f.get_entry_bb());
         }
-        // to remove_alloca? dead_code_elmination can do it, i think
     }
 }
+
 void Mem2reg::generate_phi(Function *f) {
     set<Value *> globals{};
     map<Value *, set<BasicBlock *>> blocks{};
@@ -35,17 +56,14 @@ void Mem2reg::generate_phi(Function *f) {
         set<Value *> var_kill{};
         for (auto &inst_r : bb->insts()) {
             auto inst = &inst_r;
-            if (is_a<StoreInst>(inst)) {
-                if (!is_a<GlobalVariable>(inst->operands()[1]) &&
-                    !is_a<GetElementPtrInst>(inst->operands()[1])) {
-                    var_kill.insert(inst->operands()[1]);
-                    blocks[inst->operands()[1]].insert(bb);
-                }
+            if (is_a<StoreInst>(inst) and
+                pointer_is_basic_alloc(inst->operands()[1])) {
+                var_kill.insert(inst->operands()[1]);
+                blocks[inst->operands()[1]].insert(bb);
             }
-            if (is_a<LoadInst>(inst) &&
-                var_kill.find(inst->operands()[0]) == var_kill.end() &&
-                !is_a<GlobalVariable>(inst->operands()[0]) &&
-                !is_a<GetElementPtrInst>(inst->operands()[0])) {
+            if (is_a<LoadInst>(inst) and
+                not contains(var_kill, inst->operands()[0]) and
+                pointer_is_basic_alloc(inst->operands()[0])) {
                 globals.insert(inst->operands()[0]);
             }
         }
@@ -53,7 +71,7 @@ void Mem2reg::generate_phi(Function *f) {
     // record which block needs a phi inst for var
     for (auto var : globals) {
         vector<BasicBlock *> work_list(blocks[var].begin(), blocks[var].end());
-        for (unsigned i = 0; i < work_list.size(); i++) {
+        for (unsigned i = 0; i < work_list.size(); ++i) {
             auto bb = work_list[i];
             for (auto df_bb : _dominator->dom_frontier.at(bb)) {
                 if (_phi_table.find({var, df_bb}) == _phi_table.end()) {
@@ -67,13 +85,18 @@ void Mem2reg::generate_phi(Function *f) {
         }
     }
 }
+
+bool Mem2reg::is_wanted_phi(Value *v) {
+    return is_a<PhiInst>(v) and contains(_phi_lval, as_a<PhiInst>(v));
+}
+
 void Mem2reg::re_name(BasicBlock *bb) {
     map<BasicBlock *, set<Instruction *>> wait_delete{};
     // for each phi in bb _var_new_name[var].push_back(phi)
     for (auto &inst_r : bb->insts()) {
-        if (is_a<PhiInst>(&inst_r)) {
-            auto inst = as_a<PhiInst>(&inst_r);
-            _var_new_name[_phi_lval[inst]].push_back(inst);
+        if (is_wanted_phi(&inst_r)) {
+            auto phi = as_a<PhiInst>(&inst_r);
+            _var_new_name[_phi_lval.at(phi)].push_back(phi);
         }
     }
     for (auto &inst_r : bb->insts()) {
@@ -82,27 +105,21 @@ void Mem2reg::re_name(BasicBlock *bb) {
         // value
         if (is_a<LoadInst>(inst)) {
             auto l_val = inst->operands()[0];
-            if (!is_a<GlobalVariable>(l_val) &&
-                !is_a<GetElementPtrInst>(l_val)) {
+            if (pointer_is_basic_alloc(l_val)) {
                 if (_var_new_name[l_val].size()) {
-                    _usedef_chain->replace_all_use_with(
-                        inst, _var_new_name[l_val].back());
+                    inst->replace_all_use_with(_var_new_name[l_val].back());
                 } else { // the inst loads an undef value
-                    _usedef_chain->replace_all_use_with(
-                        inst, Constants::get().undef(inst));
+                    inst->replace_all_use_with(Constants::get().undef(inst));
                 }
                 wait_delete[bb].insert(inst);
             }
         }
         // for storeinst, update the newest value of the allocated var
         else if (is_a<StoreInst>(inst)) {
-            auto val = inst->operands()[0];
+            // auto val = inst->operands()[0];
             auto l_val = inst->operands()[1];
-            if (!is_a<GlobalVariable>(l_val) &&
-                !is_a<GetElementPtrInst>(l_val) &&
-                val->get_type()->is_basic_type()) {
-                _var_new_name[inst->operands()[1]].push_back(
-                    inst->operands()[0]);
+            if (pointer_is_basic_alloc(l_val)) {
+                _var_new_name[l_val].push_back(inst->operands()[0]);
                 wait_delete[bb].insert(inst);
             }
         }
@@ -110,13 +127,13 @@ void Mem2reg::re_name(BasicBlock *bb) {
     // fill parameters in phi
     for (auto suc : bb->suc_bbs()) {
         for (auto &inst_r : suc->insts()) {
-            if (is_a<PhiInst>(&inst_r)) {
-                auto inst = as_a<PhiInst>(&inst_r);
-                if (_var_new_name[_phi_lval[inst]].size()) {
-                    inst->add_phi_param(_var_new_name[_phi_lval[inst]].back(),
-                                        bb);
+            if (is_wanted_phi(&inst_r)) {
+                auto phi = as_a<PhiInst>(&inst_r);
+                if (_var_new_name[_phi_lval[phi]].size()) {
+                    phi->add_phi_param(_var_new_name[_phi_lval[phi]].back(),
+                                       bb);
                 } else {
-                    inst->add_phi_param(Constants::get().undef(inst), bb);
+                    phi->add_phi_param(Constants::get().undef(phi), bb);
                 }
             }
         }
@@ -132,11 +149,10 @@ void Mem2reg::re_name(BasicBlock *bb) {
 
         if (is_a<StoreInst>(inst)) {
             auto l_val = inst->operands()[1];
-            if (!is_a<GlobalVariable>(l_val) &&
-                !is_a<GetElementPtrInst>(l_val)) {
+            if (pointer_is_basic_alloc(l_val)) {
                 _var_new_name[l_val].pop_back();
             }
-        } else if (is_a<PhiInst>(inst)) {
+        } else if (is_wanted_phi(inst)) {
             auto l_val = _phi_lval[as_a<PhiInst>(inst)];
             if (_var_new_name.find(l_val) != _var_new_name.end()) {
                 _var_new_name[l_val].pop_back();
@@ -150,7 +166,7 @@ void Mem2reg::re_name(BasicBlock *bb) {
     for (auto bb_inst_pair : wait_delete) {
         auto bb = bb_inst_pair.first;
         for (auto inst : bb_inst_pair.second) {
-            bb->insts().erase(inst);
+            bb->erase_inst(inst);
         }
     }
 }

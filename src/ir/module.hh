@@ -33,6 +33,9 @@ class Module {
 
     std::string print() const;
 
+    void set_main(Function *main) { _main_func = main; }
+    Function *get_main() const { return _main_func; }
+
     // non-const
     ilist<GlobalVariable> &global_vars() { return _global_vars; }
     ilist<Function> &functions() { return _funcs; }
@@ -45,6 +48,7 @@ class Module {
 
   private:
     std::string _name;
+    Function *_main_func{nullptr};
 
     ilist<GlobalVariable> _global_vars;
     ilist<Function> _funcs;

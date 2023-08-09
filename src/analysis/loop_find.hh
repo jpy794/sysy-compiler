@@ -1,37 +1,36 @@
 #pragma once
 
 #include "dominator.hh"
-#include "instruction.hh"
-#include "module.hh"
-#include "pass.hh"
 #include <unordered_map>
 #include <vector>
 
 namespace pass {
 
-class LoopFind final : public pass::AnalysisPass {
+class LoopFind final : public AnalysisPass {
   public:
     struct ResultType {
         struct LoopInfo {
             std::vector<ir::BasicBlock *> latches;
             std::set<ir::BasicBlock *> bbs;
+            ir::BasicBlock *preheader;
+            std::map<ir::BasicBlock *, ir::BasicBlock *> exits;
         };
         using FuncLoopInfo = std::unordered_map<ir::BasicBlock *, LoopInfo>;
         // ((func, ((header, loop_info)...))...)
         std::unordered_map<ir::Function *, FuncLoopInfo> loop_info;
     };
 
-    virtual void get_analysis_usage(pass::AnalysisUsage &AU) const final {
-        using KillType = pass::AnalysisUsage::KillType;
+    void get_analysis_usage(AnalysisUsage &AU) const final {
+        using KillType = AnalysisUsage::KillType;
         AU.set_kill_type(KillType::None);
-        AU.add_require<pass::Dominator>();
+        AU.add_require<Dominator>();
     }
 
-    virtual std::any get_result() const final { return &_result; }
+    std::any get_result() const final { return &_result; }
 
-    virtual void run(pass::PassManager *mgr) final;
+    void run(PassManager *mgr) final;
 
-    virtual void clear() final {
+    void clear() final {
         _result.loop_info.clear();
         _dom = nullptr;
         _m = nullptr;
@@ -42,7 +41,6 @@ class LoopFind final : public pass::AnalysisPass {
                                                  ir::BasicBlock *latch);
     void log() const;
 
-  private:
     ResultType _result;
     const Dominator::ResultType *_dom{nullptr};
     ir::Module *_m{nullptr};
