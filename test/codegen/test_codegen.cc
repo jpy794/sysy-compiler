@@ -1,6 +1,7 @@
 #include "ast.hh"
 #include "codegen.hh"
 #include "const_propagate.hh"
+#include "continuous_addition.hh"
 #include "control_flow.hh"
 #include "dead_code.hh"
 #include "depth_order.hh"
@@ -46,6 +47,11 @@ int main(int argc, char **argv) {
         throw runtime_error{"sysy source not exist"};
     }
 
+    {
+        auto filename = case_full_path.filename();
+        debugs << "=========Debug Info For " << filename << "=========\n";
+    }
+
     ast::AST ast{ast::RawAST{case_full_path}};
     IRBuilder builder{ast};
 
@@ -72,19 +78,19 @@ int main(int argc, char **argv) {
     pm.add_pass<Inline>();
     pm.add_pass<GVN>();
     pm.add_pass<GlobalVarLocalize>();
+    pm.add_pass<ContinuousAdd>();
 
     pm.run(
         {
             PassID<GlobalVarLocalize>(),
             PassID<Mem2reg>(),
             PassID<StrengthReduce>(),
+            PassID<GVN>(),
+            PassID<Inline>(),
+            PassID<ContinuousAdd>(),
             PassID<LoopInvariant>(),
             PassID<LoopUnroll>(),
-            PassID<ConstPro>(),
-            PassID<Inline>(),
-            // PassID<GVN>(),
             PassID<ControlFlow>(),
-            PassID<DeadCode>(),
         },
         true);
 

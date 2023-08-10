@@ -1,5 +1,6 @@
 #include "context.hh"
 #include "err.hh"
+#include "log.hh"
 #include "mir_immediate.hh"
 #include "mir_instruction.hh"
 #include "mir_memory.hh"
@@ -11,6 +12,7 @@
 #include <array>
 #include <map>
 #include <ostream>
+#include <string>
 #include <string_view>
 
 using namespace std;
@@ -306,6 +308,12 @@ void Function::dump(std::ostream &os, const Context &context) const {
     case Stage::stage1: {
         os << _name << ":\n";
         auto &allocator = context.allocator;
+
+        debugs << _name << " [RegAllocInfo]: spilled cnt: "
+               << to_string(allocator.get_spilled(this, false).size())
+               << "(int), "
+               << to_string(allocator.get_spilled(this, true).size())
+               << "(float)\n";
 
         auto &cfg_info = allocator.get_cfg_info(this);
         os << "# =========DFS ORDER=========\n";
