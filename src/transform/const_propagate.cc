@@ -112,6 +112,12 @@ Constant *ConstPro::const_folder(Instruction *inst) {
             return Constants::get().int_const(l_val / r_val);
         case IBinaryInst::SREM:
             return Constants::get().int_const(l_val % r_val);
+        case IBinaryInst::ASHR:
+            return Constants::get().int_const(l_val >> r_val);
+        case IBinaryInst::LSHR:
+            return Constants::get().int_const((l_val | 0U) >> r_val);
+        case IBinaryInst::SHL:
+            return Constants::get().int_const(l_val << r_val);
         case IBinaryInst::XOR:
             throw unreachable_error();
         }

@@ -11,6 +11,7 @@
 #include "type.hh"
 #include "value.hh"
 #include <cassert>
+#include <cmath>
 #include <new>
 #include <vector>
 
@@ -383,7 +384,62 @@ any MIRBuilder::visit(const ir::ZextInst *instruction) {
     return {};
 }
 
+bool MIRBuilder::build_sdiv_by_const(const ir::IBinaryInst *inst) {
+    using IBin = ir::IBinaryInst;
+    if (inst->get_ibin_op() != IBin::SDIV ||
+        not inst->rhs()->is<ir::ConstInt>()) {
+        return false;
+    }
+
+    Value *n{nullptr};
+    if (inst->lhs()->is<ir::ConstInt>()) {
+        n = load_imm(inst->lhs()->as<ir::ConstInt>()->val());
+    } else {
+        n = value_map.at(inst->lhs());
+    }
+
+    Value *res = value_map.at(inst);
+
+    auto d = inst->rhs()->as<ir::ConstInt>()->val();
+    auto d_abs = abs(static_cast<int64_t>(d));
+    auto l = max(1L, static_cast<int64_t>(ceil(log2(d_abs))));
+
+    assert(d_abs != 0);
+
+    bool done{true};
+    if (d_abs == 1) {
+        if (d > 0) {
+            cur_label->add_inst(Move, {res, n});
+        }
+    } else if (d_abs == (1L << l)) {
+        if (l > 1) {
+            cur_label->add_inst(SRAIW, {res, n, create<Imm12bit>(l - 1)});
+        }
+        cur_label->add_inst(mir::SRLIW,
+                            {res, l > 1 ? res : n, create<Imm12bit>(32 - l)});
+        cur_label->add_inst(mir::ADDW, {res, res, n});
+        cur_label->add_inst(mir::SRAIW, {res, res, create<Imm12bit>(l)});
+    } else {
+        // TODO: general case
+        done = false;
+    }
+
+    // TODO: impl general const, remove done from cond
+    if (done && d < 0) {
+        // neg res, res
+        cur_label->add_inst(SUBW, {res, load_imm(0), res});
+    }
+
+    return done;
+}
+
 any MIRBuilder::visit(const ir::IBinaryInst *instruction) {
+    auto done{false};
+    done |= build_sdiv_by_const(instruction);
+    if (done) {
+        return {};
+    }
+
     static const auto have_imm_version = {ir::IBinaryInst::ADD,
                                           ir::IBinaryInst::XOR};
 
@@ -399,6 +455,18 @@ any MIRBuilder::visit(const ir::IBinaryInst *instruction) {
     switch (ibin_op) {
     case ir::IBinaryInst::ADD:
         cur_label->add_inst(res.op2_is_imm ? ADDIW : ADDW,
+                            {result_reg, res.op1, res.op2});
+        break;
+    case ir::IBinaryInst::ASHR:
+        cur_label->add_inst(res.op2_is_imm ? SRAIW : SRAW,
+                            {result_reg, res.op1, res.op2});
+        break;
+    case ir::IBinaryInst::LSHR:
+        cur_label->add_inst(res.op2_is_imm ? SRLIW : SRLW,
+                            {result_reg, res.op1, res.op2});
+        break;
+    case ir::IBinaryInst::SHL:
+        cur_label->add_inst(res.op2_is_imm ? SLLIW : SLLW,
                             {result_reg, res.op1, res.op2});
         break;
     case ir::IBinaryInst::SUB:

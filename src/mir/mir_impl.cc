@@ -56,6 +56,7 @@ const map<MIR_INST, string_view> MIR_INST_NAME = {
     {SD, "sd"},
     {ADDI, "addi"},
     {ADDIW, "addiw"},
+    {SLLIW, "slliw"},
     {SRLIW, "srliw"},
     {SRAIW, "sraiw"},
     {ADDW, "addw"},

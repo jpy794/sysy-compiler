@@ -136,7 +136,7 @@ class BrInst : public Instruction {
 
 class IBinaryInst : public Instruction {
   public:
-    enum IBinOp { ADD = 0, SUB, MUL, SDIV, SREM, XOR };
+    enum IBinOp { ADD = 0, SUB, MUL, SDIV, SREM, XOR, LSHR, ASHR, SHL };
 
     IBinaryInst(BasicBlock *prt, IBinOp op, Value *lhs, Value *rhs);
 

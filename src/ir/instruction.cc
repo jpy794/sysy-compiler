@@ -287,6 +287,15 @@ string IBinaryInst::print() const {
     case XOR:
         OpName = "xor";
         break;
+    case LSHR:
+        OpName = "lshr";
+        break;
+    case ASHR:
+        OpName = "ashr";
+        break;
+    case SHL:
+        OpName = "shl";
+        break;
     default:
         throw unreachable_error{};
     }

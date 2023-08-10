@@ -34,6 +34,7 @@ enum MIR_INST : uint16_t {
     LD,
     ADDI,
     ADDIW,
+    SLLIW,
     SRLIW,
     SRAIW,
     ADDW,
