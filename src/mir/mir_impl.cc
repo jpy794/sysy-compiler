@@ -52,6 +52,8 @@ const map<MIR_INST, string_view> MIR_INST_NAME = {
     {OR, "or"},
     {AND, "and"},
     {SLLI, "slli"},
+    {SRLI, "srli"},
+    {SRAI, "srai"},
     {LD, "ld"},
     {SD, "sd"},
     {ADDI, "addi"},

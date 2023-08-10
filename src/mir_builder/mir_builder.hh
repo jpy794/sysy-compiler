@@ -295,6 +295,8 @@ class MIRBuilder : public ir::InstructionVisitor {
     virtual any visit(const ir::ZextInst *instruction) override final;
 
     // specialized inst builder
+    void build_sdiv_by_const(Value *res, Value *n, int d);
     bool build_sdiv_by_const(const ir::IBinaryInst *inst);
+    bool build_srem_by_const(const ir::IBinaryInst *inst);
 };
 } // namespace mir

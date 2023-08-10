@@ -384,6 +384,51 @@ any MIRBuilder::visit(const ir::ZextInst *instruction) {
     return {};
 }
 
+// ref: https://gmplib.org/~tege/divcnst-pldi94.pdf
+void MIRBuilder::build_sdiv_by_const(Value *res, Value *n, int d) {
+    constexpr int N = 32;
+    auto pow2 = [](size_t a) { return 1ULL << a; };
+
+    auto d_abs = abs(static_cast<int64_t>(d));
+    auto l = max(1L, static_cast<int64_t>(ceil(log2(d_abs))));
+    auto m = pow2(N + l - 1) / d_abs + 1;
+
+    assert(d_abs != 0);
+
+    if (d_abs == 1) {
+        if (d > 0) {
+            cur_label->add_inst(Move, {res, n});
+        }
+    } else if (d_abs == pow2(l)) {
+        if (l > 1) {
+            cur_label->add_inst(SRAIW, {res, n, create<Imm12bit>(l - 1)});
+        }
+        cur_label->add_inst(mir::SRLIW,
+                            {res, l > 1 ? res : n, create<Imm12bit>(N - l)});
+        cur_label->add_inst(mir::ADDW, {res, res, n});
+        cur_label->add_inst(mir::SRAIW, {res, res, create<Imm12bit>(l)});
+    } else if (m < pow2(N - 1)) {
+        cur_label->add_inst(MUL, {res, n, load_imm(m)});
+        cur_label->add_inst(mir::SRAI, {res, res, create<Imm12bit>(N + l - 1)});
+        auto tmp = create<IVReg>();
+        cur_label->add_inst(SRLIW, {tmp, n, create<Imm12bit>(N - 1)});
+        cur_label->add_inst(mir::ADDW, {res, res, tmp});
+    } else {
+        cur_label->add_inst(MUL, {res, n, load_imm(m - pow2(N))});
+        cur_label->add_inst(mir::SRAI, {res, res, create<Imm12bit>(N)});
+        cur_label->add_inst(mir::ADDW, {res, res, n});
+        cur_label->add_inst(mir::SRAI, {res, res, create<Imm12bit>(l - 1)});
+        auto tmp = create<IVReg>();
+        cur_label->add_inst(SRLIW, {tmp, n, create<Imm12bit>(N - 1)});
+        cur_label->add_inst(mir::ADDW, {res, res, tmp});
+    }
+
+    if (d < 0) {
+        // neg res, res
+        cur_label->add_inst(SUBW, {res, load_imm(0), res});
+    }
+}
+
 bool MIRBuilder::build_sdiv_by_const(const ir::IBinaryInst *inst) {
     using IBin = ir::IBinaryInst;
     if (inst->get_ibin_op() != IBin::SDIV ||
@@ -401,41 +446,42 @@ bool MIRBuilder::build_sdiv_by_const(const ir::IBinaryInst *inst) {
     Value *res = value_map.at(inst);
 
     auto d = inst->rhs()->as<ir::ConstInt>()->val();
-    auto d_abs = abs(static_cast<int64_t>(d));
-    auto l = max(1L, static_cast<int64_t>(ceil(log2(d_abs))));
 
-    assert(d_abs != 0);
+    build_sdiv_by_const(res, n, d);
 
-    bool done{true};
-    if (d_abs == 1) {
-        if (d > 0) {
-            cur_label->add_inst(Move, {res, n});
-        }
-    } else if (d_abs == (1L << l)) {
-        if (l > 1) {
-            cur_label->add_inst(SRAIW, {res, n, create<Imm12bit>(l - 1)});
-        }
-        cur_label->add_inst(mir::SRLIW,
-                            {res, l > 1 ? res : n, create<Imm12bit>(32 - l)});
-        cur_label->add_inst(mir::ADDW, {res, res, n});
-        cur_label->add_inst(mir::SRAIW, {res, res, create<Imm12bit>(l)});
+    return true;
+}
+
+bool MIRBuilder::build_srem_by_const(const ir::IBinaryInst *inst) {
+    using IBin = ir::IBinaryInst;
+    if (inst->get_ibin_op() != IBin::SREM ||
+        not inst->rhs()->is<ir::ConstInt>()) {
+        return false;
+    }
+
+    Value *n{nullptr};
+    if (inst->lhs()->is<ir::ConstInt>()) {
+        n = load_imm(inst->lhs()->as<ir::ConstInt>()->val());
     } else {
-        // TODO: general case
-        done = false;
+        n = value_map.at(inst->lhs());
     }
 
-    // TODO: impl general const, remove done from cond
-    if (done && d < 0) {
-        // neg res, res
-        cur_label->add_inst(SUBW, {res, load_imm(0), res});
-    }
+    Value *res = value_map.at(inst);
 
-    return done;
+    auto d = inst->rhs()->as<ir::ConstInt>()->val();
+
+    build_sdiv_by_const(res, n, d);
+
+    cur_label->add_inst(MULW, {res, res, load_imm(d)});
+    cur_label->add_inst(SUBW, {res, n, res});
+
+    return true;
 }
 
 any MIRBuilder::visit(const ir::IBinaryInst *instruction) {
     auto done{false};
     done |= build_sdiv_by_const(instruction);
+    done |= build_srem_by_const(instruction);
     if (done) {
         return {};
     }
