@@ -1,3 +1,5 @@
+#pragma once
+
 #include "basic_block.hh"
 #include "const_propagate.hh"
 #include "dead_code.hh"

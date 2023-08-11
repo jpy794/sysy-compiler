@@ -88,19 +88,27 @@ bool ConstPro::check(Instruction *inst) {
     return true;
 }
 
+int const_int_like(Constant *c) {
+    if (is_a<ConstInt>(c))
+        return as_a<ConstInt>(c)->val();
+    if (is_a<ConstBool>(c))
+        return as_a<ConstBool>(c)->val();
+    if (is_a<ConstZero>(c))
+        return 0;
+    throw unreachable_error{};
+}
+
 Constant *ConstPro::const_folder(Instruction *inst) {
     if (is_a<PhiInst>(inst)) {
         return get_const(as_a<PhiInst>(inst)->get_operand(0));
     } else if (is_a<IBinaryInst>(inst)) {
         if (as_a<IBinaryInst>(inst)->get_ibin_op() == IBinaryInst::XOR) {
-            auto l_val =
-                as_a<ConstBool>(get_const(inst->get_operand(0)))->val();
-            auto r_val =
-                as_a<ConstBool>(get_const(inst->get_operand(1)))->val();
+            bool l_val = const_int_like(get_const(inst->get_operand(0)));
+            bool r_val = const_int_like(get_const(inst->get_operand(1)));
             return Constants::get().bool_const(l_val ^ r_val);
         }
-        auto l_val = as_a<ConstInt>(get_const(inst->get_operand(0)))->val();
-        auto r_val = as_a<ConstInt>(get_const(inst->get_operand(1)))->val();
+        auto l_val = const_int_like(get_const(inst->get_operand(0)));
+        auto r_val = const_int_like(get_const(inst->get_operand(1)));
         switch (as_a<IBinaryInst>(inst)->get_ibin_op()) {
         case IBinaryInst::ADD:
             return Constants::get().int_const(l_val + r_val);
@@ -136,8 +144,8 @@ Constant *ConstPro::const_folder(Instruction *inst) {
             // TODO: if FBinarayInst have FREM, this case need to be added here
         }
     } else if (is_a<ICmpInst>(inst)) {
-        auto l_val = as_a<ConstInt>(get_const(inst->get_operand(0)))->val();
-        auto r_val = as_a<ConstInt>(get_const(inst->get_operand(1)))->val();
+        auto l_val = (get_const(inst->get_operand(0)));
+        auto r_val = (get_const(inst->get_operand(1)));
         switch (as_a<ICmpInst>(inst)->get_icmp_op()) {
         case ICmpInst::EQ:
             return Constants::get().bool_const(l_val == r_val);
@@ -174,11 +182,11 @@ Constant *ConstPro::const_folder(Instruction *inst) {
         auto si_val = (int)(val);
         return Constants::get().int_const(si_val);
     } else if (is_a<Si2fpInst>(inst)) {
-        auto val = as_a<ConstInt>(get_const(inst->get_operand(0)))->val();
+        auto val = const_int_like(get_const(inst->get_operand(0)));
         auto fp_val = (int)(val);
         return Constants::get().float_const(fp_val);
     } else if (is_a<ZextInst>(inst)) {
-        auto val = as_a<ConstBool>(get_const(inst->get_operand(0)))->val();
+        bool val = const_int_like(get_const(inst->get_operand(0)));
         auto zext_val = (int)(val);
         return Constants::get().int_const(zext_val);
     } else {
