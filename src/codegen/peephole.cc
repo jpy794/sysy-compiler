@@ -130,6 +130,11 @@ PeepholeOpt::PassRet PeepholeOpt::naive_coalesce() {
     auto reg_dest = inst0->get_operand(0);
     auto reg_src = inst0->get_operand(1);
 
+    // to avoid infinite loop
+    if (reg_dest == reg_src) {
+        return {false, false};
+    }
+
     PassRet ret{false, false};
 
     // substitute

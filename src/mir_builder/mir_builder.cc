@@ -398,8 +398,13 @@ void MIRBuilder::build_sdiv_by_const(Value *res, Value *n, int d) {
     if (d_abs == 1) {
         if (d > 0) {
             cur_label->add_inst(Move, {res, n});
+        } else /* d < 0 */ {
+            cur_label->add_inst(SUBW, {res, load_imm(0), n});
         }
-    } else if (d_abs == pow2(l)) {
+        return;
+    }
+
+    if (d_abs == pow2(l)) {
         if (l > 1) {
             cur_label->add_inst(SRAIW, {res, n, create<Imm12bit>(l - 1)});
         }
@@ -427,6 +432,40 @@ void MIRBuilder::build_sdiv_by_const(Value *res, Value *n, int d) {
         // neg res, res
         cur_label->add_inst(SUBW, {res, load_imm(0), res});
     }
+}
+
+void MIRBuilder::build_mul_by_const(Value *res, Value *n, int d) {
+    auto pow2 = [](size_t a) { return 1ULL << a; };
+
+    auto d_abs = abs(static_cast<int64_t>(d));
+    auto l = max(1L, static_cast<int64_t>(ceil(log2(d_abs))));
+
+    // create a mv rd, zero here will lead to dead code,
+    // which codegen can not handle properly.
+    // so let's try to avoid this circumstance in ir.
+    if (d_abs == 0) {
+        cur_label->add_inst(MULW, {res, n, load_imm(d)});
+        return;
+    }
+
+    if (d_abs == 1) {
+        if (d > 0) {
+            cur_label->add_inst(Move, {res, n});
+        } else /* d < 0*/ {
+            cur_label->add_inst(SUBW, {res, load_imm(0), n});
+        }
+        return;
+    }
+
+    if (d_abs == pow2(l)) {
+        cur_label->add_inst(SLLIW, {res, n, create<Imm12bit>(l)});
+        if (d < 0) {
+            cur_label->add_inst(SUBW, {res, load_imm(0), res});
+        }
+        return;
+    }
+
+    cur_label->add_inst(MULW, {res, n, load_imm(d)});
 }
 
 bool MIRBuilder::build_sdiv_by_const(const ir::IBinaryInst *inst) {
@@ -471,9 +510,40 @@ bool MIRBuilder::build_srem_by_const(const ir::IBinaryInst *inst) {
     auto d = inst->rhs()->as<ir::ConstInt>()->val();
 
     build_sdiv_by_const(res, n, d);
-
-    cur_label->add_inst(MULW, {res, res, load_imm(d)});
+    build_mul_by_const(res, res, d);
     cur_label->add_inst(SUBW, {res, n, res});
+
+    return true;
+}
+
+bool MIRBuilder::build_mul_by_const(const ir::IBinaryInst *inst) {
+    using IBin = ir::IBinaryInst;
+    if (inst->get_ibin_op() != IBin::MUL ||
+        not(inst->rhs()->is<ir::ConstInt>() ||
+            inst->lhs()->is<ir::ConstInt>())) {
+        return false;
+    }
+
+    ir::Value *lhs = inst->lhs(), *rhs = inst->rhs();
+    if (lhs->is<ir::ConstInt>()) {
+        swap(lhs, rhs);
+    }
+
+    // rhs is const int now
+    assert(rhs->is<ir::ConstInt>());
+
+    Value *n{nullptr};
+    if (lhs->is<ir::ConstInt>()) {
+        n = load_imm(lhs->as<ir::ConstInt>()->val());
+    } else {
+        n = value_map.at(lhs);
+    }
+
+    Value *res = value_map.at(inst);
+
+    auto d = rhs->as<ir::ConstInt>()->val();
+
+    build_mul_by_const(res, n, d);
 
     return true;
 }
@@ -482,6 +552,7 @@ any MIRBuilder::visit(const ir::IBinaryInst *instruction) {
     auto done{false};
     done |= build_sdiv_by_const(instruction);
     done |= build_srem_by_const(instruction);
+    done |= build_mul_by_const(instruction);
     if (done) {
         return {};
     }
