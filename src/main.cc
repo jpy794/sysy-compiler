@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "algebraic_simplify.hh"
 #include "ast.hh"
 #include "codegen.hh"
 #include "const_propagate.hh"
@@ -124,6 +125,7 @@ int main(int argc, char **argv) {
     pm.add_pass<GVN>();
     pm.add_pass<GlobalVarLocalize>();
     pm.add_pass<ContinuousAdd>();
+    pm.add_pass<AlgebraicSimplify>();
 
     if (cfg.optimize) {
         pm.run(
@@ -133,9 +135,11 @@ int main(int argc, char **argv) {
                 PassID<StrengthReduce>(),
                 PassID<GVN>(),
                 PassID<Inline>(),
-                PassID<ContinuousAdd>(),
+                PassID<AlgebraicSimplify>(),
+                // PassID<ContinuousAdd>(),
                 PassID<LoopInvariant>(),
                 PassID<LoopUnroll>(),
+                PassID<AlgebraicSimplify>(),
                 PassID<ControlFlow>(),
             },
             true);
