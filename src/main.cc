@@ -145,9 +145,12 @@ int main(int argc, char **argv) {
         pm.reset();
         pm.run(
             {
-                PassID<LoopInvariant>(),
                 PassID<AlgebraicSimplify>(),
-                PassID<ControlFlow>(),
+                PassID<LoopInvariant>(),
+                PassID<LoopUnroll>(),
+                PassID<AlgebraicSimplify>(),
+                // PassID<GVN>(), // can u be run please?
+                PassID<ControlFlow>(), 
                 PassID<DeadCode>(),
             },
             true);
