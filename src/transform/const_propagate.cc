@@ -144,8 +144,8 @@ Constant *ConstPro::const_folder(Instruction *inst) {
             // TODO: if FBinarayInst have FREM, this case need to be added here
         }
     } else if (is_a<ICmpInst>(inst)) {
-        auto l_val = (get_const(inst->get_operand(0)));
-        auto r_val = (get_const(inst->get_operand(1)));
+        auto l_val = const_int_like(get_const(inst->get_operand(0)));
+        auto r_val = const_int_like(get_const(inst->get_operand(1)));
         switch (as_a<ICmpInst>(inst)->get_icmp_op()) {
         case ICmpInst::EQ:
             return Constants::get().bool_const(l_val == r_val);
