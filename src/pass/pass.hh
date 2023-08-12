@@ -103,6 +103,7 @@ class TransformPass : public Pass {
         using KillType = AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
     }
+    virtual bool always_invalid() const override { return true; }
 };
 
 class PassManager {

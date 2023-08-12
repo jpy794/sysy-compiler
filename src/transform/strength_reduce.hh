@@ -14,7 +14,6 @@ class StrengthReduce final : public pass::TransformPass {
         AU.add_post<pass::DeadCode>();
     }
     void run(pass::PassManager *mgr) override;
-    bool always_invalid() const override { return true; }
 
   private:
     // opt for: continuous add const

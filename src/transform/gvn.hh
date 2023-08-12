@@ -40,6 +40,8 @@ class GVN final : public pass::TransformPass {
         return std::make_shared<T>(std::forward<Args>(args)...);
     }
 
+    bool always_invalid() const override { return false; }
+
     // Expression
     class Expression {
       public:

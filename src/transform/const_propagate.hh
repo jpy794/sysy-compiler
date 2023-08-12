@@ -21,8 +21,6 @@ class ConstPro final : public pass::TransformPass {
     }
     virtual void run(pass::PassManager *mgr) override;
 
-    virtual bool always_invalid() const override { return true; }
-
     void traverse(ir::Function *);
     void replace();
     ir::Constant *get_const(ir::Value *);

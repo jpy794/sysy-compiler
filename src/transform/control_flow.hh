@@ -22,14 +22,10 @@ class ControlFlow final : public pass::TransformPass {
         AU.add_post<RmUnreachBB>();
         AU.add_kill<DepthOrder>();
         AU.add_kill<Dominator>();
-        AU.add_kill<LoopSimplify>();
-        AU.add_kill<LoopFind>();
         AU.set_kill_type(KillType::Normal);
     }
 
     virtual void run(pass::PassManager *mgr) override;
-
-    virtual bool always_invalid() const override { return true; }
 
     void clean(ir::Function *);
 

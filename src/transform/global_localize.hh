@@ -28,8 +28,6 @@ class GlobalVarLocalize : public TransformPass {
         AU.add_post<DeadCode>();
     }
 
-    virtual bool always_invalid() const override { return true; }
-
   private:
     enum Action { BaseTypeSink, ConstArrProp, JustSkip };
     Action parse(ir::GlobalVariable *, ir::Function *main);
