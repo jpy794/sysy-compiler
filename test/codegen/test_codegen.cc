@@ -1,3 +1,4 @@
+#include "algebraic_simplify.hh"
 #include "ast.hh"
 #include "codegen.hh"
 #include "const_propagate.hh"
@@ -79,6 +80,7 @@ int main(int argc, char **argv) {
     pm.add_pass<GVN>();
     pm.add_pass<GlobalVarLocalize>();
     pm.add_pass<ContinuousAdd>();
+    pm.add_pass<AlgebraicSimplify>();
 
     pm.run(
         {
@@ -87,10 +89,21 @@ int main(int argc, char **argv) {
             PassID<StrengthReduce>(),
             PassID<GVN>(),
             PassID<Inline>(),
-            PassID<ContinuousAdd>(),
+            PassID<AlgebraicSimplify>(),
+            // PassID<ContinuousAdd>(),
             PassID<LoopInvariant>(),
             PassID<LoopUnroll>(),
             PassID<ControlFlow>(),
+        },
+        true);
+    pm.reset();
+    pm.run(
+        {
+            PassID<ConstPro>(),
+            PassID<LoopInvariant>(),
+            PassID<AlgebraicSimplify>(),
+            PassID<ControlFlow>(),
+            PassID<DeadCode>(),
         },
         true);
 

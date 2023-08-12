@@ -139,8 +139,16 @@ int main(int argc, char **argv) {
                 // PassID<ContinuousAdd>(),
                 PassID<LoopInvariant>(),
                 PassID<LoopUnroll>(),
+                PassID<ControlFlow>(),
+            },
+            true);
+        pm.reset();
+        pm.run(
+            {
+                PassID<LoopInvariant>(),
                 PassID<AlgebraicSimplify>(),
                 PassID<ControlFlow>(),
+                PassID<DeadCode>(),
             },
             true);
     } else
