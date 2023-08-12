@@ -4,6 +4,8 @@
 #include "function.hh"
 #include "inst_visitor.hh"
 #include "instruction.hh"
+#include "loop_find.hh"
+#include "loop_simplify.hh"
 #include "pass.hh"
 #include "remove_unreach_bb.hh"
 #include <vector>
@@ -20,6 +22,8 @@ class ControlFlow final : public pass::TransformPass {
         AU.add_post<RmUnreachBB>();
         AU.add_kill<DepthOrder>();
         AU.add_kill<Dominator>();
+        AU.add_kill<LoopSimplify>();
+        AU.add_kill<LoopFind>();
         AU.set_kill_type(KillType::Normal);
     }
 

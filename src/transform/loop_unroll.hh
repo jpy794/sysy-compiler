@@ -1,5 +1,6 @@
 #pragma once
 
+#include "control_flow.hh"
 #include "dead_code.hh"
 #include "loop_find.hh"
 #include "loop_invariant.hh"
@@ -17,6 +18,7 @@ class LoopUnroll final : public TransformPass {
         AU.set_kill_type(KillType::All);
         AU.add_require<LoopSimplify>();
         AU.add_require<LoopFind>();
+        AU.add_require<ControlFlow>();
         AU.add_post<DeadCode>();
     }
     void run(PassManager *mgr) final;
