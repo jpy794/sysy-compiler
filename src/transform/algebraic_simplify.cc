@@ -1,8 +1,11 @@
 #include "algebraic_simplify.hh"
 #include "basic_block.hh"
+#include "const_propagate.hh"
 #include "constant.hh"
+#include "dead_code.hh"
 #include "instruction.hh"
 #include "ir_matcher.hh"
+#include "pass.hh"
 #include "type.hh"
 #include "value.hh"
 #include <any>
@@ -20,15 +23,29 @@ void AlgebraicSimplify::run(PassManager *mgr) {
     for (auto &func_r : mgr->get_module()->functions()) {
         if (func_r.is_external)
             continue;
-        for (auto &bb_r : func_r.bbs()) {
-            bb = &bb_r;
-            auto &insts = bb_r.insts();
-            for (auto inst_iter = insts.begin(); inst_iter != insts.end();) {
-                inst = &*inst_iter;
-                ++inst_iter;
-                apply_rules();
+
+        bool changed;
+        ignores.clear();
+        do {
+            changed = false;
+            for (auto &bb_r : func_r.bbs()) {
+                bb = &bb_r;
+                auto &insts = bb_r.insts();
+                for (auto inst_iter = insts.begin();
+                     inst_iter != insts.end();) {
+                    inst = &*inst_iter;
+                    ++inst_iter;
+                    if (contains(ignores, inst))
+                        continue;
+                    if (apply_rules()) {
+                        changed = true;
+                        ignores.insert(inst);
+                    }
+                }
             }
-        }
+            if (changed)
+                mgr->run({PassID<ConstPro>(), PassID<DeadCode>()}, false);
+        } while (changed);
     }
 }
 

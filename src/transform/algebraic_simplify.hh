@@ -17,16 +17,16 @@ class AlgebraicSimplify : public TransformPass {
     void get_analysis_usage(AnalysisUsage &AU) const override final {
         using KillType = AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
+        AU.add_require<ConstPro>();
         AU.add_post<DeadCode>();
-        AU.add_post<ConstPro>();
     }
-    bool always_invalid() const override final { return true; }
-
     void run(PassManager *mgr) override final;
 
   private:
     ir::BasicBlock *bb;
     ir::Instruction *inst;
+    std::set<ir::Instruction *> ignores;
+
     bool apply_rules();
 
     template <typename... Args>
