@@ -9,7 +9,7 @@
 #include <optional>
 
 namespace pass {
-class AliasAnalysis final : public pass::AnalysisPass {
+class AliasAnalysis final : public AnalysisPass {
   public:
     explicit AliasAnalysis() {}
     ~AliasAnalysis() = default;
@@ -43,9 +43,9 @@ class AliasAnalysis final : public pass::AnalysisPass {
 
     virtual std::any get_result() const override { return &_result; }
 
-    virtual void run(pass::PassManager *mgr) override;
+    void run(pass::PassManager *mgr) final {}
 
-    virtual void clear() override;
+    void clear() final {}
 
     static std::optional<int> get_const_int_val(ir::Value *v) {
         if (auto cv = dynamic_cast<ir::ConstInt *>(v))
