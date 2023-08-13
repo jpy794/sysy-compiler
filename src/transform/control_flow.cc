@@ -63,6 +63,37 @@ void ControlFlow::clean(ir::Function *func) {
                     // rewrite bb'jump with tobb's branch
                     bb->erase_inst(inst);
                     bb->clone_inst(bb->insts().end(), &ToBB->insts().back());
+                    // insert phi_pair into new suc_bbs phi
+                    auto new_t_bb =
+                        as_a<BasicBlock>(ToBB->insts().back().get_operand(1));
+                    auto new_f_bb =
+                        as_a<BasicBlock>(ToBB->insts().back().get_operand(2));
+                    for (auto &phi_r : new_t_bb->insts()) {
+                        if (is_a<PhiInst>(&phi_r)) {
+                            for (unsigned i = 1; i < phi_r.operands().size();
+                                 i += 2) {
+                                if (phi_r.operands()[i] == ToBB) {
+                                    as_a<PhiInst>(&phi_r)->add_phi_param(
+                                        phi_r.get_operand(i - 1), bb);
+                                    break;
+                                }
+                            }
+                        } else
+                            break;
+                    }
+                    for (auto &phi_r : new_f_bb->insts()) {
+                        if (is_a<PhiInst>(&phi_r)) {
+                            for (unsigned i = 1; i < phi_r.operands().size();
+                                 i += 2) {
+                                if (phi_r.operands()[i] == ToBB) {
+                                    as_a<PhiInst>(&phi_r)->add_phi_param(
+                                        phi_r.get_operand(i - 1), bb);
+                                    break;
+                                }
+                            }
+                        } else
+                            break;
+                    }
                 }
             }
         }

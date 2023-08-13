@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "algebraic_simplify.hh"
+#include "array_visit.hh"
 #include "ast.hh"
 #include "codegen.hh"
 #include "const_propagate.hh"
@@ -127,6 +128,7 @@ int main(int argc, char **argv) {
     pm.add_pass<GlobalVarLocalize>();
     pm.add_pass<ContinuousAdd>();
     pm.add_pass<AlgebraicSimplify>();
+    pm.add_pass<ArrayVisit>();
 
     if (cfg.optimize) {
         pm.run(
@@ -137,7 +139,7 @@ int main(int argc, char **argv) {
                 PassID<GVN>(),
                 PassID<Inline>(),
                 PassID<AlgebraicSimplify>(),
-                // PassID<ContinuousAdd>(),
+                PassID<ContinuousAdd>(),
                 PassID<LoopInvariant>(),
                 PassID<LoopUnroll>(),
                 PassID<ControlFlow>(),
@@ -149,7 +151,8 @@ int main(int argc, char **argv) {
                 /* PassID<LoopInvariant>(),
                  * PassID<LoopUnroll>(), */
                 PassID<AlgebraicSimplify>(),
-                // PassID<GVN>(), // can u be run please?
+                PassID<GVN>(), // can u be run please?
+                PassID<ArrayVisit>(),
                 PassID<ControlFlow>(),
                 PassID<DeadCode>(),
             },
