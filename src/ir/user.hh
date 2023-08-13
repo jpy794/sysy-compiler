@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstddef>
 #include <functional>
 #include <string>
 #include <vector>
@@ -49,6 +50,16 @@ class User : public Value {
                 return {false, nullptr};
             }
         });
+    }
+
+    void remove_operand(size_t idx) {
+        assert(idx < _operands.size());
+        for (unsigned i = idx + 1; i < _operands.size(); ++i) {
+            _operands[i]->remove_use(this, i);
+            _operands[i]->add_use(this, i - 1);
+        }
+        _operands[idx]->remove_use(this, idx);
+        _operands.erase(_operands.begin() + idx);
     }
 
     Value *get_operand(size_t index) const {

@@ -263,6 +263,7 @@ class PhiInst : public Instruction {
     PhiInst(BasicBlock *prt, Type *type);
 
     void add_phi_param(Value *val, BasicBlock *bb);
+    void rm_phi_param_from(BasicBlock *bb, bool tolerate);
 
     using Pair = std::pair<Value *, BasicBlock *>;
 

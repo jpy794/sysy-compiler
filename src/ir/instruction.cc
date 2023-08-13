@@ -197,6 +197,22 @@ void PhiInst::from_pairs(const std::vector<Pair> &pairs) {
     }
 }
 
+void PhiInst::rm_phi_param_from(BasicBlock *bb, bool tolerate) {
+    for (unsigned i = 1; i != operands().size(); i += 2) {
+        if (bb == get_operand(i)) {
+            remove_operand(i - 1); // value
+            remove_operand(i - 1); // bb
+            if (operands().size() == 2)
+                replace_all_use_with(get_operand(0));
+            else if (operands().size() == 0)
+                assert(get_use_list().size() == 0);
+            return;
+        }
+    }
+    if (not tolerate)
+        throw unreachable_error{};
+}
+
 CallInst::CallInst(BasicBlock *prt, Function *func, vector<Value *> &&params)
     : Instruction(prt, func->get_return_type(), _mix2vec(func, params)) {
     auto func_ty = as_a<FuncType>(func->get_type());
@@ -406,8 +422,14 @@ string FCmpInst::print() const {
 string PhiInst::print() const {
     string phi = this->get_name() + " = phi " + this->get_type()->print();
     for (unsigned i = 0; i < operands().size(); i += 2) {
-        phi += " [ " + operands()[i]->get_name() + ", %" +
-               operands()[i + 1]->get_name() + " ],";
+
+        phi += " [ ";
+        phi += operands()[i] ? operands()[i]->get_name() : "nullptr";
+        phi += ", %";
+        phi += operands()[i + 1] ? operands()[i + 1]->get_name() : "nullptr";
+        phi += " ],";
+        // phi += " [ " + operands()[i]->get_name() + ", %" +
+        // operands()[i + 1]->get_name() + " ],";
     }
     phi.erase(phi.length() - 1, 1);
     return phi;
