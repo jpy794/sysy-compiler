@@ -1,4 +1,5 @@
 #pragma once
+#include "basic_block.hh"
 #include "depth_order.hh"
 #include "dominator.hh"
 #include "function.hh"
@@ -30,6 +31,8 @@ class ControlFlow final : public pass::TransformPass {
     void clean(ir::Function *);
 
     void merge_bb(ir::BasicBlock *, ir::BasicBlock *, ir::Function *);
+
+    void br2jump_resolve_phi(ir::BasicBlock *, ir::BasicBlock *);
 
     bool is_branch(ir::Instruction *);
 

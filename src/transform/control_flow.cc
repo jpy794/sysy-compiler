@@ -34,14 +34,20 @@ void ControlFlow::clean(ir::Function *func) {
         auto inst = &bb->insts().back();
         if (is_a<BrInst>(inst)) {
             if (is_branch(inst)) {
+                auto cond = inst->operands()[0];
                 auto TBB = as_a<BasicBlock>(inst->operands()[1]);
                 auto FBB = as_a<BasicBlock>(inst->operands()[2]);
+                BasicBlock *only_1_reachable = nullptr;
                 if (TBB == FBB) {
-                    BasicBlock *target_bb = nullptr;
-                    if (TBB == FBB)
-                        target_bb = TBB;
+                    only_1_reachable = TBB;
+                } else if (is_a<ConstBool>(cond)) {
+                    only_1_reachable = as_a<ConstBool>(cond)->val() ? TBB : FBB;
+                    auto unreach_bb = as_a<ConstBool>(cond)->val() ? FBB : TBB;
+                    br2jump_resolve_phi(bb, unreach_bb);
+                }
+                if (only_1_reachable) {
                     bb->erase_inst(inst);
-                    bb->create_inst<BrInst>(target_bb);
+                    bb->create_inst<BrInst>(only_1_reachable);
                 }
             }
             inst = &bb->insts().back();
@@ -56,14 +62,15 @@ void ControlFlow::clean(ir::Function *func) {
                            is_branch(&ToBB->insts().back())) {
                     // rewrite bb'jump with tobb's branch
                     bb->erase_inst(inst);
-                    auto bb_branch = ToBB->insts().back().clone(bb);
-                    bb->clone_inst(bb->insts().end(), bb_branch);
+                    bb->clone_inst(bb->insts().end(), &ToBB->insts().back());
                 }
             }
         }
     }
-    for (auto redd_bb : redd_bbs_to_del)
+    for (auto redd_bb : redd_bbs_to_del) {
+        assert(redd_bb->get_use_list().size() == 0);
         func->bbs().erase(redd_bb);
+    }
 }
 
 // regard result_bb as the result merged bb by default
@@ -102,18 +109,11 @@ void ControlFlow::merge_bb(BasicBlock *redd_bb, BasicBlock *result_bb,
         }
         // replace redundant_bb in BrInst of predecessor of redundant bb with
         // result_bb
-        list<pair<Instruction *, unsigned>> rep_br_inst;
-        for (auto pre_bb : pre_bbs) {
-            auto &br = pre_bb->insts().back();
-            for (unsigned i = 0; i < br.operands().size(); i++) {
-                if (br.operands()[i] == redd_bb) {
-                    rep_br_inst.push_back({&br, i});
-                }
-            }
-        }
-        for (auto [br, i] : rep_br_inst) {
-            br->set_operand(i, result_bb);
-        }
+        redd_bb->replace_all_use_with_if(result_bb,
+                                         [&](const Use &use) -> bool {
+                                             assert(is_a<BrInst>(use.user));
+                                             return true;
+                                         });
     }
     // 2.remove BrInst of redundant bb
     redd_bb->erase_inst(&redd_bb->insts().back());
@@ -129,12 +129,23 @@ void ControlFlow::merge_bb(BasicBlock *redd_bb, BasicBlock *result_bb,
         ++insert_iter;
     }
     // 4.record redundant bb
+    redd_bb->replace_all_use_with(nullptr);
     redd_bbs_to_del.push_back(redd_bb);
 }
 
 bool ControlFlow::is_branch(ir::Instruction *inst) {
     return is_a<BrInst>(inst) && not is_a<BasicBlock>(inst->get_operand(0));
 }
+
 bool ControlFlow::is_jump(ir::Instruction *inst) {
     return is_a<BrInst>(inst) && is_a<BasicBlock>(inst->get_operand(0));
+}
+void ControlFlow::br2jump_resolve_phi(ir::BasicBlock *cur_bb,
+                                      ir::BasicBlock *unreachable_bb) {
+    // remove value of phi in unreachable succ bb
+    for (auto &phi_r : unreachable_bb->insts()) {
+        if (not is_a<PhiInst>(&phi_r))
+            break;
+        as_a<PhiInst>(&phi_r)->rm_phi_param_from(cur_bb, true);
+    }
 }
