@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cassert>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -145,12 +146,11 @@ int main(int argc, char **argv) {
         pm.reset();
         pm.run(
             {
-                PassID<AlgebraicSimplify>(),
-                PassID<LoopInvariant>(),
-                PassID<LoopUnroll>(),
+                /* PassID<LoopInvariant>(),
+                 * PassID<LoopUnroll>(), */
                 PassID<AlgebraicSimplify>(),
                 // PassID<GVN>(), // can u be run please?
-                PassID<ControlFlow>(), 
+                PassID<ControlFlow>(),
                 PassID<DeadCode>(),
             },
             true);
