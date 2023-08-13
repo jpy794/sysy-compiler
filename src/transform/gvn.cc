@@ -78,7 +78,7 @@ bool GVN::CongruenceClass::operator==(const CongruenceClass &other) const {
 void GVN::run(PassManager *mgr) {
     _func_info = &mgr->get_result<FuncInfo>();
     _depth_order = &mgr->get_result<DepthOrder>();
-
+    clear();
     auto m = mgr->get_module();
     for (auto &gv : m->global_vars()) {
         _val2expr[&gv] = create_expr<UniqueExpr>(&gv);

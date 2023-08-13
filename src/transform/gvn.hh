@@ -516,6 +516,11 @@ class GVN final : public pass::TransformPass {
         return create_expr<ExprT>(op, lhs, rhs);
     }
 
+    void clear() {
+        _val2expr.clear();
+        non_copy_pout.clear();
+    }
+
   private:
     partitions TOP{create_cc(0)};
     ir::Function *_func;
