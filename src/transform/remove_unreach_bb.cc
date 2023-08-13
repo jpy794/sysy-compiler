@@ -1,5 +1,7 @@
 #include "remove_unreach_bb.hh"
 #include "basic_block.hh"
+#include "err.hh"
+#include "instruction.hh"
 #include "utils.hh"
 #include <cassert>
 #include <deque>
@@ -28,12 +30,20 @@ void RmUnreachBB::run(PassManager *mgr) {
                 work_list.push_back(suc_bb);
             }
         }
-        for (auto &bb : f_r.bbs()) {
-            if (visited[&bb])
+        for (auto iter = f_r.bbs().begin(); iter != f_r.bbs().end();) {
+            auto bb = &*iter;
+            ++iter;
+            if (visited[bb])
                 continue;
-            else {
-                f_r.bbs().erase(&bb);
+            bb->replace_all_use_with_if(nullptr, [&](const Use &use) {
+                return is_a<BrInst>(use.user);
+            });
+            while (bb->get_use_list().size()) {
+                auto user = bb->get_use_list().begin()->user;
+                assert(is_a<PhiInst>(user));
+                as_a<PhiInst>(user)->rm_phi_param_from(bb, false);
             }
+            f_r.bbs().erase(bb);
         }
     }
 }
