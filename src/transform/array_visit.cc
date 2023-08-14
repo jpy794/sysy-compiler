@@ -100,8 +100,8 @@ void ArrayVisit::mem_visit(BasicBlock *bb) {
             auto mem = alias_analysis(ptr);
             if (latest_val[mem]) {
                 if (inst->get_operand(0) == latest_val[mem]) {
-                    // if the same val is stored twice, then delete the second
-                    // store
+                    // if the same val is stored twice, then delete the
+                    // second store
                     del_store_load.insert(inst);
                 } else {
                     latest_val[mem] = inst->get_operand(0);
@@ -110,20 +110,19 @@ void ArrayVisit::mem_visit(BasicBlock *bb) {
                 latest_val[mem] = inst->get_operand(0);
             }
         }
-        // if mem based on the inst has the latest val meaning that this load
-        // can be replaced with val
+        // if mem based on the inst has the latest val meaning that this
+        // load can be replaced with val
         else if (is_a<LoadInst>(inst)) {
             auto ptr = inst->get_operand(0);
-            if (ptr2addr[ptr]) {
-                if (latest_val[ptr2addr[ptr]]) {
-                    inst->replace_all_use_with(latest_val[ptr2addr[ptr]]);
-                    changed = true;
-                    del_store_load.insert(inst);
-                }
+            MemAddress *mem = alias_analysis(ptr);
+            if (latest_val[mem]) {
+                inst->replace_all_use_with(latest_val[mem]);
+                changed = true;
+                del_store_load.insert(inst);
             }
         }
-        // take a conservative strategy that any non_pure function may changed
-        // the current latest vals
+        // take a conservative strategy that any non_pure function may
+        // changed the current latest vals
         else if (is_a<CallInst>(inst) &&
                  not _func_info->is_pure_function(
                      as_a<Function>(inst->get_operand(0)))) {
@@ -134,6 +133,9 @@ void ArrayVisit::mem_visit(BasicBlock *bb) {
 
 // create MemAddress based on ptr and scan whether there is a alias MemAddress
 ArrayVisit::MemAddress *ArrayVisit::alias_analysis(Value *ptr) {
+    if (ptr2addr[ptr]) {
+        return ptr2addr[ptr];
+    }
     auto new_mem = MemAddress(ptr);
     MemAddress *ret_mem = nullptr;
     for (auto mem : addrs) {
