@@ -99,6 +99,7 @@ class ArrayVisit final : public pass::TransformPass {
     AliasResult is_alias(MemAddress *lhs, MemAddress *rhs);
 
     void mem_visit(ir::BasicBlock *);
+    void clear();
 
     MemAddress *alias_analysis(ir::Value *);
 

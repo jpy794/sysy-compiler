@@ -59,9 +59,17 @@ ArrayVisit::AliasResult ArrayVisit::is_alias(MemAddress *lhs, MemAddress *rhs) {
     throw unreachable_error{};
 }
 
+void ArrayVisit::clear() {
+    ptr2addr.clear();
+    addrs.clear();
+    latest_val.clear();
+    del_store_load.clear();
+}
+
 bool ArrayVisit::run(pass::PassManager *mgr) {
     auto m = mgr->get_module();
     _func_info = &mgr->get_result<FuncInfo>();
+    clear();
     for (auto &f_r : m->functions()) {
         if (f_r.is_external)
             continue;
