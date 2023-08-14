@@ -192,6 +192,7 @@ class LoadInst : public Instruction {
   public:
     LoadInst(BasicBlock *prt, Value *ptr);
     std::string print() const final;
+    Value *ptr() const { return get_operand(0); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
@@ -207,6 +208,7 @@ class StoreInst : public Instruction {
   public:
     StoreInst(BasicBlock *prt, Value *v, Value *ptr);
     std::string print() const final;
+    Value *ptr() const { return get_operand(1); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
@@ -337,6 +339,7 @@ class GetElementPtrInst : public Instruction {
         : GetElementPtrInst(bb, baseptr, {static_cast<Value *>(args)...}) {}
 
     std::string print() const final;
+    Value *base_ptr() const { return get_operand(0); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
