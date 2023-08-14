@@ -3,7 +3,6 @@
 #include "function.hh"
 #include "instruction.hh"
 #include "type.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include <cassert>
 #include <deque>

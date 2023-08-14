@@ -3,7 +3,6 @@
 #include "err.hh"
 #include "function.hh"
 #include "instruction.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include "value.hh"
 #include <stdexcept>

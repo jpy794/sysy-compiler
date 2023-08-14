@@ -10,7 +10,6 @@
 #include "instruction.hh"
 
 #include "type.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include "value.hh"
 #include <algorithm>

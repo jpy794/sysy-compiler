@@ -7,7 +7,6 @@
 #include "instruction.hh"
 #include "mem2reg.hh"
 #include "pass.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include "value.hh"
 #include <cassert>

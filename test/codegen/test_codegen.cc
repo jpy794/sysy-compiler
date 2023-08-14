@@ -22,7 +22,6 @@
 #include "pass.hh"
 #include "raw_ast.hh"
 #include "strength_reduce.hh"
-#include "usedef_chain.hh"
 
 #include <filesystem>
 #include <fstream>
@@ -61,7 +60,6 @@ int main(int argc, char **argv) {
 
     // analysis
     pm.add_pass<Dominator>();
-    pm.add_pass<UseDefChain>();
     pm.add_pass<LoopFind>();
     pm.add_pass<FuncInfo>();
     pm.add_pass<DepthOrder>();

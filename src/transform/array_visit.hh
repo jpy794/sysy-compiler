@@ -104,6 +104,8 @@ class ArrayVisit final : public pass::TransformPass {
     MemAddress *alias_analysis(ir::Value *);
 
   private:
+    bool changed;
+
     std::map<ir::Value *, MemAddress *> ptr2addr;
     std::set<MemAddress *> addrs;
     std::map<MemAddress *, ir::Value *> latest_val{};

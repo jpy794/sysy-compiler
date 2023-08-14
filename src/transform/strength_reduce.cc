@@ -1,7 +1,6 @@
 #include "strength_reduce.hh"
 #include "instruction.hh"
 #include "pass.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include <cassert>
 #include <vector>

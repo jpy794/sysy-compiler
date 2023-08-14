@@ -70,6 +70,7 @@ bool ArrayVisit::run(pass::PassManager *mgr) {
     auto m = mgr->get_module();
     _func_info = &mgr->get_result<FuncInfo>();
     clear();
+    changed = false;
     for (auto &f_r : m->functions()) {
         if (f_r.is_external)
             continue;
@@ -81,10 +82,11 @@ bool ArrayVisit::run(pass::PassManager *mgr) {
             mem_visit(&bb_r);
             for (auto store : del_store_load) {
                 bb_r.erase_inst(store);
+                changed = true;
             }
         }
     }
-    return false;
+    return changed;
 }
 
 void ArrayVisit::mem_visit(BasicBlock *bb) {
@@ -115,11 +117,12 @@ void ArrayVisit::mem_visit(BasicBlock *bb) {
             if (ptr2addr[ptr]) {
                 if (latest_val[ptr2addr[ptr]]) {
                     inst->replace_all_use_with(latest_val[ptr2addr[ptr]]);
+                    changed = true;
                     del_store_load.insert(inst);
                 }
             }
         }
-        // take a conservative strategy that any non_pure function may change
+        // take a conservative strategy that any non_pure function may changed
         // the current latest vals
         else if (is_a<CallInst>(inst) &&
                  not _func_info->is_pure_function(

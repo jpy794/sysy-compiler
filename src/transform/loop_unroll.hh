@@ -6,7 +6,6 @@
 #include "loop_invariant.hh"
 #include "loop_simplify.hh"
 #include "pass.hh"
-#include "usedef_chain.hh"
 
 namespace pass {
 
@@ -28,7 +27,6 @@ class LoopUnroll final : public TransformPass {
 
     using LoopInfo = LoopFind::ResultType::LoopInfo;
     using FuncLoopInfo = LoopFind::ResultType::FuncLoopInfo;
-    using UseDefRes = UseDefChain::ResultType;
 
     // the loop that has 1 header, 1 body, 1 latch and 1 exit
     struct SimpleLoopInfo {

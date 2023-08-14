@@ -38,7 +38,6 @@
 #include "raw_ast.hh"
 #include "remove_unreach_bb.hh"
 #include "strength_reduce.hh"
-#include "usedef_chain.hh"
 
 using namespace std;
 using namespace filesystem;
@@ -110,7 +109,6 @@ int main(int argc, char **argv) {
 
     // analysis
     pm.add_pass<Dominator>();
-    pm.add_pass<UseDefChain>();
     pm.add_pass<LoopFind>();
     pm.add_pass<FuncInfo>();
     pm.add_pass<DepthOrder>();
@@ -121,11 +119,11 @@ int main(int argc, char **argv) {
     pm.add_pass<LoopInvariant>(); // TODO set changed
     pm.add_pass<ConstPro>();
     pm.add_pass<DeadCode>();
-    pm.add_pass<ControlFlow>(); // TODO set changed
+    pm.add_pass<ControlFlow>();
     pm.add_pass<GlobalVarLocalize>();
-    pm.add_pass<ContinuousAdd>(); // TODO set changed
+    pm.add_pass<ContinuousAdd>();
     pm.add_pass<AlgebraicSimplify>();
-    pm.add_pass<ArrayVisit>(); // TODO set changed
+    pm.add_pass<ArrayVisit>();
     pm.add_pass<LocalCmnExpr>();
     // passes unfit for running iteratively
     pm.add_pass<LoopUnroll>();
