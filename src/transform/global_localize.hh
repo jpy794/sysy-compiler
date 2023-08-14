@@ -29,6 +29,8 @@ class GlobalVarLocalize : public TransformPass {
     }
 
   private:
+    bool changed;
+
     enum Action { BaseTypeSink, ConstArrProp, JustSkip };
     Action parse(ir::GlobalVariable *, ir::Function *main);
 
