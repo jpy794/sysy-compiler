@@ -16,8 +16,8 @@ bool StrengthReduce::run(PassManager *mgr) {
     for (auto &f_r : mgr->get_module()->functions()) {
         if (f_r.is_external)
             continue;
-        combine_continuous_add(&f_r);
-        algebraic_combine(&f_r);
+        // combine_continuous_add(&f_r);
+        // algebraic_combine(&f_r);
     }
     return changed;
 }

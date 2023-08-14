@@ -19,7 +19,7 @@ void PassManager::run_iteratively(const PassOrder &order) {
     do {
         changed = false;
         for (auto passid : order) {
-            changed |= run_single_pass(passid, true, false);
+            changed |= run_single_pass(passid, true, true);
         }
     } while (changed);
 }
@@ -43,6 +43,7 @@ bool PassManager::run_single_pass(PassIDType passid, bool force, bool post) {
     _pass_record.push_back(passid);
 
     // get passes killed and suggest post
+    AU.clear();
     ptr->get_analysis_usage(AU);
 
     // invalidation of affected passes
