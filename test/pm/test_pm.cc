@@ -38,13 +38,14 @@ class Dominator : public AnalysisPass {
 
     virtual std::any get_result() const override { return &_result; }
 
-    virtual void run(PassManager *mgr) override final {
+    virtual bool run(PassManager *mgr) override final {
         // NOTE: use this to make sure module will not be modified :(
         /* const Module *m = mgr->get_module();
          * m->create_func(); */
         clear();
         cout << "running Dominator" << endl;
         _result.final_result = "Result Of Dominator";
+        return false;
     }
 
     virtual void clear() override final { _result.final_result = ""; }
@@ -64,12 +65,13 @@ class Mem2reg : public TransformPass {
         AU.add_post<DeadCodeElim>();
     }
 
-    virtual void run(PassManager *mgr) override {
+    virtual bool run(PassManager *mgr) override {
         auto &reuslt = mgr->get_result<Dominator>();
         // reuslt.final_result = "adw";
 
         cout << "running Mem2reg, get Dominator result: " << reuslt.final_result
              << endl;
+        return false;
     }
 };
 
@@ -78,8 +80,9 @@ class DeadCodeElim : public TransformPass {
     DeadCodeElim() = default;
 
     virtual bool always_invalid() const override { return true; }
-    virtual void run(PassManager *mgr) override {
+    virtual bool run(PassManager *mgr) override {
         cout << "running DeadCodeElim" << endl;
+        return false;
     }
 };
 
@@ -89,8 +92,9 @@ class Pass1 : public AnalysisPass {
 
     virtual std::any get_result() const override { return &result; }
 
-    virtual void run(PassManager *mgr) override final {
+    virtual bool run(PassManager *mgr) override final {
         cout << "running Pass1" << endl;
+        return false;
     }
 
   private:
@@ -103,8 +107,9 @@ class Pass2 : public AnalysisPass {
 
     virtual std::any get_result() const override { return &result; }
 
-    virtual void run(PassManager *mgr) override final {
+    virtual bool run(PassManager *mgr) override final {
         cout << "running Pass2" << endl;
+        return false;
     }
 
     virtual void get_analysis_usage(AnalysisUsage &AU) const override {
