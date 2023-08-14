@@ -146,8 +146,8 @@ int main(int argc, char **argv) {
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<Inline>()}, true);
         pm.run_iteratively(iterative_passes);
-        // pm.run({PassID<LoopUnroll>()}, false); // FIXME have bug on bitset.sy
-        // pm.run_iteratively(iterative_passes);
+        pm.run({PassID<LoopUnroll>()}, false); // FIXME have bug on bitset.sy
+        pm.run_iteratively(iterative_passes);
     } else
         pm.run({PassID<Mem2reg>(), PassID<DeadCode>()});
 
