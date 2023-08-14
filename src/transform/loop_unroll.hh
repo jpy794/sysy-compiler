@@ -47,7 +47,7 @@ class LoopUnroll final : public TransformPass {
 
     static void unroll_simple_loop(const SimpleLoopInfo &simple_loop);
 
-    static void handle_func(ir::Function *func, const FuncLoopInfo &loops);
+    static void handle_func(ir::Function *func, const FuncLoopInfo &func_loop);
 };
 
 }; // namespace pass

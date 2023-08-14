@@ -20,7 +20,7 @@ class LoopInvariant final : public TransformPass {
     using LoopInfo = LoopFind::ResultType::LoopInfo;
     using FuncLoopInfo = LoopFind::ResultType::FuncLoopInfo;
 
-    static void handle_func(ir::Function *func, const FuncLoopInfo &loops);
+    static void handle_func(ir::Function *func, const FuncLoopInfo &func_loop);
     static bool is_invariant_operand(ir::Value *op, const LoopInfo &loop);
     static bool is_side_effect_inst(ir::Instruction *inst);
     static std::vector<ir::Instruction *>

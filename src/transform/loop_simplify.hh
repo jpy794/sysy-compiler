@@ -23,7 +23,7 @@ class LoopSimplify final : public TransformPass {
     static std::pair<std::vector<Pair>, std::vector<Pair>>
     split_phi_op(ir::PhiInst *phi, const LoopInfo &loop);
 
-    static void handle_func(ir::Function *func, const FuncLoopInfo &loops);
+    static void handle_func(ir::Function *func, const FuncLoopInfo &func_loop);
 
     static ir::BasicBlock *create_preheader(ir::BasicBlock *header,
                                             const LoopInfo &loop);

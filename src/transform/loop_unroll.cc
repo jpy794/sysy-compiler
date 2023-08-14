@@ -1,6 +1,7 @@
 #include "loop_unroll.hh"
 #include "log.hh"
 #include <codecvt>
+#include <type_traits>
 
 using namespace pass;
 using namespace ir;
@@ -237,8 +238,10 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
     }
 }
 
-void LoopUnroll::handle_func(Function *func, const FuncLoopInfo &loops) {
-    for (auto &&[header, loop] : loops) {
+void LoopUnroll::handle_func(Function *func, const FuncLoopInfo &func_loop) {
+    for (auto &&header : func_loop.get_topo_order()) {
+        auto &&loop = func_loop.loops.at(header);
+        assert(loop.preheader != nullptr);
         auto simple_loop = parse_simple_loop(header, loop);
         if (not simple_loop.has_value()) {
             continue;

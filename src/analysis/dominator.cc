@@ -123,6 +123,9 @@ void Dominator::create_dom_tree_succ(Function *f) {
 }
 
 bool Dominator::ResultType::is_dom(BasicBlock *domer, BasicBlock *domee) const {
+    if (domer == domee) {
+        return true;
+    }
     std::queue<BasicBlock *> bfs{};
     bfs.push(domer);
     while (not bfs.empty()) {

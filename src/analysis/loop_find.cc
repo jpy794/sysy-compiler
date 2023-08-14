@@ -1,9 +1,12 @@
 #include "loop_find.hh"
+#include "basic_block.hh"
 #include "dominator.hh"
+#include "err.hh"
 #include "instruction.hh"
 #include "log.hh"
 #include "utils.hh"
 #include <queue>
+#include <sys/types.h>
 #include <unordered_map>
 
 using namespace pass;
@@ -69,9 +72,19 @@ void LoopFind::run(PassManager *mgr) {
                         }
                     }
                 }
+
+                // set sub loop
+                for (auto &&[other_header, other_loop] : loops) {
+                    if (other_header == &bb) {
+                        continue;
+                    }
+                    if (contains(other_loop.bbs, &bb)) {
+                        other_loop.sub_loops.insert(&bb);
+                    }
+                }
             }
         }
-        _result.loop_info[&func] = std::move(loops);
+        _result.loop_info[&func].loops = std::move(loops);
     }
     // log();
 }
@@ -86,6 +99,9 @@ set<BasicBlock *> LoopFind::find_bbs_by_latch(BasicBlock *header,
     while (not bfs.empty()) {
         auto bb = bfs.front();
         bfs.pop();
+        if (bb == header) {
+            continue;
+        }
         for (auto &&pre_bb : bb->pre_bbs()) {
             if (not contains(ret, pre_bb)) {
                 bfs.push(pre_bb);
@@ -96,10 +112,40 @@ set<BasicBlock *> LoopFind::find_bbs_by_latch(BasicBlock *header,
     return ret;
 }
 
+vector<BasicBlock *>
+LoopFind::ResultType::FuncLoopInfo::get_topo_order() const {
+    vector<BasicBlock *> ret;
+    map<BasicBlock *, size_t> parent_cnt;
+    for (auto &&[header, _] : loops) {
+        parent_cnt[header] = 0;
+    }
+    for (auto &&[_, loop] : loops) {
+        for (auto sub_header : loop.sub_loops) {
+            parent_cnt[sub_header]++;
+        }
+    }
+    while (not parent_cnt.empty()) {
+        bool changed{false};
+        for (auto &&[header, cnt] : parent_cnt) {
+            if (cnt == 0) {
+                ret.push_back(header);
+                for (auto sub_header : loops.at(header).sub_loops) {
+                    parent_cnt[sub_header]--;
+                }
+                parent_cnt.erase(header);
+                changed = true;
+                break;
+            }
+        }
+        assert(changed);
+    }
+    return ret;
+}
+
 void LoopFind::log() const {
-    for (auto &&[func, loops] : _result.loop_info) {
+    for (auto &&[func, func_loop] : _result.loop_info) {
         debugs << func->get_name() << '\n';
-        for (auto &&[header, loop] : loops) {
+        for (auto &&[header, loop] : func_loop.loops) {
             debugs << "loop " << header->get_name() << '\n';
             for (auto &&latch : loop.latches) {
                 debugs << latch->get_name() << ' ';

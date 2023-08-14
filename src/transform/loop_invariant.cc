@@ -40,8 +40,10 @@ LoopInvariant::collect_invariant_inst(BasicBlock *bb, const LoopInfo &loop) {
     return ret;
 }
 
-void LoopInvariant::handle_func(Function *func, const FuncLoopInfo &loops) {
-    for (auto &&[header, loop] : loops) {
+void LoopInvariant::handle_func(Function *func, const FuncLoopInfo &func_loop) {
+    for (auto &&header : func_loop.get_topo_order()) {
+        auto &&loop = func_loop.loops.at(header);
+        assert(loop.preheader != nullptr);
         auto preheader = loop.preheader;
         bool changed{true};
         while (changed) {
@@ -70,9 +72,6 @@ void LoopInvariant::run(PassManager *mgr) {
     for (auto &&func : m->functions()) {
         if (func.is_external) {
             continue;
-        }
-        for (auto [header, loop] : loop_info.at(&func)) {
-            assert(loop.preheader != nullptr);
         }
         handle_func(&func, loop_info.at(&func));
     }

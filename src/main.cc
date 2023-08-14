@@ -148,8 +148,8 @@ int main(int argc, char **argv) {
         pm.reset();
         pm.run(
             {
-                /* PassID<LoopInvariant>(),
-                 * PassID<LoopUnroll>(), */
+                PassID<LoopInvariant>(),
+                PassID<LoopUnroll>(),
                 PassID<AlgebraicSimplify>(),
                 PassID<GVN>(), // can u be run please?
                 PassID<ArrayVisit>(),
