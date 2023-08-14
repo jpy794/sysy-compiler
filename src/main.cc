@@ -27,6 +27,7 @@
 #include "gvn.hh"
 #include "inline.hh"
 #include "ir_builder.hh"
+#include "local_cmnexpr.hh"
 #include "log.hh"
 #include "loop_find.hh"
 #include "loop_invariant.hh"
@@ -125,6 +126,7 @@ int main(int argc, char **argv) {
     pm.add_pass<ContinuousAdd>(); // TODO set changed
     pm.add_pass<AlgebraicSimplify>();
     pm.add_pass<ArrayVisit>(); // TODO set changed
+    pm.add_pass<LocalCmnExpr>();
     // passes unfit for running iteratively
     pm.add_pass<LoopUnroll>();
     pm.add_pass<Inline>();
@@ -137,8 +139,9 @@ int main(int argc, char **argv) {
         PassOrder iterative_passes = {
             PassID<RmUnreachBB>(),   PassID<GlobalVarLocalize>(),
             PassID<ConstPro>(),      PassID<AlgebraicSimplify>(),
-            PassID<LoopInvariant>(), PassID<ControlFlow>(),
-            PassID<ArrayVisit>(),    PassID<DeadCode>(),
+            PassID<LoopInvariant>(), PassID<LocalCmnExpr>(),
+            PassID<ControlFlow>(),   PassID<ArrayVisit>(),
+            PassID<DeadCode>(),
         };
         pm.run({PassID<Mem2reg>()}, true);
         pm.run_iteratively(iterative_passes);
