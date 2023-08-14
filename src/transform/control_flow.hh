@@ -39,6 +39,7 @@ class ControlFlow final : public pass::TransformPass {
     bool is_jump(ir::Instruction *);
 
   private:
+    bool changed;
     const DepthOrder::ResultType *_depth_order;
     std::list<ir::BasicBlock *> post_order;
     std::vector<ir::BasicBlock *> redd_bbs_to_del;

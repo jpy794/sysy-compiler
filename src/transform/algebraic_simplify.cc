@@ -20,34 +20,26 @@ auto get_cint(int v) {
 }
 
 bool AlgebraicSimplify::run(PassManager *mgr) {
+    bool changed = false;
     for (auto &func_r : mgr->get_module()->functions()) {
         if (func_r.is_external)
             continue;
-
-        bool changed;
-        ignores.clear();
-        do {
-            changed = false;
-            for (auto &bb_r : func_r.bbs()) {
-                bb = &bb_r;
-                auto &insts = bb_r.insts();
-                for (auto inst_iter = insts.begin();
-                     inst_iter != insts.end();) {
-                    inst = &*inst_iter;
-                    ++inst_iter;
-                    if (contains(ignores, inst))
-                        continue;
-                    if (apply_rules()) {
-                        changed = true;
-                        ignores.insert(inst);
-                    }
+        for (auto &bb_r : func_r.bbs()) {
+            bb = &bb_r;
+            auto &insts = bb_r.insts();
+            for (auto inst_iter = insts.begin(); inst_iter != insts.end();) {
+                inst = &*inst_iter;
+                ++inst_iter;
+                if (contains(ignores, inst))
+                    continue;
+                if (apply_rules()) {
+                    changed = true;
+                    ignores.insert(inst);
                 }
             }
-            if (changed)
-                mgr->run({PassID<ConstPro>(), PassID<DeadCode>()}, false);
-        } while (changed);
+        }
     }
-    return false;
+    return changed;
 }
 
 bool AlgebraicSimplify::apply_rules() {

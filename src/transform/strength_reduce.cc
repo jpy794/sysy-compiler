@@ -10,14 +10,16 @@ using namespace ir;
 using namespace pass;
 using namespace std;
 
+// TODO set changed
 bool StrengthReduce::run(PassManager *mgr) {
+    changed = false;
     for (auto &f_r : mgr->get_module()->functions()) {
         if (f_r.is_external)
             continue;
         combine_continuous_add(&f_r);
         algebraic_combine(&f_r);
     }
-    return false;
+    return changed;
 }
 
 void StrengthReduce::combine_continuous_add(Function *func) {
@@ -188,6 +190,8 @@ void StrengthReduce::algebraic_combine(ir::Function *func) {
                 marked.insert(add);
             for (auto leaf : tree.leaves)
                 marked.insert(leaf);
+
+            changed = true;
         }
     }
 }

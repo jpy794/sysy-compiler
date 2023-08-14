@@ -14,6 +14,7 @@ using namespace std;
 
 bool RmUnreachBB::run(PassManager *mgr) {
     auto m = mgr->get_module();
+    bool changed = false;
     for (auto &f_r : m->functions()) {
         if (f_r.is_external)
             continue;
@@ -44,7 +45,8 @@ bool RmUnreachBB::run(PassManager *mgr) {
                 as_a<PhiInst>(user)->rm_phi_param_from(bb, false);
             }
             f_r.bbs().erase(bb);
+            changed = true;
         }
     }
-    return false;
+    return changed;
 }

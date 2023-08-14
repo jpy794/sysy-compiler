@@ -28,6 +28,7 @@ class DeadCode final : public pass::TransformPass {
 
     const pass::FuncInfo::ResultType *_func_info;
 
+    bool changed;
     std::deque<ir::Instruction *> work_list{};
     std::unordered_map<ir::Instruction *, bool> marked{};
 };

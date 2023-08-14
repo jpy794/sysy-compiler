@@ -29,6 +29,7 @@ class ConstPro final : public pass::TransformPass {
                                           // folded constantly
 
   private:
+    bool changed;
     std::set<ir::Instruction *> const_propa;
     std::map<ir::Value *, ir::Constant *> val2const;
     std::deque<ir::Instruction *> work_list{};

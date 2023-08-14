@@ -14,6 +14,7 @@ using namespace ir;
 
 bool ConstPro::run(pass::PassManager *mgr) {
     auto m = mgr->get_module();
+    changed = false;
     for (auto &f_r : m->functions()) {
         {
             const_propa.clear();
@@ -23,7 +24,7 @@ bool ConstPro::run(pass::PassManager *mgr) {
         traverse(&f_r);
         replace();
     }
-    return false;
+    return changed;
 }
 
 void ConstPro::traverse(Function *func) {
@@ -50,6 +51,7 @@ void ConstPro::replace() {
             }
             inst->replace_all_use_with(val2const[inst]);
             const_propa.insert(inst);
+            changed = true;
         }
     }
 }

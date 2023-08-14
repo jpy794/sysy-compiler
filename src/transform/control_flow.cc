@@ -17,6 +17,7 @@ using namespace ir;
 bool ControlFlow::run(pass::PassManager *mgr) {
     _depth_order = &mgr->get_result<DepthOrder>();
     auto m = mgr->get_module();
+    changed = false;
     for (auto &f : m->functions()) {
         if (f.is_external)
             continue;
@@ -24,7 +25,7 @@ bool ControlFlow::run(pass::PassManager *mgr) {
         post_order.reverse();
         clean(&f);
     }
-    return false;
+    return changed;
 }
 
 void ControlFlow::clean(ir::Function *func) {
@@ -49,6 +50,7 @@ void ControlFlow::clean(ir::Function *func) {
                 if (only_1_reachable) {
                     bb->erase_inst(inst);
                     bb->create_inst<BrInst>(only_1_reachable);
+                    changed = true;
                 }
             }
             inst = &bb->insts().back();

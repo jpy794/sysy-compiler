@@ -16,6 +16,7 @@ class StrengthReduce final : public pass::TransformPass {
     bool run(pass::PassManager *mgr) override;
 
   private:
+    bool changed;
     // opt for: continuous add const
     void combine_continuous_add(ir::Function *);
     // opt: mul/div then add together

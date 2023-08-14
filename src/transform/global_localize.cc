@@ -65,7 +65,7 @@ bool GlobalVarLocalize::run(PassManager *mgr) {
     }
     NeedMem2reg = run_sink;
     NeedConstPro = run_prop;
-    return false;
+    return NeedMem2reg or NeedConstPro;
 }
 
 void GlobalVarLocalize::sink(GlobalVariable *global_var) {
