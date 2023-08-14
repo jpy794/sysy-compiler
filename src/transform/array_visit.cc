@@ -59,7 +59,7 @@ ArrayVisit::AliasResult ArrayVisit::is_alias(MemAddress *lhs, MemAddress *rhs) {
     throw unreachable_error{};
 }
 
-void ArrayVisit::run(pass::PassManager *mgr) {
+bool ArrayVisit::run(pass::PassManager *mgr) {
     auto m = mgr->get_module();
     _func_info = &mgr->get_result<FuncInfo>();
     for (auto &f_r : m->functions()) {
@@ -76,6 +76,7 @@ void ArrayVisit::run(pass::PassManager *mgr) {
             }
         }
     }
+    return false;
 }
 
 void ArrayVisit::mem_visit(BasicBlock *bb) {

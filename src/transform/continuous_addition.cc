@@ -9,7 +9,7 @@ using namespace std;
 using namespace pass;
 using namespace ir;
 
-void ContinuousAdd::run(pass::PassManager *mgr) {
+bool ContinuousAdd::run(pass::PassManager *mgr) {
     auto m = mgr->get_module();
     for (auto &f_r : m->functions()) {
         if (f_r.is_external)
@@ -18,7 +18,9 @@ void ContinuousAdd::run(pass::PassManager *mgr) {
         scan(&f_r);
         add2mul(&f_r);
     }
+    return false;
 }
+
 void ContinuousAdd::scan(Function *func) {
     for (auto &bb_r : func->bbs()) {
         for (auto &inst_r : bb_r.insts()) {

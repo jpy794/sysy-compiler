@@ -16,7 +16,7 @@ class GlobalVarLocalize : public TransformPass {
     static bool NeedConstPro;
 
   public:
-    void run(PassManager *mgr) override;
+    bool run(PassManager *mgr) override;
 
     virtual void get_analysis_usage(AnalysisUsage &AU) const override {
         using KillType = AnalysisUsage::KillType;

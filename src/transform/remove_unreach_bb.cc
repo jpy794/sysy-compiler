@@ -12,7 +12,7 @@ using namespace pass;
 using namespace ir;
 using namespace std;
 
-void RmUnreachBB::run(PassManager *mgr) {
+bool RmUnreachBB::run(PassManager *mgr) {
     auto m = mgr->get_module();
     for (auto &f_r : m->functions()) {
         if (f_r.is_external)
@@ -46,4 +46,5 @@ void RmUnreachBB::run(PassManager *mgr) {
             f_r.bbs().erase(bb);
         }
     }
+    return false;
 }

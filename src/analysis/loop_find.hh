@@ -33,7 +33,7 @@ class LoopFind final : public AnalysisPass {
 
     std::any get_result() const final { return &_result; }
 
-    void run(PassManager *mgr) final;
+    bool run(PassManager *mgr) final;
 
     void clear() final {
         _result.loop_info.clear();

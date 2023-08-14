@@ -19,7 +19,7 @@ auto get_cint(int v) {
              : Constants::get().zero_const(Types::get().int_type());
 }
 
-void AlgebraicSimplify::run(PassManager *mgr) {
+bool AlgebraicSimplify::run(PassManager *mgr) {
     for (auto &func_r : mgr->get_module()->functions()) {
         if (func_r.is_external)
             continue;
@@ -47,6 +47,7 @@ void AlgebraicSimplify::run(PassManager *mgr) {
                 mgr->run({PassID<ConstPro>(), PassID<DeadCode>()}, false);
         } while (changed);
     }
+    return false;
 }
 
 bool AlgebraicSimplify::apply_rules() {

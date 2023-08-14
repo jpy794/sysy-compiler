@@ -14,7 +14,7 @@ using namespace std;
 using namespace pass;
 using namespace ir;
 
-void ControlFlow::run(pass::PassManager *mgr) {
+bool ControlFlow::run(pass::PassManager *mgr) {
     _depth_order = &mgr->get_result<DepthOrder>();
     auto m = mgr->get_module();
     for (auto &f : m->functions()) {
@@ -24,6 +24,7 @@ void ControlFlow::run(pass::PassManager *mgr) {
         post_order.reverse();
         clean(&f);
     }
+    return false;
 }
 
 void ControlFlow::clean(ir::Function *func) {

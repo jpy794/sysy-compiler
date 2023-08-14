@@ -119,7 +119,7 @@ void LoopSimplify::handle_func(Function *func, const FuncLoopInfo &func_loop) {
     }
 }
 
-void LoopSimplify::run(pass::PassManager *mgr) {
+bool LoopSimplify::run(pass::PassManager *mgr) {
     auto &&loop_info = mgr->get_result<LoopFind>().loop_info;
     auto m = mgr->get_module();
     for (auto &&func : m->functions()) {
@@ -128,4 +128,5 @@ void LoopSimplify::run(pass::PassManager *mgr) {
         }
         handle_func(&func, loop_info.at(&func));
     }
+    return false;
 }

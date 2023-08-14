@@ -14,7 +14,7 @@ class LoopInvariant final : public TransformPass {
         AU.add_require<LoopSimplify>();
         AU.add_require<LoopFind>();
     }
-    void run(PassManager *mgr) final;
+    bool run(PassManager *mgr) final;
 
   private:
     using LoopInfo = LoopFind::ResultType::LoopInfo;

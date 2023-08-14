@@ -25,7 +25,7 @@ class ContinuousAdd final : public pass::TransformPass {
         size_t times;
     };
 
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
     void scan(ir::Function *);
 

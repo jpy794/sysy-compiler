@@ -12,7 +12,7 @@ using namespace std;
 using namespace pass;
 using namespace ir;
 
-void DeadCode::run(PassManager *mgr) {
+bool DeadCode::run(PassManager *mgr) {
     _func_info = &mgr->get_result<FuncInfo>();
     auto m = mgr->get_module();
     for (auto &f_r : m->functions()) {
@@ -20,6 +20,7 @@ void DeadCode::run(PassManager *mgr) {
         mark_sweep(f);
     }
     sweep_globally(m);
+    return false;
 }
 
 void DeadCode::mark_sweep(Function *func) {

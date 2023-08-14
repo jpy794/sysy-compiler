@@ -1,7 +1,7 @@
 #include "usedef_chain.hh"
 
 using namespace pass;
-void UseDefChain::run(pass::PassManager *mgr) {
+bool UseDefChain::run(pass::PassManager *mgr) {
     clear();
     ir::Module *m = mgr->get_module();
     for (auto &func : m->functions()) {
@@ -16,4 +16,5 @@ void UseDefChain::run(pass::PassManager *mgr) {
             }
         }
     }
+    return false;
 }

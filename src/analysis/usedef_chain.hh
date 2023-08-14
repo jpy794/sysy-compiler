@@ -50,7 +50,7 @@ class UseDefChain final : public pass::AnalysisPass {
 
     virtual std::any get_result() const override { return &_result; }
 
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
     virtual void clear() override { _result.users.clear(); }
 

@@ -12,7 +12,7 @@ using namespace std;
 using namespace pass;
 using namespace ir;
 
-void ConstPro::run(pass::PassManager *mgr) {
+bool ConstPro::run(pass::PassManager *mgr) {
     auto m = mgr->get_module();
     for (auto &f_r : m->functions()) {
         {
@@ -23,6 +23,7 @@ void ConstPro::run(pass::PassManager *mgr) {
         traverse(&f_r);
         replace();
     }
+    return false;
 }
 
 void ConstPro::traverse(Function *func) {

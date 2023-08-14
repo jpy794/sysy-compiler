@@ -19,7 +19,7 @@ class ConstPro final : public pass::TransformPass {
         AU.set_kill_type(KillType::All);
         AU.add_post<pass::DeadCode>();
     }
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
     void traverse(ir::Function *);
     void replace();

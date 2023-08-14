@@ -12,7 +12,7 @@ class LoopSimplify final : public TransformPass {
         AU.set_kill_type(KillType::All);
         AU.add_require<LoopFind>();
     }
-    void run(PassManager *mgr) final;
+    bool run(PassManager *mgr) final;
 
   private:
     using LoopInfo = LoopFind::ResultType::LoopInfo;

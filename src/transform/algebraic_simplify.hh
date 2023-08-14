@@ -20,7 +20,7 @@ class AlgebraicSimplify : public TransformPass {
         AU.add_require<ConstPro>();
         AU.add_post<DeadCode>();
     }
-    void run(PassManager *mgr) override final;
+    bool run(PassManager *mgr) override final;
 
   private:
     ir::BasicBlock *bb;

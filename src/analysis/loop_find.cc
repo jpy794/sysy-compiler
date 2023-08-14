@@ -13,7 +13,7 @@ using namespace pass;
 using namespace std;
 using namespace ir;
 
-void LoopFind::run(PassManager *mgr) {
+bool LoopFind::run(PassManager *mgr) {
     using LoopInfo = ResultType::LoopInfo;
 
     clear();
@@ -87,6 +87,7 @@ void LoopFind::run(PassManager *mgr) {
         _result.loop_info[&func].loops = std::move(loops);
     }
     // log();
+    return false;
 }
 
 set<BasicBlock *> LoopFind::find_bbs_by_latch(BasicBlock *header,

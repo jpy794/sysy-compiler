@@ -30,7 +30,7 @@ class Inline final : public pass::TransformPass {
         AU.add_post<ConstPro>();
     }
 
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
   private:
     bool is_inline(ir::Function *);

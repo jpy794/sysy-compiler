@@ -33,7 +33,7 @@ class GVN final : public pass::TransformPass {
         AU.add_require<DepthOrder>();
         AU.add_post<DeadCode>();
     }
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
     template <class T, typename... Args>
     std::shared_ptr<T> create_expr(Args... args) {

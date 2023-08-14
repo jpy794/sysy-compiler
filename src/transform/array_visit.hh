@@ -30,7 +30,7 @@ class ArrayVisit final : public pass::TransformPass {
         }
     }
 
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
     enum class AliasResult : uint8_t {
         NoAlias = 0,

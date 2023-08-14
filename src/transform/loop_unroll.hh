@@ -21,7 +21,7 @@ class LoopUnroll final : public TransformPass {
         AU.add_require<LoopFind>();
         AU.add_post<DeadCode>();
     }
-    void run(PassManager *mgr) final;
+    bool run(PassManager *mgr) final;
 
   private:
     static constexpr int UNROLL_MAX = 1000;

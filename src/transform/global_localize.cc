@@ -47,7 +47,7 @@ GlobalVarLocalize::Action GlobalVarLocalize::parse(GlobalVariable *global_var,
         throw unreachable_error{};
 }
 
-void GlobalVarLocalize::run(PassManager *mgr) {
+bool GlobalVarLocalize::run(PassManager *mgr) {
     bool run_sink = false, run_prop = false;
     for (auto &global_var : mgr->get_module()->global_vars()) {
         switch (parse(&global_var, mgr->get_module()->get_main())) {
@@ -65,6 +65,7 @@ void GlobalVarLocalize::run(PassManager *mgr) {
     }
     NeedMem2reg = run_sink;
     NeedConstPro = run_prop;
+    return false;
 }
 
 void GlobalVarLocalize::sink(GlobalVariable *global_var) {

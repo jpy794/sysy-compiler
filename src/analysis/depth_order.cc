@@ -3,7 +3,7 @@
 using namespace ir;
 using namespace pass;
 
-void DepthOrder::run(PassManager *mgr) {
+bool DepthOrder::run(PassManager *mgr) {
     clear();
     auto m = mgr->get_module();
     for (auto &f_r : m->functions()) {
@@ -12,6 +12,7 @@ void DepthOrder::run(PassManager *mgr) {
             continue;
         create_depth_priority_order(_func);
     }
+    return false;
 }
 
 void DepthOrder::create_depth_priority_order(Function *f) {

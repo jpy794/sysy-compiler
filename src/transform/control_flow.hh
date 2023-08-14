@@ -26,7 +26,7 @@ class ControlFlow final : public pass::TransformPass {
         AU.set_kill_type(KillType::Normal);
     }
 
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
     void clean(ir::Function *);
 

@@ -43,7 +43,7 @@ class AliasAnalysis final : public AnalysisPass {
 
     virtual std::any get_result() const override { return &_result; }
 
-    void run(pass::PassManager *mgr) final {}
+    bool run(pass::PassManager *mgr) final { return false; }
 
     void clear() final {}
 

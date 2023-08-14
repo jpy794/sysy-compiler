@@ -254,7 +254,7 @@ void LoopUnroll::handle_func(Function *func, const FuncLoopInfo &func_loop) {
     }
 }
 
-void LoopUnroll::run(PassManager *mgr) {
+bool LoopUnroll::run(PassManager *mgr) {
     auto &&loop_info = mgr->get_result<LoopFind>().loop_info;
     auto m = mgr->get_module();
     for (auto &&func : m->functions()) {
@@ -263,4 +263,5 @@ void LoopUnroll::run(PassManager *mgr) {
         }
         handle_func(&func, loop_info.at(&func));
     }
+    return false;
 }

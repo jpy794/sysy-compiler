@@ -75,7 +75,7 @@ bool GVN::CongruenceClass::operator==(const CongruenceClass &other) const {
     return true;
 }
 
-void GVN::run(PassManager *mgr) {
+bool GVN::run(PassManager *mgr) {
     _func_info = &mgr->get_result<FuncInfo>();
     _depth_order = &mgr->get_result<DepthOrder>();
     clear();
@@ -96,6 +96,7 @@ void GVN::run(PassManager *mgr) {
         detect_equivalences(&f);
         replace_cc_members();
     }
+    return false;
 }
 
 GVN::partitions GVN::join(const partitions &p1, const partitions &p2) {

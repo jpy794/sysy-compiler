@@ -13,7 +13,7 @@ class StrengthReduce final : public pass::TransformPass {
         AU.set_kill_type(KillType::All);
         AU.add_post<pass::DeadCode>();
     }
-    void run(pass::PassManager *mgr) override;
+    bool run(pass::PassManager *mgr) override;
 
   private:
     // opt for: continuous add const

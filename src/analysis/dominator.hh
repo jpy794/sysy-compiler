@@ -28,7 +28,7 @@ class Dominator final : public pass::AnalysisPass {
         AU.add_require<DepthOrder>();
     }
 
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
     virtual std::any get_result() const override { return &_result; }
 
