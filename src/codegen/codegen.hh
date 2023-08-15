@@ -10,6 +10,7 @@
 #include "mir_memory.hh"
 #include "mir_module.hh"
 #include "mir_register.hh"
+#include "mir_value.hh"
 #include "module.hh"
 #include "peephole.hh"
 #include "regalloc.hh"
@@ -40,6 +41,7 @@ class CodeGen {
         std::set<mir::Label *> new_labels{}; // should ignore during traverse
         std::map<mir::VirtualRegister *, mir::StackObject *>
             arg_spilled_location;
+        std::list<mir::Instruction *> multi_calls;
 
         void new_func(mir::Function *f) {
             func = f;
@@ -47,6 +49,7 @@ class CodeGen {
             inst = nullptr;
             new_labels.clear();
             arg_spilled_location.clear();
+            multi_calls.clear();
         }
     } _upgrade_context;
 
@@ -112,25 +115,50 @@ class CodeGen {
         std::array<_info, 8> float_args_in_reg;
         std::vector<_info> args_in_stack;
     };
-    // split function args to int/float, parse their location info
-    ArgInfo split_func_args_logue_ver() const; // used during resolve logue
-    ArgInfo split_func_args_call_ver() const;  // used during expand call
+    /* split function args to int/float, parse their location info */
+    // used during resolve logue
+    ArgInfo split_func_args_logue_ver() const;
+    // used during expand call
+    ArgInfo split_func_args_call_ver(mir::Instruction *call) const;
 
-    struct StackPassResult {
-        mir::Offset stack_grow_size2;
-        std::map<mir::PhysicalRegister *, bool> changed;
+    struct MultiCallInfo {
+        struct SingleCallInfo {
+            mir::Instruction *call;
+            mir::Value *ret_location;
+            mir::Function *called_func;
+        };
+        std::vector<SingleCallInfo> calls_info; // basic info extraction
+        // for the caller save regs, where are they backup?
+        std::map<mir::PhysicalRegister *, mir::Offset> ireg_loc, freg_loc;
+        struct FreeSpace {
+            mir::Offset off;
+            mir::Offset size;
+        };
+        std::list<FreeSpace> free_space;
+
+        bool first_call{true};
+        mir::Offset stack_grow_size1{0}; // backup for caller saves
+        mir::Offset stack_grow_size2{0}; // args passed on stack
+
+        bool value_on_stack(mir::PhysicalRegister *reg) const {
+            return not first_call and
+                   (contains(ireg_loc, reg) or contains(freg_loc, reg));
+        };
+        void reset() {
+            ireg_loc.clear(), freg_loc.clear(), free_space.clear();
+            first_call = true;
+            stack_grow_size1 = stack_grow_size2 = 0;
+        }
     };
-
-    // used for call inst, pass arguments
-    // after pass_args_stack, tmp regs backup:
-    // - t0: -8(sp)
-    // - t1: -16(sp)
-    // - ft0: -20(sp)
-    // @return: stack_grow_size2, that is grow size during pass on stack
-    StackPassResult pass_args_stack(const ArgInfo &,
-                                    mir::Offset stack_grow_size1);
-    void pass_args_in_reg(const ArgInfo &, mir::Offset stack_grow_size1,
-                          StackPassResult res, bool for_float);
+    void extract_basic_info(MultiCallInfo &info);
+    void update_caller_saves(MultiCallInfo &info, unsigned idx, bool bef_call);
+    void pass_args_stack(const ArgInfo &, MultiCallInfo &info);
+    void pass_args_in_reg(const ArgInfo &, MultiCallInfo &info, bool for_float);
+    void coordinate_func_ret(mir::Value *ret_location, MultiCallInfo &info);
+    void recover_caller_save(MultiCallInfo &info);
+    void caller_save_with_stack_grow(
+        MultiCallInfo &info, const std::set<mir::PhysicalRegister *> &new_iregs,
+        const std::set<mir::PhysicalRegister *> &new_fregs);
 
     /* @brief: make sure immediate in range
      *
@@ -177,10 +205,10 @@ class CodeGen {
     mir::Instruction *comment(std::string &&s, mir::Label *label = nullptr);
 
     // @return a set containing physical regs which hold valid value,
-    // relying on the data in `_upgrade_context`
+    // relying on `_upgrade_context.inst`
     std::set<mir::PhysicalRegister *>
-    current_critical_regs(bool want_float,
-                          mir::PhysicalRegister::Saver s) const;
+    current_critical_regs(bool want_float, mir::PhysicalRegister::Saver s,
+                          bool use_out_point = true) const;
 
     mir::MIR_INST load_store_op(mir::StackObject *, bool is_load);
 };

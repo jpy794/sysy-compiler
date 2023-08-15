@@ -1,6 +1,7 @@
 #include "codegen.hh"
 #include "context.hh"
 #include "err.hh"
+#include "liveness.hh"
 #include "mir_builder.hh"
 #include "mir_config.hh"
 #include "mir_function.hh"
@@ -17,6 +18,7 @@
 #include <cassert>
 #include <deque>
 #include <functional>
+#include <iterator>
 #include <stack>
 #include <utility>
 #include <variant>
@@ -46,6 +48,7 @@ using RegIDType = Register::RegIDType;
 
 auto &preg_mgr = PhysicalRegisterManager::get();
 auto &value_mgr = ValueManager::get();
+const int ARG_REGS = 8;
 auto sp = preg_mgr.sp();
 auto t0 = preg_mgr.temp(0);
 auto t1 = preg_mgr.temp(1);
@@ -418,16 +421,18 @@ std::ostream &codegen::operator<<(std::ostream &os, const CodeGen &c) {
     return os;
 }
 
-set<PhysicalRegister *> CodeGen::current_critical_regs(bool want_float,
-                                                       Saver saver) const {
+set<PhysicalRegister *>
+CodeGen::current_critical_regs(bool want_float, Saver saver,
+                               bool use_out_point) const {
     auto func = _upgrade_context.func;
     auto inst = _upgrade_context.inst;
+    auto INST_POINT = use_out_point ? OUT_POINT : IN_POINT;
 
     set<PhysicalRegister *> critical_regs;
 
     auto instid = _allocator.get_cfg_info(func).instid.at(inst);
     auto &out_set =
-        _allocator.get_liveness(func, want_float).at(OUT_POINT(instid));
+        _allocator.get_liveness(func, want_float).at(INST_POINT(instid));
     auto &reg_map = _allocator.get_reg_map(func, want_float);
     for (auto vreg : out_set) {
         if (contains(reg_map, vreg)) {
@@ -620,6 +625,11 @@ void CodeGen::upgrade_step2() {
                 resolve_ret();
                 break;
             case Call:
+                _upgrade_context.multi_calls.clear();
+                for (iter = inst; iter != label->get_insts().end() and
+                                  iter->get_opcode() == Call;
+                     ++iter)
+                    _upgrade_context.multi_calls.push_back(&*iter);
                 resolve_call();
                 break;
             case Move:
@@ -667,8 +677,147 @@ void CodeGen::resolve_ret() {
     label->get_insts().erase(inst);
 }
 
-CodeGen::ArgInfo CodeGen::split_func_args_call_ver() const {
-    auto call = _upgrade_context.inst;
+void CodeGen::extract_basic_info(MultiCallInfo &info) {
+    for (auto call : _upgrade_context.multi_calls) {
+        Value *ret_location = nullptr;
+        Function *called_func;
+        if (call->will_write_register()) {
+            ret_location = call->get_operand(0);
+            called_func = as_a<Function>(call->get_operand(1));
+        } else {
+            called_func = as_a<Function>(call->get_operand(0));
+        }
+        info.calls_info.push_back({call, ret_location, called_func});
+    }
+    // default init part
+    info.first_call = true;
+    info.stack_grow_size2 = 0;
+}
+
+void CodeGen::update_caller_saves(MultiCallInfo &info, unsigned idx,
+                                  bool before_call) {
+    using Regs = set<PhysicalRegister *>;
+    auto map2set = [](Regs &s, map<PhysicalRegister *, Offset> &m) {
+        transform(m.begin(), m.end(), inserter(s, s.begin()),
+                  [](const auto &pair) { return pair.first; });
+    };
+    auto get_diff = [](Regs &target, Regs &s1, Regs &s2) {
+        set_difference(s1.begin(), s1.end(), s2.begin(), s2.end(),
+                       inserter(target, target.begin()));
+    };
+    auto [call, ret_location, func] = info.calls_info.at(idx);
+    // current critical regs
+    Regs critical_iregs, critical_fregs;
+    if (info.first_call or not before_call) {
+        critical_iregs = current_critical_regs(false, Saver::Caller);
+        critical_fregs = current_critical_regs(true, Saver::Caller);
+        if (is_a<IPReg>(ret_location))
+            critical_iregs.erase(as_a<IPReg>(ret_location));
+        else if (is_a<FPReg>(ret_location))
+            critical_fregs.erase(as_a<FPReg>(ret_location));
+    } else { // use IN_POINT to compute critical regs
+             // cause on case not first call, the arg value may be in stack, the
+             // corresponding stack space needs to be holden
+        critical_iregs = current_critical_regs(false, Saver::Caller, false);
+        critical_fregs = current_critical_regs(true, Saver::Caller, false);
+    }
+    // old critical regs
+    Regs old_iregs, old_fregs;
+    map2set(old_iregs, info.ireg_loc);
+    map2set(old_fregs, info.freg_loc);
+    // analyze stack usage for criticals
+    Regs new_iregs, new_fregs, freed_iregs, freed_fregs;
+    get_diff(new_iregs, critical_iregs, old_iregs);
+    get_diff(new_fregs, critical_fregs, old_fregs);
+    get_diff(freed_iregs, old_iregs, critical_iregs);
+    get_diff(freed_fregs, old_fregs, critical_fregs);
+    auto free_sapce = [&](Regs &free_regs,
+                          map<mir::PhysicalRegister *, mir::Offset> &loc,
+                          Offset size) {
+        while (free_regs.size()) {
+            auto free_reg = *free_regs.begin();
+            free_regs.erase(free_regs.begin());
+            auto off = loc.at(free_reg);
+            loc.erase(free_reg);
+            info.free_space.push_back({off, size});
+        }
+    };
+    auto reuse = [&](Regs &new_regs, MIR_INST store,
+                     map<mir::PhysicalRegister *, mir::Offset> &loc,
+                     Offset size) {
+        decltype(info.free_space.begin()) iter;
+        while (new_regs.size()) {
+            // find free space
+            for (iter = info.free_space.begin(); iter != info.free_space.end();
+                 ++iter) {
+                if (iter->size >= size)
+                    break;
+            }
+            if (iter == info.free_space.end())
+                break;
+            // pop
+            auto new_reg = *new_regs.begin();
+            new_regs.erase(new_regs.begin());
+            // replace
+            auto off = iter->off;
+            loc.emplace(new_reg, off);
+            safe_load_store(store, new_reg, off, nullptr);
+            // upadte free space
+            if (iter->size > size) {
+                iter->off += size;
+                iter->size -= size;
+            } else {
+                info.free_space.erase(iter);
+            }
+        }
+    };
+    // reuse stack space
+    free_sapce(freed_iregs, info.ireg_loc, TARGET_MACHINE_SIZE);
+    free_sapce(freed_fregs, info.freg_loc, BASIC_TYPE_SIZE);
+    if ((new_iregs.size() or new_fregs.size()) and info.free_space.size())
+        comment("caller saves with stack space reuse ");
+    reuse(new_iregs, SD, info.ireg_loc, TARGET_MACHINE_SIZE);
+    reuse(new_fregs, FSW, info.freg_loc, BASIC_TYPE_SIZE);
+    caller_save_with_stack_grow(info, new_iregs, new_fregs);
+}
+
+void CodeGen::caller_save_with_stack_grow(
+    MultiCallInfo &info, const set<PhysicalRegister *> &new_iregs,
+    const set<PhysicalRegister *> &new_fregs) {
+    const auto stack_grow_size1_add =
+        SP_ALIGN(new_iregs.size() * TARGET_MACHINE_SIZE +
+                 new_fregs.size() * BASIC_TYPE_SIZE);
+    if (stack_grow_size1_add == 0)
+        return;
+    comment("caller saves with new stack allocation");
+    // sp move
+    stack_change(-Offset2int(stack_grow_size1_add), nullptr);
+    // update old offs
+    for (auto &[_, off] : info.ireg_loc)
+        off += stack_grow_size1_add;
+    for (auto &[_, off] : info.freg_loc)
+        off += stack_grow_size1_add;
+    for (auto &[off, _] : info.free_space)
+        off += stack_grow_size1_add;
+    // fill reg-off map in `info`
+    Offset offset = 0;
+    for (auto ireg : new_iregs) {
+        safe_load_store(SD, ireg, offset, nullptr);
+        info.ireg_loc.emplace(ireg, offset);
+        offset += TARGET_MACHINE_SIZE;
+    }
+    for (auto freg : new_fregs) {
+        safe_load_store(FSW, freg, offset, nullptr);
+        info.freg_loc.emplace(freg, offset);
+        offset += BASIC_TYPE_SIZE;
+    }
+    info.stack_grow_size1 += stack_grow_size1_add;
+    // new free space
+    if (offset < stack_grow_size1_add)
+        info.free_space.push_back({offset, stack_grow_size1_add - offset});
+}
+
+CodeGen::ArgInfo CodeGen::split_func_args_call_ver(Instruction *call) const {
     struct ArgInfo arg_info;
     unsigned i_idx = 0, f_idx = 0;
     for (unsigned i = (call->will_write_register() ? 2 : 1);
@@ -701,17 +850,29 @@ CodeGen::ArgInfo CodeGen::split_func_args_call_ver() const {
     return arg_info;
 }
 
-CodeGen::StackPassResult CodeGen::pass_args_stack(const ArgInfo &arg_info,
-                                                  Offset stack_grow_size1) {
+void CodeGen::recover_caller_save(MultiCallInfo &info) {
+    assert(info.stack_grow_size2 == 0);
+    MIR_INST int_op = LD, float_op = FLW;
+    for (auto [ireg, off] : info.ireg_loc) // int registers
+        safe_load_store(int_op, ireg, off, nullptr);
+    for (auto [freg, off] : info.freg_loc) // float registers
+        safe_load_store(float_op, freg, off, nullptr);
+    stack_change(info.stack_grow_size1, nullptr);
+    info.reset();
+}
+
+void CodeGen::pass_args_stack(const ArgInfo &arg_info,
+                              MultiCallInfo &call_info) {
     // the stack grow size because of arg-pass on stack
-    Offset stack_grow_size2 =
+    Offset stack_grow_size2 = call_info.stack_grow_size2 =
         SP_ALIGN(arg_info.args_in_stack.size() * TARGET_MACHINE_SIZE);
-    map<PhysicalRegister *, bool> changed = {
-        {t0, false}, {t1, false}, {ft0, false}};
     if (stack_grow_size2 == 0)
-        return {0, changed};
+        return;
+    comment("pass args through stack");
     /* stack grow, free temp regsiter: t0, t1 and ft0
      * t0 and ft0 are used to load value, t1 is used to represent offset */
+    map<PhysicalRegister *, bool> changed = {
+        {t0, false}, {t1, false}, {ft0, false}};
     safe_load_store(SD, t0, tmp_arg_off.at(t0), nullptr);
     if (stack_change(-Offset2int(stack_grow_size2), t0))
         safe_load_store(LD, t0,
@@ -721,24 +882,24 @@ CodeGen::StackPassResult CodeGen::pass_args_stack(const ArgInfo &arg_info,
     safe_load_store(FSW, ft0, tmp_arg_off.at(ft0), nullptr);
 
     for (unsigned i = 0; i < arg_info.args_in_stack.size(); ++i) {
-        auto info = arg_info.args_in_stack.at(i);
+        auto &info = arg_info.args_in_stack.at(i);
         auto load_op = info.is_float ? FLW : LD;
         auto store_op = info.is_float ? FSW : SD;
         IPReg *tmp_addr_reg = nullptr;
-
         PhysicalRegister *value_reg = nullptr;
         if (holds_alternative<PhysicalRegister *>(info.location)) {
             value_reg = get<PhysicalRegister *>(info.location);
-            // t0, t1 and ft0 may be overwriten
-            if (contains(changed, value_reg) and changed.at(value_reg)) {
+            if (call_info.value_on_stack(value_reg)) {
+                auto &loc =
+                    info.is_float ? call_info.freg_loc : call_info.ireg_loc;
+                safe_load_store(load_op, value_reg, loc.at(value_reg), nullptr);
+            } else if (contains(changed, value_reg) and changed.at(value_reg)) {
+                // t0, t1 and ft0 may be overwriten
                 safe_load_store(load_op, value_reg, tmp_arg_off.at(value_reg),
                                 nullptr);
                 changed.at(value_reg) = false;
             }
-            if (value_reg == t1)
-                tmp_addr_reg = t0;
-            else
-                tmp_addr_reg = t1;
+            tmp_addr_reg = value_reg == t1 ? t0 : t1;
         } else if (holds_alternative<Immediate *>(info.location)) {
             // TODO: test with func with a lot of float param and remove this
             // assert if the result is correct
@@ -753,7 +914,7 @@ CodeGen::StackPassResult CodeGen::pass_args_stack(const ArgInfo &arg_info,
             tmp_addr_reg = t1;
             changed.at(t1) |= distinguish_stack_usage(
                 value_reg, get<StackObject *>(info.location), t1,
-                stack_grow_size1 + stack_grow_size2);
+                call_info.stack_grow_size1 + call_info.stack_grow_size2);
             changed.at(value_reg) = true;
         } else
             throw unreachable_error{};
@@ -761,15 +922,19 @@ CodeGen::StackPassResult CodeGen::pass_args_stack(const ArgInfo &arg_info,
             safe_load_store(store_op, value_reg,
                             Offset2int(i * TARGET_MACHINE_SIZE), tmp_addr_reg);
     }
-    return {stack_grow_size2, changed};
+    for (auto &[tmp_reg, _changed] : changed) {
+        auto load_op = is_a<FPReg>(tmp_reg) ? FLW : LD;
+        if (_changed) {
+            safe_load_store(load_op, tmp_reg, tmp_arg_off.at(tmp_reg), nullptr);
+            _changed = false;
+        }
+    }
 }
 
-void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
-                               StackPassResult res, bool for_float) {
+void CodeGen::pass_args_in_reg(const ArgInfo &arg_info,
+                               MultiCallInfo &call_info, bool for_float) {
     auto &location_info =
         for_float ? arg_info.float_args_in_reg : arg_info.int_args_in_reg;
-
-    const int ARG_REGS = 8;
 
     class OrderParser {
         using NeedByVec = vector<unsigned>;
@@ -782,18 +947,15 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
         array<bool, ARG_REGS> vis{};
         // assign args using tmp reg as far as possible
         vector<unsigned> value_in_tmp_first;
-        deque<unsigned> queue;
 
         const decltype(ArgInfo::int_args_in_reg) &location_info;
-        const StackPassResult &res;
 
       public:
         unsigned arg_cnt;
         AssignOrder order;
         array<bool, ARG_REGS> backup{}; // if ai need a backup
 
-        explicit OrderParser(decltype(location_info) l, decltype(res) r)
-            : location_info(l), res(r) {
+        explicit OrderParser(decltype(location_info) l) : location_info(l) {
             gen_rely_graph();
             gen_order();
             check();
@@ -816,24 +978,34 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
                 }
                 // assign values that is in t0, t1 or ft0 first!
                 // keys of res.changed contains tmp regs used during stack pass
-                if (contains(res.changed, preg))
+                if (contains(tmp_arg_off, preg)) {
                     value_in_tmp_first.push_back(arg_idx);
+                }
             }
 
             arg_cnt = arg_idx;
         }
 
         void gen_order() {
-            // initialize
-            for (unsigned i = 0; i < arg_cnt; ++i)
-                queue.push_back(i);
-            // value in tmp regs
-            for (auto arg_idx : value_in_tmp_first)
-                order.push_back(arg_idx);
-            // resolve relying graph
-            while (not queue.empty()) {
-                auto i = queue.front();
-                queue.pop_front();
+            queue<unsigned> bfs_tree;
+            // value in tmp regs first, but may have a lot of rely
+            for (auto arg_idx : value_in_tmp_first) {
+                bfs_tree.push(arg_idx);
+                while (bfs_tree.size()) {
+                    auto i = bfs_tree.front();
+                    bfs_tree.pop();
+                    order.push_front(i);
+                    for (auto j : needby.at(i))
+                        bfs_tree.push(j);
+                    needby[i].clear();
+                }
+            }
+            deque<unsigned> work_list;
+            for (unsigned i = 0; i < arg_cnt; ++i) // initialize
+                work_list.push_back(i);
+            while (not work_list.empty()) { // resolve relying graph
+                auto i = work_list.front();
+                work_list.pop_front();
                 if (contains(order, i))
                     continue; // a_i has been assigned order
                 bool assign = false;
@@ -847,26 +1019,20 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
                     assign = false;
 
                 if (assign) {
-                    bool front = false;
                     for (unsigned j = 0; j < arg_cnt; ++j) {
                         // eliminate rely links
                         auto &need_vec = needby.at(j);
                         auto iter = find(need_vec.begin(), need_vec.end(), i);
                         if (iter != need_vec.end()) {
                             need_vec.erase(iter);
-                            front = contains(value_in_tmp_first, j);
                             if (need_vec.size() == 0)
-                                queue.push_front(j);
+                                work_list.push_front(j);
                             break; // a_i relys on 1 a{} at most
                         }
                     }
-                    if (front)
-                        order.push_front(i);
-                    else
-                        order.push_back(i);
+                    order.push_back(i);
                 } else
-                    queue.push_back(i);
-
+                    work_list.push_back(i);
                 vis[i] = true;
             }
         }
@@ -879,7 +1045,7 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
         }
     };
 
-    OrderParser order_parser(location_info, res);
+    OrderParser order_parser(location_info);
     const auto &order = order_parser.order;
     const auto &backup = order_parser.backup;
 
@@ -895,22 +1061,22 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
     // the overloaded function below need caller set target_reg
     auto ArgValueParser = overloaded{
         [&](StackObject *stack_object) {
-            auto add_off = stack_grow_size1 + res.stack_grow_size2;
+            auto add_off =
+                call_info.stack_grow_size1 + call_info.stack_grow_size2;
             distinguish_stack_usage(target_reg, stack_object, t0, add_off);
         },
         [&](PhysicalRegister *preg) {
             insert_inst(COMMENT,
                         {target_reg, value_mgr.create<Comment>("="), preg});
-            if (contains(res.changed, preg)) { // preg is tmp reg
-                if (res.changed.at(preg)) {
-                    safe_load_store(load_op, preg, tmp_arg_off.at(preg),
-                                    nullptr);
-                    res.changed.at(preg) = false;
-                }
-                move_same_type(target_reg, preg);
-            } else { // preg is not tmp reg
-                if (backup.at(target_reg->get_arg_idx()))
-                    insert_inst(backup_op, {t1, target_reg});
+            auto &loc = for_float ? call_info.freg_loc : call_info.ireg_loc;
+            // backup logic
+            if (backup.at(target_reg->get_arg_idx()) and
+                not call_info.value_on_stack(target_reg))
+                insert_inst(backup_op, {t1, target_reg});
+            if (call_info.value_on_stack(preg)) {
+                Offset off = call_info.stack_grow_size2 + loc.at(preg);
+                safe_load_store(load_op, target_reg, Offset2int(off), nullptr);
+            } else {
                 if (preg->is_arg_reg() and backup.at(preg->get_arg_idx()))
                     insert_inst(recvoer_op, {target_reg, t1});
                 else
@@ -933,88 +1099,57 @@ void CodeGen::pass_args_in_reg(const ArgInfo &arg_info, Offset stack_grow_size1,
     }
 }
 
-// pass arguments and caller saves
-void CodeGen::resolve_call() {
-    auto func = _upgrade_context.func;
-    auto &location = func->get_frame().offset;
-    auto inst = _upgrade_context.inst;
-
-    // pre analysis for the inst
-    Value *ret_location = nullptr;
-    Function *called_func;
-    if (inst->will_write_register()) {
-        ret_location = inst->get_operand(0);
-        called_func = as_a<Function>(inst->get_operand(1));
-    } else {
-        called_func = as_a<Function>(inst->get_operand(0));
-    }
-
-    auto critical_iregs = current_critical_regs(false, Saver::Caller);
-    auto critical_fregs = current_critical_regs(true, Saver::Caller);
-    if (is_a<IPReg>(ret_location))
-        critical_iregs.erase(as_a<IPReg>(ret_location));
-    else if (is_a<FPReg>(ret_location))
-        critical_fregs.erase(as_a<FPReg>(ret_location));
-    // clang-format off
-    const Offset stack_grow_size1 = ALIGN(
-        critical_iregs.size()*TARGET_MACHINE_SIZE + critical_fregs.size()*BASIC_TYPE_SIZE,
-        SP_ALIGNMENT
-    );
-
-    // clang-format on
-    auto resolve_caller_save = [&](bool before_call) {
-        if (before_call) // alloc stack space
-            stack_change(-int(stack_grow_size1), nullptr);
-        MIR_INST int_op = before_call ? SD : LD;
-        MIR_INST float_op = before_call ? FSW : FLW;
-        Offset off = 0;
-        for (auto ireg : critical_iregs) { // int registers
-            insert_inst(int_op, {ireg, create_imm(off), sp});
-            off += TARGET_MACHINE_SIZE;
-        }
-        for (auto freg : critical_fregs) { // float registers
-            insert_inst(float_op, {freg, create_imm(off), sp});
-            off += BASIC_TYPE_SIZE;
-        }
-        if (not before_call) // recover sp
-            stack_change(stack_grow_size1, nullptr);
-        assert(ALIGN(off, SP_ALIGNMENT) == stack_grow_size1);
-    };
-
-    auto arg_info = split_func_args_call_ver();
-
-    comment("caller saves before call");
-    resolve_caller_save(true);
-
-    comment("pass args through stack");
-    auto stack_res = pass_args_stack(arg_info, stack_grow_size1);
-
-    comment("pass int args through reg");
-    pass_args_in_reg(arg_info, stack_grow_size1, stack_res, false);
-
-    comment("pass float args through reg");
-    pass_args_in_reg(arg_info, stack_grow_size1, stack_res, true);
-
-    insert_inst(Call, {called_func});
-    stack_change(Offset2int(stack_res.stack_grow_size2), t0);
+void CodeGen::coordinate_func_ret(mir::Value *ret_location,
+                                  MultiCallInfo &info) {
+    auto &location = _upgrade_context.func->get_frame().offset;
+    assert(info.stack_grow_size2 == 0);
     if (ret_location) {
-        if (is_a<PhysicalRegister>(ret_location))
-            move_same_type(ret_location, preg_mgr.get_ret_val_reg(
-                                             0, is_a<FPReg>(ret_location)));
-        else if (is_a<StackObject>(ret_location)) {
+        if (is_a<PhysicalRegister>(ret_location)) {
+            auto preg = as_a<PhysicalRegister>(ret_location);
+            auto is_float = is_a<FPReg>(ret_location);
+            assert(not contains(info.ireg_loc, preg));
+            assert(not contains(info.freg_loc, preg));
+            move_same_type(preg, preg_mgr.get_ret_val_reg(0, is_float));
+        } else if (is_a<StackObject>(ret_location)) {
             auto stack_object = as_a<StackObject>(ret_location);
-            auto off = stack_grow_size1 + location.at(stack_object);
-            safe_load_store(
-                stack_object->store_op(),
-                preg_mgr.get_ret_val_reg(0, stack_object->is_float_usage()),
-                Offset2int(off), t0);
+            auto off = info.stack_grow_size1 + location.at(stack_object);
+            bool is_float = stack_object->is_float_usage();
+            safe_load_store(stack_object->store_op(),
+                            preg_mgr.get_ret_val_reg(0, is_float),
+                            Offset2int(off), t0);
 
         } else
             throw unreachable_error{"bad return value location"};
     }
-    resolve_caller_save(false);
+    info.first_call = false;
+}
 
-    inst->degenerate_to_comment();
+// pass arguments and caller saves
+void CodeGen::resolve_call() {
+    MultiCallInfo call_info;
+    extract_basic_info(call_info);
+    unsigned idx = 0;
+    for (auto [call, ret_location, func] : call_info.calls_info) {
+        _upgrade_context.inst = call;
+        if (func->get_args().size() >= 100) // avoid imm overflow
+            recover_caller_save(call_info);
+        update_caller_saves(call_info, idx, true);
+        auto arg_info = split_func_args_call_ver(call);
+        pass_args_stack(arg_info, call_info); // do not change tmp/any regs
+        comment("pass int args through reg");
+        pass_args_in_reg(arg_info, call_info, false);
+        comment("pass float args through reg");
+        pass_args_in_reg(arg_info, call_info, true);
+        insert_inst(Call, {func});
+        stack_change(Offset2int(call_info.stack_grow_size2), t0);
+        call_info.stack_grow_size2 = 0;
+        // update caller saves and free space
+        update_caller_saves(call_info, idx, false);
+        coordinate_func_ret(ret_location, call_info);
+        call->degenerate_to_comment();
+        ++idx;
+    }
+    recover_caller_save(call_info);
 }
 
 void CodeGen::resolve_move() {
