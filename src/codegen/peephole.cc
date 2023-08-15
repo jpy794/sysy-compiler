@@ -42,6 +42,7 @@ void PeepholeOpt::run() {
         std::bind(&PeepholeOpt::mul2shift, this),
         std::bind(&PeepholeOpt::subw2addiw, this),
         std::bind(&PeepholeOpt::naive_coalesce, this),
+        std::bind(&PeepholeOpt::combine_load_store_const_off, this),
     };
 
     for (auto func : _module.get_functions()) {
@@ -70,7 +71,7 @@ void PeepholeOpt::run() {
                             // be careful about safe traverse
                             auto inst = &*inst_iter;
                             ++inst_iter;
-                            if (inst_iter->get_opcode() == mir::COMMENT)
+                            if (inst->get_opcode() == mir::COMMENT)
                                 continue;
                             // maintain peephole
                             _peephole.push_back(inst);
@@ -90,6 +91,62 @@ void PeepholeOpt::run() {
                                     // analysis. To avoid unafordable overhead,
                                     // run at the end only for each function
     }
+}
+
+auto PeepholeOpt::combine_load_store_const_off() -> PassRet {
+    if (_peephole.size() < 4)
+        return {false, false};
+
+    auto match_passed{true};
+    auto match_opcode = [&](Instruction *inst, vector<MIR_INST> &&opcodes) {
+        if (not contains(opcodes, inst->get_opcode())) {
+            match_passed = false;
+        }
+    };
+    auto li = _peephole[0];
+    auto addi = _peephole[1];
+    auto add = _peephole[2];
+    auto lw_sw = _peephole[3];
+
+    match_opcode(li, {LoadImmediate});
+    match_opcode(addi, {ADDI});
+    match_opcode(add, {ADD});
+    match_opcode(lw_sw, {LW, SW});
+
+    if (not match_passed) {
+        return {false, false};
+    }
+
+    auto match_operand = [&](Instruction *a, size_t a_idx, Instruction *b,
+                             size_t b_idx) {
+        if (a->get_operand(a_idx) != b->get_operand(b_idx)) {
+            match_passed = false;
+        }
+    };
+
+    match_operand(li, 0, add, 1);
+    match_operand(addi, 0, add, 2);
+    match_operand(add, 0, lw_sw, 2);
+
+    if (not match_passed) {
+        return {false, false};
+    }
+
+    auto extract_imm = [](Instruction *inst, size_t op_idx) {
+        return as_a<Immediate>(inst->get_operand(op_idx))->get_imm();
+    };
+
+    auto base_reg = addi->get_operand(1);
+    auto off =
+        extract_imm(addi, 2) + extract_imm(li, 1) + extract_imm(lw_sw, 1);
+
+    if (not Imm12bit::check_in_range(off)) {
+        return {false, false};
+    }
+
+    lw_sw->set_operand(1, create_imm12(off));
+    lw_sw->set_operand(2, base_reg);
+    return {true, false};
 }
 
 PeepholeOpt::PassRet PeepholeOpt::mul2shift() {
