@@ -284,6 +284,8 @@ ostream &operator<<(ostream &os, const codegen::LiveInterVal &interval) {
 
 void Module::dump(std::ostream &os, const Context &context) const {
     os << TAB << ".text" << '\n';
+    os << TAB << ".align 1" << '\n';
+    os << TAB << ".globl main" << '\n';
     for (auto func : _functions) {
         if (not func->is_definition())
             continue;
@@ -296,6 +298,7 @@ void Module::dump(std::ostream &os, const Context &context) const {
         } else {
             os << TAB << ".data" << '\n';
         }
+        os << TAB << ".align 3" << '\n';
         global->dump(os, context);
     }
 }

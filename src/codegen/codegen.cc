@@ -409,8 +409,6 @@ std::ostream &codegen::operator<<(std::ostream &os, const CodeGen &c) {
     }
     case Stage::stage2:
         os << "# stage2, complete asm\n";
-        // main is a global symbol
-        os << ".global main\n";
         break;
     }
 
