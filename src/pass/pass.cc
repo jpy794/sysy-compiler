@@ -39,7 +39,7 @@ bool PassManager::run_single_pass(PassIDType passid, bool force, bool post) {
             changed |= run_single_pass(relyid, false, false);
     }
 
-    changed = ptr->run(this);
+    changed |= ptr->run(this);
     _pass_record.push_back(passid);
 
     // get passes killed and suggest post
