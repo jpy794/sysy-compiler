@@ -24,7 +24,8 @@ void Value::replace_all_use_with_if(
     for (auto iter = _use_list.begin(); iter != _use_list.end();) {
         if (if_replace(*iter)) {
             iter->user->set_operand(iter->op_idx, new_val, false);
-            new_val->add_use(iter->user, iter->op_idx);
+            if (new_val)
+                new_val->add_use(iter->user, iter->op_idx);
             iter = _use_list.erase(iter);
         } else
             ++iter;

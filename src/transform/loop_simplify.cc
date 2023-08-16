@@ -98,8 +98,9 @@ void LoopSimplify::create_exit(BasicBlock *exiting, BasicBlock *exit_target) {
     }
 }
 
-void LoopSimplify::handle_func(Function *func, const FuncLoopInfo &loops) {
-    for (auto &&[header, loop] : loops) {
+void LoopSimplify::handle_func(Function *func, const FuncLoopInfo &func_loop) {
+    for (auto &&header : func_loop.get_topo_order()) {
+        auto &&loop = func_loop.loops.at(header);
         if (loop.preheader == nullptr) {
             create_preheader(header, loop);
         }
@@ -118,7 +119,7 @@ void LoopSimplify::handle_func(Function *func, const FuncLoopInfo &loops) {
     }
 }
 
-void LoopSimplify::run(pass::PassManager *mgr) {
+bool LoopSimplify::run(pass::PassManager *mgr) {
     auto &&loop_info = mgr->get_result<LoopFind>().loop_info;
     auto m = mgr->get_module();
     for (auto &&func : m->functions()) {
@@ -127,4 +128,5 @@ void LoopSimplify::run(pass::PassManager *mgr) {
         }
         handle_func(&func, loop_info.at(&func));
     }
+    return false;
 }

@@ -17,9 +17,7 @@ class DeadCode final : public pass::TransformPass {
         AU.set_kill_type(KillType::All);
         AU.add_require<pass::FuncInfo>();
     }
-    virtual void run(pass::PassManager *mgr) override;
-
-    virtual bool always_invalid() const override { return true; }
+    virtual bool run(pass::PassManager *mgr) override;
 
   private:
     void mark_sweep(ir::Function *);
@@ -30,6 +28,7 @@ class DeadCode final : public pass::TransformPass {
 
     const pass::FuncInfo::ResultType *_func_info;
 
+    bool changed;
     std::deque<ir::Instruction *> work_list{};
     std::unordered_map<ir::Instruction *, bool> marked{};
 };

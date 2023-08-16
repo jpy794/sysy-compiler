@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cassert>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -10,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#include "algebraic_simplify.hh"
+#include "array_visit.hh"
 #include "ast.hh"
 #include "codegen.hh"
 #include "const_propagate.hh"
@@ -24,6 +27,7 @@
 #include "gvn.hh"
 #include "inline.hh"
 #include "ir_builder.hh"
+#include "local_cmnexpr.hh"
 #include "log.hh"
 #include "loop_find.hh"
 #include "loop_invariant.hh"
@@ -32,8 +36,8 @@
 #include "mem2reg.hh"
 #include "pass.hh"
 #include "raw_ast.hh"
+#include "remove_unreach_bb.hh"
 #include "strength_reduce.hh"
-#include "usedef_chain.hh"
 
 using namespace std;
 using namespace filesystem;
@@ -105,40 +109,46 @@ int main(int argc, char **argv) {
 
     // analysis
     pm.add_pass<Dominator>();
-    pm.add_pass<UseDefChain>();
     pm.add_pass<LoopFind>();
     pm.add_pass<FuncInfo>();
     pm.add_pass<DepthOrder>();
 
     // transform
     pm.add_pass<RmUnreachBB>();
-    pm.add_pass<Mem2reg>();
     pm.add_pass<LoopSimplify>();
-    pm.add_pass<LoopInvariant>();
-    pm.add_pass<LoopUnroll>();
+    pm.add_pass<LoopInvariant>(); // TODO set changed
     pm.add_pass<ConstPro>();
     pm.add_pass<DeadCode>();
     pm.add_pass<ControlFlow>();
-    pm.add_pass<StrengthReduce>();
-    pm.add_pass<Inline>();
-    pm.add_pass<GVN>();
     pm.add_pass<GlobalVarLocalize>();
     pm.add_pass<ContinuousAdd>();
+    pm.add_pass<AlgebraicSimplify>();
+    pm.add_pass<ArrayVisit>();
+    pm.add_pass<LocalCmnExpr>();
+    // passes unfit for running iteratively
+    pm.add_pass<LoopUnroll>();
+    pm.add_pass<Inline>();
+    pm.add_pass<Mem2reg>();
+    pm.add_pass<GVN>();
 
     if (cfg.optimize) {
-        pm.run(
-            {
-                PassID<GlobalVarLocalize>(),
-                PassID<Mem2reg>(),
-                PassID<StrengthReduce>(),
-                PassID<GVN>(),
-                PassID<Inline>(),
-                PassID<ContinuousAdd>(),
-                PassID<LoopInvariant>(),
-                PassID<LoopUnroll>(),
-                PassID<ControlFlow>(),
-            },
-            true);
+        // the functions from ContinuousAdd and strength_reduce are implemented
+        // in algebraic simplify
+        PassOrder iterative_passes = {
+            PassID<RmUnreachBB>(),   PassID<GlobalVarLocalize>(),
+            PassID<ConstPro>(),      PassID<AlgebraicSimplify>(),
+            PassID<LoopInvariant>(), PassID<LocalCmnExpr>(),
+            PassID<ControlFlow>(),   PassID<ArrayVisit>(),
+            PassID<DeadCode>(),
+        };
+        pm.run({PassID<Mem2reg>()}, true);
+        pm.run_iteratively(iterative_passes);
+        pm.run({PassID<GVN>()}, true);
+        pm.run_iteratively(iterative_passes);
+        pm.run({PassID<Inline>()}, true);
+        pm.run_iteratively(iterative_passes);
+        pm.run({PassID<LoopUnroll>()}, false); // FIXME have bug on bitset.sy
+        pm.run_iteratively(iterative_passes);
     } else
         pm.run({PassID<Mem2reg>(), PassID<DeadCode>()});
 

@@ -3,7 +3,6 @@
 #include "function.hh"
 #include "instruction.hh"
 #include "type.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include <cassert>
 #include <deque>
@@ -19,7 +18,7 @@ bool Inline::is_inline(Function *func) {
     return true;
 }
 
-void Inline::run(PassManager *mgr) {
+bool Inline::run(PassManager *mgr) {
     auto m = mgr->get_module();
     const unsigned upper_times = 1; // set iter_expanded upper times
     deque<Instruction *> call_work_list{};
@@ -49,6 +48,7 @@ void Inline::run(PassManager *mgr) {
             inline_func(top);
         }
     }
+    return false;
 }
 
 void Inline::inline_func(InstIter callee) {

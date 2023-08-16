@@ -19,9 +19,7 @@ class ConstPro final : public pass::TransformPass {
         AU.set_kill_type(KillType::All);
         AU.add_post<pass::DeadCode>();
     }
-    virtual void run(pass::PassManager *mgr) override;
-
-    virtual bool always_invalid() const override { return true; }
+    virtual bool run(pass::PassManager *mgr) override;
 
     void traverse(ir::Function *);
     void replace();
@@ -31,6 +29,7 @@ class ConstPro final : public pass::TransformPass {
                                           // folded constantly
 
   private:
+    bool changed;
     std::set<ir::Instruction *> const_propa;
     std::map<ir::Value *, ir::Constant *> val2const;
     std::deque<ir::Instruction *> work_list{};

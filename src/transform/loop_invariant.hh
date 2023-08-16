@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dominator.hh"
 #include "loop_find.hh"
 #include "loop_simplify.hh"
 #include "pass.hh"
@@ -13,20 +14,22 @@ class LoopInvariant final : public TransformPass {
         AU.set_kill_type(KillType::All);
         AU.add_require<LoopSimplify>();
         AU.add_require<LoopFind>();
+        AU.add_require<Dominator>();
     }
-    void run(PassManager *mgr) final;
-
-    bool always_invalid() const override { return true; }
+    bool run(PassManager *mgr) final;
 
   private:
     using LoopInfo = LoopFind::ResultType::LoopInfo;
     using FuncLoopInfo = LoopFind::ResultType::FuncLoopInfo;
 
-    static void handle_func(ir::Function *func, const FuncLoopInfo &loops);
-    static bool is_invariant_operand(ir::Value *op, const LoopInfo &loop);
-    static bool is_side_effect_inst(ir::Instruction *inst);
-    static std::vector<ir::Instruction *>
-    collect_invariant_inst(ir::BasicBlock *bb, const LoopInfo &loop);
+    const Dominator::ResultType *_dom{nullptr};
+
+    void handle_func(ir::Function *func, const FuncLoopInfo &func_loop);
+    bool is_invariant_operand(ir::Value *op, const LoopInfo &loop);
+    bool is_side_effect_inst(ir::Instruction *inst);
+    bool is_dom_store(ir::Instruction *inst, const LoopInfo &loop);
+    std::vector<ir::Instruction *> collect_invariant_inst(ir::BasicBlock *bb,
+                                                          const LoopInfo &loop);
 };
 
 }; // namespace pass

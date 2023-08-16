@@ -9,8 +9,9 @@ using namespace std;
 using namespace pass;
 using namespace ir;
 
-void ContinuousAdd::run(pass::PassManager *mgr) {
+bool ContinuousAdd::run(pass::PassManager *mgr) {
     auto m = mgr->get_module();
+    changed = false;
     for (auto &f_r : m->functions()) {
         if (f_r.is_external)
             continue;
@@ -18,7 +19,9 @@ void ContinuousAdd::run(pass::PassManager *mgr) {
         scan(&f_r);
         add2mul(&f_r);
     }
+    return changed;
 }
+
 void ContinuousAdd::scan(Function *func) {
     for (auto &bb_r : func->bbs()) {
         for (auto &inst_r : bb_r.insts()) {
@@ -89,6 +92,7 @@ void ContinuousAdd::add2mul(Function *func) {
                     res = bb->insert_inst<IBinaryInst>(inst, IBinaryInst::ADD,
                                                        con.base, product);
                 inst->replace_all_use_with(res);
+                changed = true;
             } else if (is_a<FBinaryInst>(val)) {
                 auto product = bb->insert_inst<FBinaryInst>(
                     inst, FBinaryInst::FMUL, con.addend,
@@ -98,6 +102,7 @@ void ContinuousAdd::add2mul(Function *func) {
                     res = bb->insert_inst<FBinaryInst>(inst, FBinaryInst::FADD,
                                                        con.base, product);
                 inst->replace_all_use_with(res);
+                changed = true;
             } else {
                 throw unreachable_error{};
             }

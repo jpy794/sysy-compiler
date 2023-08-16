@@ -10,7 +10,6 @@
 #include "instruction.hh"
 
 #include "type.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include "value.hh"
 #include <algorithm>
@@ -75,10 +74,10 @@ bool GVN::CongruenceClass::operator==(const CongruenceClass &other) const {
     return true;
 }
 
-void GVN::run(PassManager *mgr) {
+bool GVN::run(PassManager *mgr) {
     _func_info = &mgr->get_result<FuncInfo>();
     _depth_order = &mgr->get_result<DepthOrder>();
-
+    clear();
     auto m = mgr->get_module();
     for (auto &gv : m->global_vars()) {
         _val2expr[&gv] = create_expr<UniqueExpr>(&gv);
@@ -96,6 +95,7 @@ void GVN::run(PassManager *mgr) {
         detect_equivalences(&f);
         replace_cc_members();
     }
+    return false;
 }
 
 GVN::partitions GVN::join(const partitions &p1, const partitions &p2) {

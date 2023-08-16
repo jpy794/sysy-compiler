@@ -13,9 +13,7 @@ class RmUnreachBB final : public pass::TransformPass {
         AU.set_kill_type(KillType::All);
         AU.add_post<DeadCode>();
     }
-    virtual void run(pass::PassManager *mgr) override;
-
-    virtual bool always_invalid() const override { return true; }
+    virtual bool run(pass::PassManager *mgr) override;
 
   private:
 };

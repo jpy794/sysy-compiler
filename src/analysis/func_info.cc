@@ -11,7 +11,7 @@ using namespace pass;
 using namespace ir;
 using namespace std;
 
-void FuncInfo::run(PassManager *mgr) {
+bool FuncInfo::run(PassManager *mgr) {
     clear();
     auto m = mgr->get_module();
     // calculate the pure function
@@ -49,6 +49,7 @@ void FuncInfo::run(PassManager *mgr) {
             }
         }
     }
+    return false;
 }
 
 bool FuncInfo::maybe_pure(Function *func) {

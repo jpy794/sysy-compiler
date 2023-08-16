@@ -136,7 +136,7 @@ class BrInst : public Instruction {
 
 class IBinaryInst : public Instruction {
   public:
-    enum IBinOp { ADD = 0, SUB, MUL, SDIV, SREM, XOR };
+    enum IBinOp { ADD = 0, SUB, MUL, SDIV, SREM, XOR, LSHR, ASHR, SHL };
 
     IBinaryInst(BasicBlock *prt, IBinOp op, Value *lhs, Value *rhs);
 
@@ -192,6 +192,7 @@ class LoadInst : public Instruction {
   public:
     LoadInst(BasicBlock *prt, Value *ptr);
     std::string print() const final;
+    Value *ptr() const { return get_operand(0); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
@@ -207,6 +208,7 @@ class StoreInst : public Instruction {
   public:
     StoreInst(BasicBlock *prt, Value *v, Value *ptr);
     std::string print() const final;
+    Value *ptr() const { return get_operand(1); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
@@ -263,6 +265,7 @@ class PhiInst : public Instruction {
     PhiInst(BasicBlock *prt, Type *type);
 
     void add_phi_param(Value *val, BasicBlock *bb);
+    void rm_phi_param_from(BasicBlock *bb, bool tolerate);
 
     using Pair = std::pair<Value *, BasicBlock *>;
 
@@ -336,6 +339,7 @@ class GetElementPtrInst : public Instruction {
         : GetElementPtrInst(bb, baseptr, {static_cast<Value *>(args)...}) {}
 
     std::string print() const final;
+    Value *base_ptr() const { return get_operand(0); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);

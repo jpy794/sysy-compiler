@@ -47,7 +47,8 @@ GlobalVarLocalize::Action GlobalVarLocalize::parse(GlobalVariable *global_var,
         throw unreachable_error{};
 }
 
-void GlobalVarLocalize::run(PassManager *mgr) {
+bool GlobalVarLocalize::run(PassManager *mgr) {
+    changed = false;
     bool run_sink = false, run_prop = false;
     for (auto &global_var : mgr->get_module()->global_vars()) {
         switch (parse(&global_var, mgr->get_module()->get_main())) {
@@ -65,6 +66,7 @@ void GlobalVarLocalize::run(PassManager *mgr) {
     }
     NeedMem2reg = run_sink;
     NeedConstPro = run_prop;
+    return changed;
 }
 
 void GlobalVarLocalize::sink(GlobalVariable *global_var) {
@@ -79,6 +81,7 @@ void GlobalVarLocalize::sink(GlobalVariable *global_var) {
             break;
     entry->insert_inst<StoreInst>(iter, global_var->get_init(), alloc);
     global_var->replace_all_use_with(alloc);
+    changed = true;
 }
 
 void GlobalVarLocalize::prop_const(GlobalVariable *global_var) {
@@ -117,5 +120,6 @@ void GlobalVarLocalize::prop_const(GlobalVariable *global_var) {
         // replace load use with const init value
         for (auto &[load_user, _] : gep->get_use_list())
             load_user->replace_all_use_with(const_v);
+        changed = true;
     }
 }

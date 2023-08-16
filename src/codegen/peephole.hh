@@ -16,7 +16,7 @@
 namespace codegen {
 
 class PeepholeOpt {
-    static constexpr int PEEPHOLE_SIZE = 3;
+    static constexpr int PEEPHOLE_SIZE = 4;
 
     using Peephole = std::deque<mir::Instruction *>;
 
@@ -41,6 +41,7 @@ class PeepholeOpt {
     void run();
 
   private:
+    PassRet combine_load_store_const_off();
     /* li r1 4/8/16/...
      * mul r2, r2, r1 ==> slli r2, r2, 2 */
     PassRet mul2shift();

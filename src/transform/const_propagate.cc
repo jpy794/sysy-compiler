@@ -3,7 +3,6 @@
 #include "err.hh"
 #include "function.hh"
 #include "instruction.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include "value.hh"
 #include <stdexcept>
@@ -12,8 +11,9 @@ using namespace std;
 using namespace pass;
 using namespace ir;
 
-void ConstPro::run(pass::PassManager *mgr) {
+bool ConstPro::run(pass::PassManager *mgr) {
     auto m = mgr->get_module();
+    changed = false;
     for (auto &f_r : m->functions()) {
         {
             const_propa.clear();
@@ -23,6 +23,7 @@ void ConstPro::run(pass::PassManager *mgr) {
         traverse(&f_r);
         replace();
     }
+    return changed;
 }
 
 void ConstPro::traverse(Function *func) {
@@ -49,6 +50,7 @@ void ConstPro::replace() {
             }
             inst->replace_all_use_with(val2const[inst]);
             const_propa.insert(inst);
+            changed = true;
         }
     }
 }
@@ -88,19 +90,27 @@ bool ConstPro::check(Instruction *inst) {
     return true;
 }
 
+int const_int_like(Constant *c) {
+    if (is_a<ConstInt>(c))
+        return as_a<ConstInt>(c)->val();
+    if (is_a<ConstBool>(c))
+        return as_a<ConstBool>(c)->val();
+    if (is_a<ConstZero>(c))
+        return 0;
+    throw unreachable_error{};
+}
+
 Constant *ConstPro::const_folder(Instruction *inst) {
     if (is_a<PhiInst>(inst)) {
         return get_const(as_a<PhiInst>(inst)->get_operand(0));
     } else if (is_a<IBinaryInst>(inst)) {
         if (as_a<IBinaryInst>(inst)->get_ibin_op() == IBinaryInst::XOR) {
-            auto l_val =
-                as_a<ConstBool>(get_const(inst->get_operand(0)))->val();
-            auto r_val =
-                as_a<ConstBool>(get_const(inst->get_operand(1)))->val();
+            bool l_val = const_int_like(get_const(inst->get_operand(0)));
+            bool r_val = const_int_like(get_const(inst->get_operand(1)));
             return Constants::get().bool_const(l_val ^ r_val);
         }
-        auto l_val = as_a<ConstInt>(get_const(inst->get_operand(0)))->val();
-        auto r_val = as_a<ConstInt>(get_const(inst->get_operand(1)))->val();
+        auto l_val = const_int_like(get_const(inst->get_operand(0)));
+        auto r_val = const_int_like(get_const(inst->get_operand(1)));
         switch (as_a<IBinaryInst>(inst)->get_ibin_op()) {
         case IBinaryInst::ADD:
             return Constants::get().int_const(l_val + r_val);
@@ -112,6 +122,12 @@ Constant *ConstPro::const_folder(Instruction *inst) {
             return Constants::get().int_const(l_val / r_val);
         case IBinaryInst::SREM:
             return Constants::get().int_const(l_val % r_val);
+        case IBinaryInst::ASHR:
+            return Constants::get().int_const(l_val >> r_val);
+        case IBinaryInst::LSHR:
+            return Constants::get().int_const((l_val | 0U) >> r_val);
+        case IBinaryInst::SHL:
+            return Constants::get().int_const(l_val << r_val);
         case IBinaryInst::XOR:
             throw unreachable_error();
         }
@@ -130,8 +146,8 @@ Constant *ConstPro::const_folder(Instruction *inst) {
             // TODO: if FBinarayInst have FREM, this case need to be added here
         }
     } else if (is_a<ICmpInst>(inst)) {
-        auto l_val = as_a<ConstInt>(get_const(inst->get_operand(0)))->val();
-        auto r_val = as_a<ConstInt>(get_const(inst->get_operand(1)))->val();
+        auto l_val = const_int_like(get_const(inst->get_operand(0)));
+        auto r_val = const_int_like(get_const(inst->get_operand(1)));
         switch (as_a<ICmpInst>(inst)->get_icmp_op()) {
         case ICmpInst::EQ:
             return Constants::get().bool_const(l_val == r_val);
@@ -168,11 +184,11 @@ Constant *ConstPro::const_folder(Instruction *inst) {
         auto si_val = (int)(val);
         return Constants::get().int_const(si_val);
     } else if (is_a<Si2fpInst>(inst)) {
-        auto val = as_a<ConstInt>(get_const(inst->get_operand(0)))->val();
+        auto val = const_int_like(get_const(inst->get_operand(0)));
         auto fp_val = (int)(val);
         return Constants::get().float_const(fp_val);
     } else if (is_a<ZextInst>(inst)) {
-        auto val = as_a<ConstBool>(get_const(inst->get_operand(0)))->val();
+        bool val = const_int_like(get_const(inst->get_operand(0)));
         auto zext_val = (int)(val);
         return Constants::get().int_const(zext_val);
     } else {

@@ -33,7 +33,7 @@ class Pass {
     Pass &operator=(const Pass &) = delete;
 
     virtual ~Pass() {}
-    virtual void run(PassManager *mgr) = 0;
+    virtual bool run(PassManager *mgr) = 0;
     virtual void get_analysis_usage(AnalysisUsage &AU) const {}
     virtual bool always_invalid() const { return false; }
 };
@@ -103,6 +103,12 @@ class TransformPass : public Pass {
         using KillType = AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
     }
+    virtual bool always_invalid() const override { return true; }
+};
+
+class IterativePass : public Pass {
+  public:
+    explicit IterativePass() = default;
 };
 
 class PassManager {
@@ -155,6 +161,7 @@ class PassManager {
     }
 
     void run(const PassOrder &o, bool post = true);
+    void run_iteratively(const PassOrder &order);
 
     void reset() {
         for (auto &[_, info] : _passes)
@@ -180,5 +187,7 @@ class PassManager {
                                    pass_name + ">() has been called"};
         }
     }
+
+    bool run_single_pass(PassIDType passid, bool force, bool post);
 };
 }; // namespace pass

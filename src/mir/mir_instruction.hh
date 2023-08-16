@@ -30,10 +30,13 @@ enum MIR_INST : uint16_t {
     OR,
     AND,
     SLLI,
+    SRLI,
+    SRAI,
     /* RV64I */
     LD,
     ADDI,
     ADDIW,
+    SLLIW,
     SRLIW,
     SRAIW,
     ADDW,

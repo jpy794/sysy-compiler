@@ -16,7 +16,7 @@ class GlobalVarLocalize : public TransformPass {
     static bool NeedConstPro;
 
   public:
-    void run(PassManager *mgr) override;
+    bool run(PassManager *mgr) override;
 
     virtual void get_analysis_usage(AnalysisUsage &AU) const override {
         using KillType = AnalysisUsage::KillType;
@@ -28,9 +28,9 @@ class GlobalVarLocalize : public TransformPass {
         AU.add_post<DeadCode>();
     }
 
-    virtual bool always_invalid() const override { return true; }
-
   private:
+    bool changed;
+
     enum Action { BaseTypeSink, ConstArrProp, JustSkip };
     Action parse(ir::GlobalVariable *, ir::Function *main);
 

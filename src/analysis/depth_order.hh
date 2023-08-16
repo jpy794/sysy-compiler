@@ -23,7 +23,7 @@ class DepthOrder final : public pass::AnalysisPass {
         AU.set_kill_type(KillType::None);
     }
 
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
     virtual std::any get_result() const override { return &_result; }
 

@@ -1,6 +1,7 @@
 #include "loop_unroll.hh"
 #include "log.hh"
 #include <codecvt>
+#include <type_traits>
 
 using namespace pass;
 using namespace ir;
@@ -144,7 +145,7 @@ bool LoopUnroll::should_unroll(const SimpleLoopInfo &simple_loop) {
 }
 
 void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
-    map<Value *, Value *> old2new, phi2dst;
+    map<Value *, Value *> old2new, phi_dst2src;
     // set phi_var_map to initial value
     for (auto &&inst : simple_loop.header->insts()) {
         if (not inst.is<PhiInst>()) {
@@ -159,7 +160,7 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
             if (not contains(simple_loop.bbs, source)) {
                 old2new.emplace(phi_inst, value);
             } else {
-                phi2dst.emplace(value, phi_inst);
+                phi_dst2src.emplace(phi_inst, value);
             }
         }
     }
@@ -187,9 +188,18 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
     auto func = simple_loop.header->get_func();
     auto bb = func->create_bb();
 
+    set<Value *> phi_inited;
     auto clone2bb = [&](BasicBlock *old_bb) {
         for (auto &inst : old_bb->insts()) {
-            if (inst.is<BrInst>() or inst.is<PhiInst>()) {
+            if (inst.is<BrInst>()) {
+                continue;
+            }
+            if (inst.is<PhiInst>()) {
+                if (not contains(phi_inited, static_cast<Value *>(&inst))) {
+                    phi_inited.insert(&inst);
+                    continue;
+                }
+                old2new[&inst] = old2new[phi_dst2src[&inst]];
                 continue;
             }
             auto new_inst = bb->clone_inst(bb->insts().end(), &inst);
@@ -202,9 +212,6 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
                         return {false, nullptr};
                 });
             old2new[&inst] = new_inst;
-            if (contains(phi2dst, static_cast<Value *>(&inst))) {
-                old2new[phi2dst[&inst]] = new_inst;
-            }
         }
     };
 
@@ -237,8 +244,10 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
     }
 }
 
-void LoopUnroll::handle_func(Function *func, const FuncLoopInfo &loops) {
-    for (auto &&[header, loop] : loops) {
+void LoopUnroll::handle_func(Function *func, const FuncLoopInfo &func_loop) {
+    for (auto &&header : func_loop.get_topo_order()) {
+        auto &&loop = func_loop.loops.at(header);
+        assert(loop.preheader != nullptr);
         auto simple_loop = parse_simple_loop(header, loop);
         if (not simple_loop.has_value()) {
             continue;
@@ -251,7 +260,7 @@ void LoopUnroll::handle_func(Function *func, const FuncLoopInfo &loops) {
     }
 }
 
-void LoopUnroll::run(PassManager *mgr) {
+bool LoopUnroll::run(PassManager *mgr) {
     auto &&loop_info = mgr->get_result<LoopFind>().loop_info;
     auto m = mgr->get_module();
     for (auto &&func : m->functions()) {
@@ -260,4 +269,5 @@ void LoopUnroll::run(PassManager *mgr) {
         }
         handle_func(&func, loop_info.at(&func));
     }
+    return false;
 }

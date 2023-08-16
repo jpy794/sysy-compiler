@@ -1,5 +1,6 @@
 #pragma once
 
+#include "basic_block.hh"
 #include "dominator.hh"
 #include <unordered_map>
 #include <vector>
@@ -14,8 +15,12 @@ class LoopFind final : public AnalysisPass {
             std::set<ir::BasicBlock *> bbs;
             ir::BasicBlock *preheader;
             std::map<ir::BasicBlock *, ir::BasicBlock *> exits;
+            std::set<ir::BasicBlock *> sub_loops;
         };
-        using FuncLoopInfo = std::unordered_map<ir::BasicBlock *, LoopInfo>;
+        struct FuncLoopInfo {
+            std::unordered_map<ir::BasicBlock *, LoopInfo> loops;
+            std::vector<ir::BasicBlock *> get_topo_order() const;
+        };
         // ((func, ((header, loop_info)...))...)
         std::unordered_map<ir::Function *, FuncLoopInfo> loop_info;
     };
@@ -28,7 +33,7 @@ class LoopFind final : public AnalysisPass {
 
     std::any get_result() const final { return &_result; }
 
-    void run(PassManager *mgr) final;
+    bool run(PassManager *mgr) final;
 
     void clear() final {
         _result.loop_info.clear();

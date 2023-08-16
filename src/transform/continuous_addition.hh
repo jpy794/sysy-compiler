@@ -25,7 +25,7 @@ class ContinuousAdd final : public pass::TransformPass {
         size_t times;
     };
 
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
     void scan(ir::Function *);
 
@@ -34,6 +34,8 @@ class ContinuousAdd final : public pass::TransformPass {
     void add2mul(ir::Function *);
 
   private:
+    bool changed;
+
     std::map<ir::Value *, continuum> add_table;
     const unsigned add_upper_times = 4;
 };

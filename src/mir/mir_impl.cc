@@ -52,10 +52,13 @@ const map<MIR_INST, string_view> MIR_INST_NAME = {
     {OR, "or"},
     {AND, "and"},
     {SLLI, "slli"},
+    {SRLI, "srli"},
+    {SRAI, "srai"},
     {LD, "ld"},
     {SD, "sd"},
     {ADDI, "addi"},
     {ADDIW, "addiw"},
+    {SLLIW, "slliw"},
     {SRLIW, "srliw"},
     {SRAIW, "sraiw"},
     {ADDW, "addw"},
@@ -280,16 +283,22 @@ ostream &operator<<(ostream &os, const codegen::LiveInterVal &interval) {
 }
 
 void Module::dump(std::ostream &os, const Context &context) const {
-    os << ".text\n";
+    os << TAB << ".text" << '\n';
+    os << TAB << ".align 1" << '\n';
+    os << TAB << ".globl main" << '\n';
     for (auto func : _functions) {
         if (not func->is_definition())
             continue;
         func->dump(os, context);
     }
-    // LA would fail if .data is not set
-    os << ".data\n";
     // output global at the end
     for (auto global : _globals) {
+        if (global->get_init().empty()) {
+            os << TAB << ".bss" << '\n';
+        } else {
+            os << TAB << ".data" << '\n';
+        }
+        os << TAB << ".align 3" << '\n';
         global->dump(os, context);
     }
 }

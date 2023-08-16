@@ -1,11 +1,11 @@
 #pragma once
 
+#include "control_flow.hh"
 #include "dead_code.hh"
 #include "loop_find.hh"
 #include "loop_invariant.hh"
 #include "loop_simplify.hh"
 #include "pass.hh"
-#include "usedef_chain.hh"
 
 namespace pass {
 
@@ -15,18 +15,18 @@ class LoopUnroll final : public TransformPass {
     void get_analysis_usage(AnalysisUsage &AU) const final {
         using KillType = AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
+        AU.add_require<ControlFlow>();
         AU.add_require<LoopSimplify>();
         AU.add_require<LoopFind>();
         AU.add_post<DeadCode>();
     }
-    void run(PassManager *mgr) final;
+    bool run(PassManager *mgr) final;
 
   private:
     static constexpr int UNROLL_MAX = 1000;
 
     using LoopInfo = LoopFind::ResultType::LoopInfo;
     using FuncLoopInfo = LoopFind::ResultType::FuncLoopInfo;
-    using UseDefRes = UseDefChain::ResultType;
 
     // the loop that has 1 header, 1 body, 1 latch and 1 exit
     struct SimpleLoopInfo {
@@ -45,7 +45,7 @@ class LoopUnroll final : public TransformPass {
 
     static void unroll_simple_loop(const SimpleLoopInfo &simple_loop);
 
-    static void handle_func(ir::Function *func, const FuncLoopInfo &loops);
+    static void handle_func(ir::Function *func, const FuncLoopInfo &func_loop);
 };
 
 }; // namespace pass

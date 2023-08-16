@@ -12,14 +12,16 @@ using namespace std;
 using namespace pass;
 using namespace ir;
 
-void DeadCode::run(PassManager *mgr) {
+bool DeadCode::run(PassManager *mgr) {
     _func_info = &mgr->get_result<FuncInfo>();
     auto m = mgr->get_module();
+    changed = false;
     for (auto &f_r : m->functions()) {
         auto f = &f_r;
         mark_sweep(f);
     }
     sweep_globally(m);
+    return changed;
 }
 
 void DeadCode::mark_sweep(Function *func) {
@@ -54,7 +56,6 @@ void DeadCode::mark() {
             marked[op_inst] = true;
             work_list.push_back(op_inst);
         }
-        // TODO: elimate useless control flow
     }
 }
 
@@ -69,6 +70,7 @@ void DeadCode::sweep(Function *func) {
             }
             iter->replace_all_use_with(nullptr);
             iter = bb.erase_inst(&*iter);
+            changed = true;
         }
     }
 }
@@ -93,6 +95,7 @@ void DeadCode::sweep_globally(Module *m) {
         if (glob_var_r.get_use_list().size() == 0)
             unused_globals.push_back(&glob_var_r);
     }
+    changed |= unused_funcs.size() or unused_globals.size();
     for (auto func : unused_funcs)
         m->functions().erase(func);
     for (auto glob : unused_globals)

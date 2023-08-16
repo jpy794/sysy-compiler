@@ -6,7 +6,7 @@
 using namespace ir;
 using namespace pass;
 
-void Dominator::run(PassManager *mgr) {
+bool Dominator::run(PassManager *mgr) {
     clear();
     _depth_order = &mgr->get_result<DepthOrder>();
     auto m = mgr->get_module();
@@ -26,6 +26,7 @@ void Dominator::run(PassManager *mgr) {
         create_dominance_frontier(f);
         create_dom_tree_succ(f);
     }
+    return false;
 }
 
 void Dominator::create_idom(Function *f) {
@@ -123,6 +124,9 @@ void Dominator::create_dom_tree_succ(Function *f) {
 }
 
 bool Dominator::ResultType::is_dom(BasicBlock *domer, BasicBlock *domee) const {
+    if (domer == domee) {
+        return true;
+    }
     std::queue<BasicBlock *> bfs{};
     bfs.push(domer);
     while (not bfs.empty()) {

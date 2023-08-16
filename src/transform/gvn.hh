@@ -7,7 +7,6 @@
 #include "instruction.hh"
 #include "mem2reg.hh"
 #include "pass.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include "value.hh"
 #include <cassert>
@@ -33,12 +32,14 @@ class GVN final : public pass::TransformPass {
         AU.add_require<DepthOrder>();
         AU.add_post<DeadCode>();
     }
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
     template <class T, typename... Args>
     std::shared_ptr<T> create_expr(Args... args) {
         return std::make_shared<T>(std::forward<Args>(args)...);
     }
+
+    bool always_invalid() const override { return false; }
 
     // Expression
     class Expression {
@@ -512,6 +513,11 @@ class GVN final : public pass::TransformPass {
         lhs = valueExpr(::as_a<InstT>(val)->get_operand(0), pin);
         rhs = valueExpr(::as_a<InstT>(val)->get_operand(1), pin);
         return create_expr<ExprT>(op, lhs, rhs);
+    }
+
+    void clear() {
+        _val2expr.clear();
+        non_copy_pout.clear();
     }
 
   private:

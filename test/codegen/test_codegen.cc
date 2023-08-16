@@ -1,3 +1,4 @@
+#include "algebraic_simplify.hh"
 #include "ast.hh"
 #include "codegen.hh"
 #include "const_propagate.hh"
@@ -21,7 +22,6 @@
 #include "pass.hh"
 #include "raw_ast.hh"
 #include "strength_reduce.hh"
-#include "usedef_chain.hh"
 
 #include <filesystem>
 #include <fstream>
@@ -60,7 +60,6 @@ int main(int argc, char **argv) {
 
     // analysis
     pm.add_pass<Dominator>();
-    pm.add_pass<UseDefChain>();
     pm.add_pass<LoopFind>();
     pm.add_pass<FuncInfo>();
     pm.add_pass<DepthOrder>();
@@ -79,6 +78,7 @@ int main(int argc, char **argv) {
     pm.add_pass<GVN>();
     pm.add_pass<GlobalVarLocalize>();
     pm.add_pass<ContinuousAdd>();
+    pm.add_pass<AlgebraicSimplify>();
 
     pm.run(
         {
@@ -87,10 +87,21 @@ int main(int argc, char **argv) {
             PassID<StrengthReduce>(),
             PassID<GVN>(),
             PassID<Inline>(),
-            PassID<ContinuousAdd>(),
+            PassID<AlgebraicSimplify>(),
+            // PassID<ContinuousAdd>(),
             PassID<LoopInvariant>(),
             PassID<LoopUnroll>(),
             PassID<ControlFlow>(),
+        },
+        true);
+    pm.reset();
+    pm.run(
+        {
+            PassID<ConstPro>(),
+            PassID<LoopInvariant>(),
+            PassID<AlgebraicSimplify>(),
+            PassID<ControlFlow>(),
+            PassID<DeadCode>(),
         },
         true);
 

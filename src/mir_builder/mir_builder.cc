@@ -11,6 +11,7 @@
 #include "type.hh"
 #include "value.hh"
 #include <cassert>
+#include <cmath>
 #include <new>
 #include <vector>
 
@@ -383,7 +384,179 @@ any MIRBuilder::visit(const ir::ZextInst *instruction) {
     return {};
 }
 
+// ref: https://gmplib.org/~tege/divcnst-pldi94.pdf
+void MIRBuilder::build_sdiv_by_const(Value *res, Value *n, int d) {
+    constexpr int N = 32;
+    auto pow2 = [](size_t a) { return 1ULL << a; };
+
+    auto d_abs = abs(static_cast<int64_t>(d));
+    auto l = max(1L, static_cast<int64_t>(ceil(log2(d_abs))));
+    auto m = pow2(N + l - 1) / d_abs + 1;
+
+    assert(d_abs != 0);
+
+    if (d_abs == 1) {
+        if (d > 0) {
+            cur_label->add_inst(Move, {res, n});
+        } else /* d < 0 */ {
+            cur_label->add_inst(SUBW, {res, load_imm(0), n});
+        }
+        return;
+    }
+
+    if (d_abs == pow2(l)) {
+        if (l > 1) {
+            cur_label->add_inst(SRAIW, {res, n, create<Imm12bit>(l - 1)});
+        }
+        cur_label->add_inst(mir::SRLIW,
+                            {res, l > 1 ? res : n, create<Imm12bit>(N - l)});
+        cur_label->add_inst(mir::ADDW, {res, res, n});
+        cur_label->add_inst(mir::SRAIW, {res, res, create<Imm12bit>(l)});
+    } else if (m < pow2(N - 1)) {
+        cur_label->add_inst(MUL, {res, n, load_imm(m)});
+        cur_label->add_inst(mir::SRAI, {res, res, create<Imm12bit>(N + l - 1)});
+        auto tmp = create<IVReg>();
+        cur_label->add_inst(SRLIW, {tmp, n, create<Imm12bit>(N - 1)});
+        cur_label->add_inst(mir::ADDW, {res, res, tmp});
+    } else {
+        cur_label->add_inst(MUL, {res, n, load_imm(m - pow2(N))});
+        cur_label->add_inst(mir::SRAI, {res, res, create<Imm12bit>(N)});
+        cur_label->add_inst(mir::ADDW, {res, res, n});
+        cur_label->add_inst(mir::SRAI, {res, res, create<Imm12bit>(l - 1)});
+        auto tmp = create<IVReg>();
+        cur_label->add_inst(SRLIW, {tmp, n, create<Imm12bit>(N - 1)});
+        cur_label->add_inst(mir::ADDW, {res, res, tmp});
+    }
+
+    if (d < 0) {
+        // neg res, res
+        cur_label->add_inst(SUBW, {res, load_imm(0), res});
+    }
+}
+
+void MIRBuilder::build_mul_by_const(Value *res, Value *n, int d) {
+    auto pow2 = [](size_t a) { return 1ULL << a; };
+
+    auto d_abs = abs(static_cast<int64_t>(d));
+    auto l = max(1L, static_cast<int64_t>(ceil(log2(d_abs))));
+
+    // create a mv rd, zero here will lead to dead code,
+    // which codegen can not handle properly.
+    // so let's try to avoid this circumstance in ir.
+    if (d_abs == 0) {
+        cur_label->add_inst(MULW, {res, n, load_imm(d)});
+        return;
+    }
+
+    if (d_abs == 1) {
+        if (d > 0) {
+            cur_label->add_inst(Move, {res, n});
+        } else /* d < 0*/ {
+            cur_label->add_inst(SUBW, {res, load_imm(0), n});
+        }
+        return;
+    }
+
+    if (d_abs == pow2(l)) {
+        cur_label->add_inst(SLLIW, {res, n, create<Imm12bit>(l)});
+        if (d < 0) {
+            cur_label->add_inst(SUBW, {res, load_imm(0), res});
+        }
+        return;
+    }
+
+    cur_label->add_inst(MULW, {res, n, load_imm(d)});
+}
+
+bool MIRBuilder::build_sdiv_by_const(const ir::IBinaryInst *inst) {
+    using IBin = ir::IBinaryInst;
+    if (inst->get_ibin_op() != IBin::SDIV ||
+        not inst->rhs()->is<ir::ConstInt>()) {
+        return false;
+    }
+
+    Value *n{nullptr};
+    if (inst->lhs()->is<ir::ConstInt>()) {
+        n = load_imm(inst->lhs()->as<ir::ConstInt>()->val());
+    } else {
+        n = value_map.at(inst->lhs());
+    }
+
+    Value *res = value_map.at(inst);
+
+    auto d = inst->rhs()->as<ir::ConstInt>()->val();
+
+    build_sdiv_by_const(res, n, d);
+
+    return true;
+}
+
+bool MIRBuilder::build_srem_by_const(const ir::IBinaryInst *inst) {
+    using IBin = ir::IBinaryInst;
+    if (inst->get_ibin_op() != IBin::SREM ||
+        not inst->rhs()->is<ir::ConstInt>()) {
+        return false;
+    }
+
+    Value *n{nullptr};
+    if (inst->lhs()->is<ir::ConstInt>()) {
+        n = load_imm(inst->lhs()->as<ir::ConstInt>()->val());
+    } else {
+        n = value_map.at(inst->lhs());
+    }
+
+    Value *res = value_map.at(inst);
+
+    auto d = inst->rhs()->as<ir::ConstInt>()->val();
+
+    build_sdiv_by_const(res, n, d);
+    build_mul_by_const(res, res, d);
+    cur_label->add_inst(SUBW, {res, n, res});
+
+    return true;
+}
+
+bool MIRBuilder::build_mul_by_const(const ir::IBinaryInst *inst) {
+    using IBin = ir::IBinaryInst;
+    if (inst->get_ibin_op() != IBin::MUL ||
+        not(inst->rhs()->is<ir::ConstInt>() ||
+            inst->lhs()->is<ir::ConstInt>())) {
+        return false;
+    }
+
+    ir::Value *lhs = inst->lhs(), *rhs = inst->rhs();
+    if (lhs->is<ir::ConstInt>()) {
+        swap(lhs, rhs);
+    }
+
+    // rhs is const int now
+    assert(rhs->is<ir::ConstInt>());
+
+    Value *n{nullptr};
+    if (lhs->is<ir::ConstInt>()) {
+        n = load_imm(lhs->as<ir::ConstInt>()->val());
+    } else {
+        n = value_map.at(lhs);
+    }
+
+    Value *res = value_map.at(inst);
+
+    auto d = rhs->as<ir::ConstInt>()->val();
+
+    build_mul_by_const(res, n, d);
+
+    return true;
+}
+
 any MIRBuilder::visit(const ir::IBinaryInst *instruction) {
+    auto done{false};
+    done |= build_sdiv_by_const(instruction);
+    done |= build_srem_by_const(instruction);
+    done |= build_mul_by_const(instruction);
+    if (done) {
+        return {};
+    }
+
     static const auto have_imm_version = {ir::IBinaryInst::ADD,
                                           ir::IBinaryInst::XOR};
 
@@ -399,6 +572,18 @@ any MIRBuilder::visit(const ir::IBinaryInst *instruction) {
     switch (ibin_op) {
     case ir::IBinaryInst::ADD:
         cur_label->add_inst(res.op2_is_imm ? ADDIW : ADDW,
+                            {result_reg, res.op1, res.op2});
+        break;
+    case ir::IBinaryInst::ASHR:
+        cur_label->add_inst(res.op2_is_imm ? SRAIW : SRAW,
+                            {result_reg, res.op1, res.op2});
+        break;
+    case ir::IBinaryInst::LSHR:
+        cur_label->add_inst(res.op2_is_imm ? SRLIW : SRLW,
+                            {result_reg, res.op1, res.op2});
+        break;
+    case ir::IBinaryInst::SHL:
+        cur_label->add_inst(res.op2_is_imm ? SLLIW : SLLW,
                             {result_reg, res.op1, res.op2});
         break;
     case ir::IBinaryInst::SUB:

@@ -6,7 +6,6 @@
 #include "global_variable.hh"
 #include "instruction.hh"
 #include "type.hh"
-#include "usedef_chain.hh"
 #include "utils.hh"
 #include "value.hh"
 #include <cassert>
@@ -35,7 +34,7 @@ void Mem2reg::clear() {
     _var_new_name.clear();
 }
 
-void Mem2reg::run(PassManager *mgr) {
+bool Mem2reg::run(PassManager *mgr) {
     clear();
     _dominator = &mgr->get_result<Dominator>();
     auto m = mgr->get_module();
@@ -45,6 +44,7 @@ void Mem2reg::run(PassManager *mgr) {
             re_name(f.get_entry_bb());
         }
     }
+    return false;
 }
 
 void Mem2reg::generate_phi(Function *f) {

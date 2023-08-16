@@ -1,5 +1,6 @@
 #pragma once
 #include "const_propagate.hh"
+#include "dead_code.hh"
 #include "depth_order.hh"
 #include "function.hh"
 #include "global_localize.hh"
@@ -24,11 +25,12 @@ class Inline final : public pass::TransformPass {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
         AU.add_require<DepthOrder>();
+        AU.add_post<DeadCode>();
         AU.add_post<GlobalVarLocalize>();
         AU.add_post<ConstPro>();
     }
 
-    virtual void run(pass::PassManager *mgr) override;
+    virtual bool run(pass::PassManager *mgr) override;
 
   private:
     bool is_inline(ir::Function *);
