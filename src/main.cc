@@ -135,10 +135,11 @@ int main(int argc, char **argv) {
         // the functions from ContinuousAdd and strength_reduce are implemented
         // in algebraic simplify
         PassOrder iterative_passes = {
-            PassID<RmUnreachBB>(),  PassID<GlobalVarLocalize>(),
-            PassID<ConstPro>(),     PassID<AlgebraicSimplify>(),
-            PassID<LocalCmnExpr>(), PassID<ControlFlow>(),
-            PassID<ArrayVisit>(),   PassID<DeadCode>(),
+            PassID<RmUnreachBB>(),   PassID<GlobalVarLocalize>(),
+            PassID<ConstPro>(),      PassID<AlgebraicSimplify>(),
+            PassID<LoopInvariant>(), PassID<LocalCmnExpr>(),
+            PassID<ControlFlow>(),   PassID<ArrayVisit>(),
+            PassID<DeadCode>(),
         };
         pm.run({PassID<Mem2reg>()}, true);
         pm.run_iteratively(iterative_passes);
@@ -146,9 +147,7 @@ int main(int argc, char **argv) {
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<Inline>()}, true);
         pm.run_iteratively(iterative_passes);
-        pm.run({PassID<LoopUnroll>()}, false);
-        pm.run_iteratively(iterative_passes);
-        pm.run({PassID<LoopInvariant>()}, false);
+        pm.run({PassID<LoopUnroll>()}, false); // FIXME have bug on bitset.sy
         pm.run_iteratively(iterative_passes);
     } else
         pm.run({PassID<Mem2reg>(), PassID<DeadCode>()});

@@ -1,4 +1,6 @@
 #include "array_visit.hh"
+#include "basic_block.hh"
+#include "depth_order.hh"
 #include "err.hh"
 #include "func_info.hh"
 #include "function.hh"
@@ -6,8 +8,9 @@
 #include "instruction.hh"
 #include "type.hh"
 #include "utils.hh"
+#include "value.hh"
+#include <algorithm>
 #include <cassert>
-#include <iostream>
 
 using namespace std;
 using namespace pass;
@@ -60,33 +63,65 @@ ArrayVisit::AliasResult ArrayVisit::is_alias(MemAddress *lhs, MemAddress *rhs) {
 }
 
 void ArrayVisit::clear() {
-    ptr2addr.clear();
     addrs.clear();
     latest_val.clear();
     del_store_load.clear();
+    visited.clear();
 }
 
 bool ArrayVisit::run(pass::PassManager *mgr) {
     auto m = mgr->get_module();
     _func_info = &mgr->get_result<FuncInfo>();
+    _depth_order = &mgr->get_result<DepthOrder>();
     clear();
-    changed = false;
+    bool ir_changed = false;
     for (auto &f_r : m->functions()) {
         if (f_r.is_external)
             continue;
-        for (auto &bb_r : f_r.bbs()) {
-            del_store_load.clear();
+        bool mem_changed = true;
+        while (mem_changed) {
+            mem_changed = false;
+            visited.clear();
             latest_val.clear();
-            // mem visit don't scan vals on the same MemAddress between
-            // different bbs
-            mem_visit(&bb_r);
-            for (auto store : del_store_load) {
-                bb_r.erase_inst(store);
-                changed = true;
+            // analysis
+            bool iter = true;
+            while (iter) {
+                iter = false;
+                replace_table.clear();
+                del_store_load.clear();
+                for (auto bb_p : _depth_order->_depth_priority_order.at(&f_r)) {
+                    bb = bb_p;
+                    auto prev_latest_vals = latest_val[bb];
+                    latest_val[bb] = join(bb);
+                    visited[bb] = true;
+                    mem_visit(bb);
+                    if (not equal(prev_latest_vals, latest_val[bb]))
+                        iter = true;
+                }
             }
+            // change ir
+            if (replace_table.size() || del_store_load.size()) {
+                ir_changed = true;
+                mem_changed = true;
+            }
+            for (auto [inst, val] : replace_table) {
+                while (is_a<Instruction>(val) &&
+                       contains(replace_table, as_a<Instruction>(val))) {
+                    val = replace_table[as_a<Instruction>(val)];
+                }
+                inst->replace_all_use_with(val);
+            }
+            for (auto inst : del_store_load) {
+                inst->get_parent()->erase_inst(inst);
+            }
+            // delete MemAddress
+            for (auto mem : addrs) {
+                delete mem;
+            }
+            addrs.clear();
         }
     }
-    return changed;
+    return ir_changed;
 }
 
 void ArrayVisit::mem_visit(BasicBlock *bb) {
@@ -98,27 +133,28 @@ void ArrayVisit::mem_visit(BasicBlock *bb) {
                 continue;
             auto ptr = inst->get_operand(1);
             auto mem = alias_analysis(ptr);
-            if (latest_val[mem]) {
-                if (inst->get_operand(0) == latest_val[mem]) {
+            if (latest_val[bb][mem]) {
+                if (inst->get_operand(0) == latest_val[bb][mem]) {
                     // if the same val is stored twice, then delete the
                     // second store
                     del_store_load.insert(inst);
                 } else {
-                    latest_val[mem] = inst->get_operand(0);
+                    latest_val[bb][mem] = inst->get_operand(0);
                 }
             } else {
-                latest_val[mem] = inst->get_operand(0);
+                latest_val[bb][mem] = inst->get_operand(0);
             }
-        }
-        // if mem based on the inst has the latest val meaning that this
-        // load can be replaced with val
-        else if (is_a<LoadInst>(inst)) {
+        } else if (is_a<LoadInst>(inst)) {
             auto ptr = inst->get_operand(0);
-            MemAddress *mem = alias_analysis(ptr);
-            if (latest_val[mem]) {
-                inst->replace_all_use_with(latest_val[mem]);
-                changed = true;
+            MemAddress *mem = alias_analysis(ptr, false);
+            // if mem has the latest val, then replace it
+            if (latest_val[bb][mem]) {
+                replace_table[inst] = latest_val[bb][mem];
                 del_store_load.insert(inst);
+            }
+            // the load inst is the latest val
+            else {
+                latest_val[bb][mem] = inst;
             }
         }
         // take a conservative strategy that any non_pure function may
@@ -126,16 +162,13 @@ void ArrayVisit::mem_visit(BasicBlock *bb) {
         else if (is_a<CallInst>(inst) &&
                  not _func_info->is_pure_function(
                      as_a<Function>(inst->get_operand(0)))) {
-            latest_val.clear();
+            latest_val[bb].clear();
         }
     }
 }
 
 // create MemAddress based on ptr and scan whether there is a alias MemAddress
-ArrayVisit::MemAddress *ArrayVisit::alias_analysis(Value *ptr) {
-    if (ptr2addr[ptr]) {
-        return ptr2addr[ptr];
-    }
+ArrayVisit::MemAddress *ArrayVisit::alias_analysis(Value *ptr, bool clear) {
     auto new_mem = MemAddress(ptr);
     MemAddress *ret_mem = nullptr;
     for (auto mem : addrs) {
@@ -149,7 +182,8 @@ ArrayVisit::MemAddress *ArrayVisit::alias_analysis(Value *ptr) {
             ret_mem = mem;
             break;
         case AliasResult::MayAlias:
-            latest_val[mem] = nullptr;
+            if (clear)
+                latest_val[bb][mem] = nullptr;
             break;
         case AliasResult::NoAlias:
             break;
@@ -159,5 +193,46 @@ ArrayVisit::MemAddress *ArrayVisit::alias_analysis(Value *ptr) {
         ret_mem = new MemAddress(new_mem);
         addrs.insert(ret_mem);
     }
-    return ptr2addr[ptr] = ret_mem;
+    return ret_mem;
+}
+
+map<ArrayVisit::MemAddress *, Value *> ArrayVisit::join(BasicBlock *bb) {
+    set<BasicBlock *>::iterator iter;
+    map<ArrayVisit::MemAddress *, Value *> in_latest_val{};
+    for (iter = bb->pre_bbs().begin(); iter != bb->pre_bbs().end(); iter++) {
+        if (visited[*iter]) {
+            in_latest_val = latest_val[*iter++];
+            break;
+        }
+    }
+    for (; iter != bb->pre_bbs().end(); iter++) {
+        if (visited[*iter]) {
+            auto tmp = latest_val[*iter];
+            for (auto [mem, val] : in_latest_val) {
+                if (contains(latest_val[*iter], mem)) {
+                    if (in_latest_val[mem] != latest_val[*iter][mem]) {
+                        in_latest_val[mem] = nullptr;
+                    }
+                } else {
+                    in_latest_val[mem] = nullptr;
+                }
+            }
+        }
+    }
+    return in_latest_val;
+}
+
+bool ArrayVisit::equal(map<MemAddress *, Value *> &mem_vals1,
+                       map<MemAddress *, Value *> &mem_vals2) {
+    if (mem_vals1.size() != mem_vals2.size())
+        return false;
+    auto l_iter = mem_vals1.begin();
+    auto r_iter = mem_vals2.begin();
+    for (; l_iter != mem_vals1.end(); l_iter++, r_iter++) {
+        if (l_iter->first != r_iter->first)
+            return false;
+        else if (l_iter->second != r_iter->second)
+            return false;
+    }
+    return true;
 }

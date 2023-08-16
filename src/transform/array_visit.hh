@@ -1,5 +1,6 @@
 #pragma once
 #include "basic_block.hh"
+#include "depth_order.hh"
 #include "func_info.hh"
 #include "global_variable.hh"
 #include "instruction.hh"
@@ -8,7 +9,6 @@
 #include "utils.hh"
 #include "value.hh"
 #include <cassert>
-#include <iostream>
 #include <map>
 #include <optional>
 #include <set>
@@ -23,11 +23,6 @@ class ArrayVisit final : public pass::TransformPass {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::Normal);
         AU.add_require<FuncInfo>();
-    }
-    ~ArrayVisit() {
-        for (auto mem : addrs) {
-            delete mem;
-        }
     }
 
     virtual bool run(pass::PassManager *mgr) override;
@@ -98,20 +93,28 @@ class ArrayVisit final : public pass::TransformPass {
     // TODO:annotation
     AliasResult is_alias(MemAddress *lhs, MemAddress *rhs);
 
+    bool equal(std::map<MemAddress *, ir::Value *> &,
+               std::map<MemAddress *, ir::Value *> &);
+
+    std::map<MemAddress *, ir::Value *> join(ir::BasicBlock *);
+
     void mem_visit(ir::BasicBlock *);
     void clear();
 
-    MemAddress *alias_analysis(ir::Value *);
+    MemAddress *alias_analysis(ir::Value *, bool clear = true);
 
   private:
-    bool changed;
-
-    std::map<ir::Value *, MemAddress *> ptr2addr;
+    ir::BasicBlock *bb;
     std::set<MemAddress *> addrs;
-    std::map<MemAddress *, ir::Value *> latest_val{};
+    std::map<ir::BasicBlock *, std::map<MemAddress *, ir::Value *>>
+        latest_val{};
     std::set<ir::Instruction *> del_store_load;
+    std::map<ir::Instruction *, ir::Value *> replace_table;
+
+    std::map<ir::BasicBlock *, bool> visited{};
 
     const FuncInfo::ResultType *_func_info;
+    const DepthOrder::ResultType *_depth_order;
 };
 
 }; // namespace pass
