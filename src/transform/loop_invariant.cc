@@ -42,6 +42,9 @@ bool LoopInvariant::is_dom_store(Instruction *inst, const LoopInfo &loop) {
     };
 
     auto may_alias = [&](Instruction *other) {
+        if (other->is<CallInst>()) {
+            return true;
+        }
         if (not(other->is<LoadInst>() or other->is<StoreInst>())) {
             return false;
         }
@@ -79,17 +82,55 @@ bool LoopInvariant::is_dom_store(Instruction *inst, const LoopInfo &loop) {
     return dom_in_bb and dom_out_bb;
 }
 
+vector<Instruction *> LoopInvariant::collect_gep_store(BasicBlock *bb,
+                                                       const LoopInfo &loop) {
+    vector<Instruction *> ret;
+    for (auto &&inst : bb->insts()) {
+        if (not inst.is<StoreInst>()) {
+            continue;
+        }
+
+        auto store = inst.as<StoreInst>();
+        if (not is_invariant_operand(store->val(), loop)) {
+            continue;
+        }
+        if (not is_dom_store(store, loop)) {
+            continue;
+        }
+        if (store->ptr()->is<GetElementPtrInst>()) {
+            auto gep = store->ptr()->as<GetElementPtrInst>();
+            bool gep_op_invariant{true};
+            for (auto &&op : gep->operands()) {
+                if (not is_invariant_operand(op, loop)) {
+                    gep_op_invariant = false;
+                    break;
+                }
+            }
+            if (not gep_op_invariant) {
+                continue;
+            }
+            ret.push_back(gep);
+            ret.push_back(store);
+        } else if (store->ptr()->is<AllocaInst>()) {
+            if (is_invariant_operand(store->ptr(), loop)) {
+                ret.push_back(store);
+            }
+        }
+    }
+    return ret;
+}
+
 bool LoopInvariant::is_side_effect_inst(Instruction *inst) {
     return inst->is<LoadInst>() || inst->is<StoreInst>() ||
            inst->is<CallInst>() || inst->is<RetInst>() || inst->is<BrInst>() ||
-           inst->is<PhiInst>();
+           inst->is<PhiInst>() || inst->is<GetElementPtrInst>();
 }
 
 vector<Instruction *>
 LoopInvariant::collect_invariant_inst(BasicBlock *bb, const LoopInfo &loop) {
     vector<Instruction *> ret;
     for (auto &&inst : bb->insts()) {
-        if (is_side_effect_inst(&inst) and not is_dom_store(&inst, loop)) {
+        if (is_side_effect_inst(&inst)) {
             continue;
         }
         bool invariant{true};
@@ -116,6 +157,8 @@ void LoopInvariant::handle_func(Function *func, const FuncLoopInfo &func_loop) {
             vector<Instruction *> insts;
             for (auto bb : loop.bbs) {
                 auto bb_insts = collect_invariant_inst(bb, loop);
+                insts.insert(insts.end(), bb_insts.begin(), bb_insts.end());
+                bb_insts = collect_gep_store(bb, loop);
                 insts.insert(insts.end(), bb_insts.begin(), bb_insts.end());
             }
             changed = insts.size() > 0;

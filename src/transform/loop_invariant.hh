@@ -30,6 +30,8 @@ class LoopInvariant final : public TransformPass {
     bool is_dom_store(ir::Instruction *inst, const LoopInfo &loop);
     std::vector<ir::Instruction *> collect_invariant_inst(ir::BasicBlock *bb,
                                                           const LoopInfo &loop);
+    std::vector<ir::Instruction *> collect_gep_store(ir::BasicBlock *bb,
+                                                     const LoopInfo &loop);
 };
 
 }; // namespace pass
