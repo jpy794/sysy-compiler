@@ -23,6 +23,7 @@
 #include "dominator.hh"
 #include "err.hh"
 #include "func_info.hh"
+#include "func_trim.hh"
 #include "global_localize.hh"
 #include "gvn.hh"
 #include "inline.hh"
@@ -130,6 +131,7 @@ int main(int argc, char **argv) {
     pm.add_pass<Inline>();
     pm.add_pass<Mem2reg>();
     pm.add_pass<GVN>();
+    pm.add_pass<FuncTrim>();
 
     if (cfg.optimize) {
         // the functions from ContinuousAdd and strength_reduce are implemented
@@ -141,13 +143,13 @@ int main(int argc, char **argv) {
             PassID<ControlFlow>(),   PassID<ArrayVisit>(),
             PassID<DeadCode>(),
         };
-        pm.run({PassID<Mem2reg>()}, true);
+        pm.run({PassID<FuncTrim>(), PassID<Mem2reg>()}, true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<GVN>()}, true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<Inline>()}, true);
         pm.run_iteratively(iterative_passes);
-        pm.run({PassID<LoopUnroll>()}, false); // FIXME have bug on bitset.sy
+        pm.run({PassID<LoopUnroll>()}, true);
         pm.run_iteratively(iterative_passes);
     } else
         pm.run({PassID<Mem2reg>(), PassID<DeadCode>()});

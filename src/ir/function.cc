@@ -1,7 +1,9 @@
 #include "function.hh"
 #include "basic_block.hh"
+#include "instruction.hh"
 #include "module.hh"
 #include "type.hh"
+#include <cassert>
 
 using namespace ir;
 using namespace std;
@@ -48,3 +50,21 @@ std::string Function::print() const {
 }
 
 std::string Argument::print() const { return this->get_name(); }
+
+void Function::decay_to_void_ret() {
+    auto func_type = as_a<FuncType>(get_type());
+    assert(not func_type->get_result_type()->is<VoidType>());
+    auto void_type = Types::get().void_type();
+    auto param_type = func_type->get_param_types();
+    auto void_func_type =
+        Types::get().func_type(void_type, std::move(param_type));
+    change_type(void_func_type);
+    // rm ret value
+    for (auto &bb : _bbs) {
+        auto ret = &*bb.insts().rbegin();
+        if (not is_a<RetInst>(ret))
+            continue;
+        assert(ret->operands().size() == 1);
+        ret->remove_operand(0);
+    }
+}

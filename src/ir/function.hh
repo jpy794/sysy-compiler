@@ -19,6 +19,8 @@ class Function : public Value, public ilist<Function>::node {
     Function(FuncType *type, std::string &&name, bool external = false);
     ~Function();
 
+    void decay_to_void_ret();
+
     // creaters
     template <typename... Args> BasicBlock *create_bb(Args &&...args) {
         _bbs.emplace_back(this, args...);

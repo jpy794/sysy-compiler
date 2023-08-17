@@ -221,6 +221,13 @@ CallInst::CallInst(BasicBlock *prt, Function *func, vector<Value *> &&params)
         assert(params[i]->get_type() == func_ty->get_param_type(i));
 }
 
+void CallInst::decay_to_void_type() {
+    assert(as_a<FuncType>(get_operand(0)->get_type())
+               ->get_result_type()
+               ->is<VoidType>());
+    Value::change_type(Types::get().void_type());
+}
+
 Fp2siInst::Fp2siInst(BasicBlock *prt, Value *floatv)
     : Instruction(prt, Types::get().int_type(), {floatv}) {
     assert(is_a<FloatType>(floatv->get_type()));

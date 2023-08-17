@@ -298,6 +298,8 @@ class CallInst : public Instruction {
         return visitor->visit(this);
     }
 
+    void decay_to_void_type();
+
   private:
     static Type *_deduce_type(BasicBlock *prt,
                               const std::vector<Value *> &operands);
