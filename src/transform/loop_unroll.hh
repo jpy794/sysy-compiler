@@ -30,9 +30,8 @@ class LoopUnroll final : public TransformPass {
 
     // the loop that has 1 header, 1 body, 1 latch and 1 exit
     struct SimpleLoopInfo {
-        std::set<ir::BasicBlock *> bbs;
-        ir::BasicBlock *header{nullptr}, *body{nullptr}, *exit{nullptr},
-            *preheader{nullptr};
+        std::set<ir::BasicBlock *> bbs, bodies;
+        ir::BasicBlock *header{nullptr}, *exit{nullptr}, *preheader{nullptr};
         ir::Value *ind_var{nullptr};
         ir::ConstInt *initial{nullptr}, *bound{nullptr}, *step{nullptr};
         ir::ICmpInst::ICmpOp icmp_op;

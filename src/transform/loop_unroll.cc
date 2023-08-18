@@ -11,21 +11,23 @@ optional<LoopUnroll::SimpleLoopInfo>
 LoopUnroll::parse_simple_loop(BasicBlock *header, const LoopInfo &loop) {
     SimpleLoopInfo ret;
 
-    ret.bbs = loop.bbs;
-
-    // the loop has too many bbs
-    if (loop.bbs.size() > 2) {
-        return nullopt;
-    }
-
     // parse header
     ret.header = header;
+    ret.bbs = loop.bbs;
 
     // parse body
     for (auto &&bb : loop.bbs) {
         if (bb != header) {
-            ret.body = bb;
+            ret.bodies.insert(bb);
         }
+    }
+
+    if (loop.sub_loops.size() > 0) {
+        return nullopt;
+    }
+
+    if (loop.latches.size() > 1) {
+        return nullopt;
     }
 
     // the loop has too many exiting edges
@@ -145,9 +147,41 @@ bool LoopUnroll::should_unroll(const SimpleLoopInfo &simple_loop) {
 }
 
 void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
+    auto header = simple_loop.header;
+
+    // topological sort
+    vector<BasicBlock *> bodies_order;
+    map<BasicBlock *, size_t> pre_cnt;
+    for (auto bb : simple_loop.bodies) {
+        if (contains(bb->pre_bbs(), header)) {
+            pre_cnt[bb] = 0;
+        } else {
+            pre_cnt[bb] = bb->pre_bbs().size();
+        }
+    }
+    while (not pre_cnt.empty()) {
+        bool changed{false};
+        for (auto [bb, cnt] : pre_cnt) {
+            if (cnt == 0) {
+                bodies_order.push_back(bb);
+                for (auto suc : bb->suc_bbs()) {
+                    if (suc != header) {
+                        pre_cnt[suc]--;
+                    }
+                }
+                pre_cnt.erase(bb);
+                changed = true;
+                break;
+            }
+        }
+        assert(changed);
+    }
+
+    assert(bodies_order.size() == simple_loop.bodies.size());
+
     map<Value *, Value *> old2new, phi_dst2src;
     // set phi_var_map to initial value
-    for (auto &&inst : simple_loop.header->insts()) {
+    for (auto &&inst : header->insts()) {
         if (not inst.is<PhiInst>()) {
             break;
         }
@@ -157,10 +191,13 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
         // loop body
         assert(phi_inst->to_pairs().size() == 2);
         for (auto [value, source] : phi_inst->to_pairs()) {
-            if (not contains(simple_loop.bbs, source)) {
-                old2new.emplace(phi_inst, value);
-            } else {
+            if (contains(simple_loop.bbs, source)) {
                 phi_dst2src.emplace(phi_inst, value);
+            }
+        }
+        for (auto [value, source] : phi_inst->to_pairs()) {
+            if (not contains(simple_loop.bbs, source)) {
+                old2new.emplace(phi_dst2src[phi_inst], value);
             }
         }
     }
@@ -185,24 +222,27 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
         }
     };
 
-    auto func = simple_loop.header->get_func();
-    auto bb = func->create_bb();
+    auto func = header->get_func();
 
-    set<Value *> phi_inited;
+    auto clone_bbs = [&]() {
+        for (auto bb : bodies_order) {
+            old2new[bb] = func->create_bb();
+        }
+        old2new[header] = func->create_bb();
+    };
+
     auto clone2bb = [&](BasicBlock *old_bb) {
+        auto new_bb = old2new.at(old_bb)->as<BasicBlock>();
         for (auto &inst : old_bb->insts()) {
-            if (inst.is<BrInst>()) {
-                continue;
-            }
-            if (inst.is<PhiInst>()) {
-                if (not contains(phi_inited, static_cast<Value *>(&inst))) {
-                    phi_inited.insert(&inst);
+            if (old_bb == header) {
+                if (inst.is<PhiInst>()) {
+                    old2new[&inst] = old2new[phi_dst2src[&inst]];
+                    continue;
+                } else if (inst.is<BrInst>()) {
                     continue;
                 }
-                old2new[&inst] = old2new[phi_dst2src[&inst]];
-                continue;
             }
-            auto new_inst = bb->clone_inst(bb->insts().end(), &inst);
+            auto new_inst = new_bb->clone_inst(new_bb->insts().end(), &inst);
 
             new_inst->set_operand_for_each_if(
                 [&](Value *op) -> pair<bool, Value *> {
@@ -215,24 +255,47 @@ void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
         }
     };
 
+    auto unroll_exit = [&]() { return old2new[header]->as<BasicBlock>(); };
+    auto unroll_entry = [&]() {
+        if (contains(old2new, static_cast<Value *>(bodies_order.front()))) {
+            return old2new[bodies_order.front()]->as<BasicBlock>();
+        } else {
+            return old2new[header]->as<BasicBlock>();
+        }
+    };
+
+    old2new[header] = func->create_bb();
+    clone2bb(header);
+    auto bbs_entry = unroll_entry();
+
     for (int i = simple_loop.initial->val(); not should_exit(i);
          i += simple_loop.step->val()) {
-        clone2bb(simple_loop.header);
-        clone2bb(simple_loop.body);
+        // connect last exit to current entry
+        auto last_exit = unroll_exit();
+        clone_bbs();
+        auto entry = unroll_entry();
+        last_exit->create_inst<BrInst>(entry);
+
+        // clone bbs and header
+        for (auto bb : bodies_order) {
+            clone2bb(bb);
+        }
+        clone2bb(header);
     }
-    // run header when the cond is false
-    clone2bb(simple_loop.header);
 
     for (auto [old_inst, new_inst] : old2new) {
+        if (not old_inst->is<Instruction>()) {
+            continue;
+        }
         old_inst->replace_all_use_with(new_inst);
     }
 
     // connect exit
-    simple_loop.header->erase_inst(&*simple_loop.header->insts().rbegin());
-    bb->create_inst<BrInst>(simple_loop.exit);
+    header->erase_inst(&header->br_inst());
+    unroll_exit()->create_inst<BrInst>(simple_loop.exit);
 
     // connect preheader
-    simple_loop.preheader->br_inst().replace_operand(simple_loop.header, bb);
+    simple_loop.preheader->br_inst().replace_operand(header, bbs_entry);
 
     // remove old bbs
     for (auto it = func->bbs().begin(); it != func->bbs().end();) {
