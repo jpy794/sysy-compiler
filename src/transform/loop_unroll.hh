@@ -15,7 +15,7 @@ class LoopUnroll final : public TransformPass {
     void get_analysis_usage(AnalysisUsage &AU) const final {
         using KillType = AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
-        // AU.add_require<ControlFlow>();
+        AU.add_require<ControlFlow>();
         AU.add_require<LoopSimplify>();
         AU.add_require<LoopFind>();
         AU.add_post<DeadCode>();

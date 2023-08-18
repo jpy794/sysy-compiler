@@ -158,8 +158,6 @@ void LoopInvariant::handle_func(Function *func, const FuncLoopInfo &func_loop) {
             for (auto bb : loop.bbs) {
                 auto bb_insts = collect_invariant_inst(bb, loop);
                 insts.insert(insts.end(), bb_insts.begin(), bb_insts.end());
-                bb_insts = collect_gep_store(bb, loop);
-                insts.insert(insts.end(), bb_insts.begin(), bb_insts.end());
             }
             changed = insts.size() > 0;
             for (auto inst : insts) {
