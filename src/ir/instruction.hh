@@ -209,6 +209,7 @@ class StoreInst : public Instruction {
     StoreInst(BasicBlock *prt, Value *v, Value *ptr);
     std::string print() const final;
     Value *ptr() const { return get_operand(1); }
+    Value *val() const { return get_operand(0); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
