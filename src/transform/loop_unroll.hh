@@ -15,7 +15,7 @@ class LoopUnroll final : public TransformPass {
     void get_analysis_usage(AnalysisUsage &AU) const final {
         using KillType = AnalysisUsage::KillType;
         AU.set_kill_type(KillType::All);
-        AU.add_require<ControlFlow>();
+        // AU.add_require<ControlFlow>();
         AU.add_require<LoopSimplify>();
         AU.add_require<LoopFind>();
         AU.add_post<DeadCode>();
@@ -23,7 +23,7 @@ class LoopUnroll final : public TransformPass {
     bool run(PassManager *mgr) final;
 
   private:
-    static constexpr int UNROLL_MAX = 1000;
+    static constexpr int UNROLL_MAX = 10000;
 
     using LoopInfo = LoopFind::ResultType::LoopInfo;
     using FuncLoopInfo = LoopFind::ResultType::FuncLoopInfo;

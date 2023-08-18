@@ -141,9 +141,14 @@ bool LoopUnroll::should_unroll(const SimpleLoopInfo &simple_loop) {
     int step = simple_loop.step->val();
     int bound = simple_loop.bound->val();
 
+    long long inst_cnt{0};
+    for (auto bb : simple_loop.bbs) {
+        inst_cnt += bb->insts().size();
+    }
+
     int estimate = (bound - initial) / step;
 
-    return estimate < UNROLL_MAX;
+    return inst_cnt * estimate < UNROLL_MAX;
 }
 
 void LoopUnroll::unroll_simple_loop(const SimpleLoopInfo &simple_loop) {
