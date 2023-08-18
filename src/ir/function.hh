@@ -46,8 +46,9 @@ class Function : public Value, public ilist<Function>::node {
     }
 
     void erase_bb(BasicBlock *bb) {
-        for (auto &inst : bb->insts()) {
-            bb->erase_inst(&inst);
+        for (auto inst = bb->insts().begin(); inst != bb->insts().end();) {
+            inst->replace_all_use_with(nullptr);
+            inst = bb->erase_inst(inst);
         }
         bbs().erase(bb);
     }
