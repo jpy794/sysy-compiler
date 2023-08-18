@@ -73,14 +73,8 @@ void ControlFlow::clean(ir::Function *func) {
                         as_a<BasicBlock>(ToBB->insts().back().get_operand(2));
                     for (auto &phi_r : new_t_bb->insts()) {
                         if (is_a<PhiInst>(&phi_r)) {
-                            for (unsigned i = 1; i < phi_r.operands().size();
-                                 i += 2) {
-                                if (phi_r.operands()[i] == ToBB) {
-                                    as_a<PhiInst>(&phi_r)->add_phi_param(
-                                        phi_r.get_operand(i - 1), bb);
-                                    break;
-                                }
-                            }
+                            as_a<PhiInst>(&phi_r)->rm_phi_param_from(ToBB,
+                                                                     true);
                         } else
                             break;
                     }

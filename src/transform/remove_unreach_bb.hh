@@ -1,4 +1,5 @@
 #pragma once
+#include "basic_block.hh"
 #include "dead_code.hh"
 #include "pass.hh"
 #include <iostream>
@@ -14,6 +15,8 @@ class RmUnreachBB final : public pass::TransformPass {
         AU.add_post<DeadCode>();
     }
     virtual bool run(pass::PassManager *mgr) override;
+
+    void remove_bb(ir::BasicBlock *);
 
   private:
 };
