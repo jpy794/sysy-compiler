@@ -45,6 +45,13 @@ class Function : public Value, public ilist<Function>::node {
         return &*++_bbs.begin();
     }
 
+    void erase_bb(BasicBlock *bb) {
+        for (auto &inst : bb->insts()) {
+            bb->erase_inst(&inst);
+        }
+        bbs().erase(bb);
+    }
+
     // for inst name %op123
     size_t get_inst_seq() { return _inst_seq++; }
 

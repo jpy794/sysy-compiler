@@ -103,7 +103,7 @@ void ControlFlow::clean(ir::Function *func) {
     }
     for (auto redd_bb : redd_bbs_to_del) {
         assert(redd_bb->get_use_list().size() == 0);
-        func->bbs().erase(redd_bb);
+        func->erase_bb(redd_bb);
     }
 }
 
