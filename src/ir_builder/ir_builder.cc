@@ -472,15 +472,17 @@ any IRBuilderImpl::visit(const FunDefGlobal &node) {
 
     // initialize params;
     scope.enter();
-    cur_bb = cur_func->create_bb(); // create entry_bb
-    cur_func->create_bb();          // create exit_bb
+    cur_func->create_bb(); // create entry_bb
+    cur_func->create_bb(); // create exit_bb
+    auto entry_to = cur_bb = cur_func->create_bb();
     for (unsigned i = 0; i < node.params.size(); i++)
         if (node.params[i]
                 .dims.empty()) { // If the parameter is a basic variable, it is
                                  // stored in a temporary address to synchronize
                                  // with AssignStmt
                                  // (only parameter may not have address)
-            auto addr = cur_bb->create_inst<AllocaInst>(param_types[i]);
+            auto addr = cur_func->get_entry_bb()->create_inst<AllocaInst>(
+                param_types[i]);
             cur_bb->create_inst<StoreInst>(cur_func->get_args()[i], addr);
             scope.push(node.params[i].name, addr);
         } else {
@@ -492,7 +494,7 @@ any IRBuilderImpl::visit(const FunDefGlobal &node) {
 
         if (cur_func->get_name() == "@main") { // for the function except main,
                                                // it returns undef value
-            cur_func->get_entry_bb()->create_inst<StoreInst>(
+            cur_bb->create_inst<StoreInst>(
                 zero_init(node.ret_type), ret_addr);
         }
         auto ret_val = cur_func->get_exit_bb()->create_inst<LoadInst>(ret_addr);
@@ -504,6 +506,7 @@ any IRBuilderImpl::visit(const FunDefGlobal &node) {
     visit(*node.body);
     if (not cur_bb->is_terminated())
         cur_bb->create_inst<BrInst>(cur_func->get_exit_bb());
+    cur_func->get_entry_bb()->create_inst<BrInst>(entry_to);
     scope.exit();
     return {};
 }
