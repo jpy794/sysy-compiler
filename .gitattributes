@@ -1,2 +1,0 @@
-test/cases/final_perf/shuffle2.in filter=lfs diff=lfs merge=lfs -text
-test/cases/final_perf/03_sort2.in filter=lfs diff=lfs merge=lfs -text
