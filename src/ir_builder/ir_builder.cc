@@ -494,8 +494,7 @@ any IRBuilderImpl::visit(const FunDefGlobal &node) {
 
         if (cur_func->get_name() == "@main") { // for the function except main,
                                                // it returns undef value
-            cur_bb->create_inst<StoreInst>(
-                zero_init(node.ret_type), ret_addr);
+            cur_bb->create_inst<StoreInst>(zero_init(node.ret_type), ret_addr);
         }
         auto ret_val = cur_func->get_exit_bb()->create_inst<LoadInst>(ret_addr);
         cur_func->get_exit_bb()->create_inst<RetInst>(ret_val);
