@@ -283,6 +283,7 @@ ostream &operator<<(ostream &os, const codegen::LiveInterVal &interval) {
 }
 
 void Module::dump(std::ostream &os, const Context &context) const {
+    os << TAB << ".option nopic" << '\n';
     os << TAB << ".text" << '\n';
     os << TAB << ".align 1" << '\n';
     os << TAB << ".globl main" << '\n';
