@@ -22,10 +22,10 @@ function(sysyc_test_path BASE)
     endforeach()
 endfunction()
 
-sysyc_test_path(simplyfied_test)
 sysyc_test_path(func)
 sysyc_test_path(func_hidden)
-sysyc_test_path(perf)
+sysyc_test_path(final_perf)
+# sysyc_test_path(perf)
 
 set(SYSYC_CTEST ${CMAKE_CTEST_COMMAND} --output-on-failure $(ARGS))
 
