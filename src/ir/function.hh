@@ -58,6 +58,7 @@ class Function : public Value, public ilist<Function>::node {
 
     std::string print() const final;
 
+    bool is_recursion() const;
     // external symbol
     const bool is_external;
 

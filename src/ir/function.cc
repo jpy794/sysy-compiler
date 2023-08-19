@@ -68,3 +68,10 @@ void Function::decay_to_void_ret() {
         ret->remove_operand(0);
     }
 }
+bool Function::is_recursion() const {
+    for (auto &[use, _] : get_use_list()) {
+        if (as_a<CallInst>(use)->get_parent()->get_func() == this)
+            return true;
+    }
+    return false;
+}
