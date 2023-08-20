@@ -486,6 +486,10 @@ bool MIRBuilder::build_sdiv_by_const(const ir::IBinaryInst *inst) {
 
     auto d = inst->rhs()->as<ir::ConstInt>()->val();
 
+    if (d == 0) {
+        return false;
+    }
+
     build_sdiv_by_const(res, n, d);
 
     return true;
@@ -508,6 +512,10 @@ bool MIRBuilder::build_srem_by_const(const ir::IBinaryInst *inst) {
     Value *res = value_map.at(inst);
 
     auto d = inst->rhs()->as<ir::ConstInt>()->val();
+
+    if (d == 0) {
+        return false;
+    }
 
     auto pow2 = [](size_t a) { return 1ULL << a; };
 
