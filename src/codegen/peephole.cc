@@ -22,7 +22,7 @@ inline bool is_power_of_2(int x) { return x and !(x & (x - 1)); }
 
 // @return: <contains, the other src(if exists)>
 pair<bool, vector<Value *>> inst_src_contains(Instruction *inst, Value *v) {
-    bool contains;
+    bool contains{false};
     vector<Value *> other_src;
 
     for (auto i = inst->will_write_register() ? 1 : 0;
