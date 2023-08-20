@@ -6,6 +6,7 @@
 #include "pass.hh"
 #include <deque>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace pass {
 
@@ -24,13 +25,16 @@ class DeadCode final : public pass::TransformPass {
     void mark();
     void sweep(ir::Function *);
     void sweep_globally(ir::Module *);
+
     bool is_critical(ir::Instruction *);
+    void collect_store_not_critical(ir::Function *);
 
     const pass::FuncInfo::ResultType *_func_info;
 
     bool changed;
     std::deque<ir::Instruction *> work_list{};
     std::unordered_map<ir::Instruction *, bool> marked{};
+    std::unordered_set<ir::Instruction *> store_not_critical{};
 };
 
 }; // namespace pass

@@ -22,9 +22,9 @@ function(sysyc_test_path BASE)
     endforeach()
 endfunction()
 
-sysyc_test_path(simplyfied_test)
 sysyc_test_path(func)
 sysyc_test_path(func_hidden)
+sysyc_test_path(final_perf)
 sysyc_test_path(perf)
 
 set(SYSYC_CTEST ${CMAKE_CTEST_COMMAND} --output-on-failure $(ARGS))
@@ -45,6 +45,11 @@ add_custom_target(
 )
 
 add_custom_target(
+    check_sysyc_ir_opt_final_perf
+    COMMAND ${SYSYC_CTEST} -R 'test_sysyc_ir_opt_final_perf_.*'
+)
+
+add_custom_target(
     check_sysyc_asm
     COMMAND ${SYSYC_CTEST} -R 'test_sysyc_asm_.*' -E 'test_sysyc_asm_opt_.*'
 )
@@ -57,4 +62,9 @@ add_custom_target(
 add_custom_target(
     check_sysyc_asm_opt_perf
     COMMAND ${SYSYC_CTEST} -R 'test_sysyc_asm_opt_perf_.*'
+)
+
+add_custom_target(
+    check_sysyc_asm_opt_final_perf
+    COMMAND ${SYSYC_CTEST} -R 'test_sysyc_asm_opt_final_perf_.*'
 )

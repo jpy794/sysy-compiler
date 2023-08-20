@@ -40,8 +40,11 @@ class Value {
     const std::list<Use> &get_use_list() const { return _use_list; }
     // std::list<Use>::iterator remove_use()
 
+  protected:
+    void change_type(Type *type) { _type = type; }
+
   private:
-    Type *const _type;
+    Type *_type;
     const std::string _name;
     std::list<Use> _use_list;
 };

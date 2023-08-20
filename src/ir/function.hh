@@ -19,6 +19,8 @@ class Function : public Value, public ilist<Function>::node {
     Function(FuncType *type, std::string &&name, bool external = false);
     ~Function();
 
+    void decay_to_void_ret();
+
     // creaters
     template <typename... Args> BasicBlock *create_bb(Args &&...args) {
         _bbs.emplace_back(this, args...);
@@ -43,11 +45,20 @@ class Function : public Value, public ilist<Function>::node {
         return &*++_bbs.begin();
     }
 
+    void erase_bb(BasicBlock *bb) {
+        for (auto inst = bb->insts().begin(); inst != bb->insts().end();) {
+            inst->replace_all_use_with(nullptr);
+            inst = bb->erase_inst(inst);
+        }
+        bbs().erase(bb);
+    }
+
     // for inst name %op123
     size_t get_inst_seq() { return _inst_seq++; }
 
     std::string print() const final;
 
+    bool is_recursion() const;
     // external symbol
     const bool is_external;
 

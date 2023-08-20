@@ -509,6 +509,24 @@ bool MIRBuilder::build_srem_by_const(const ir::IBinaryInst *inst) {
 
     auto d = inst->rhs()->as<ir::ConstInt>()->val();
 
+    auto pow2 = [](size_t a) { return 1ULL << a; };
+
+    auto d_abs = abs(static_cast<int64_t>(d));
+    auto l = max(1L, static_cast<int64_t>(ceil(log2(d_abs))));
+
+    // save 1 inst
+    if (d >= 2 && d_abs == pow2(l) && l >= 1 && l <= 11) {
+        if (l > 1) {
+            cur_label->add_inst(SRAIW, {res, n, create<Imm12bit>(l - 1)});
+        }
+        cur_label->add_inst(SRLIW,
+                            {res, l > 1 ? res : n, create<Imm12bit>(32 - l)});
+        cur_label->add_inst(ADDW, {res, res, n});
+        cur_label->add_inst(ANDI, {res, res, create<Imm12bit>(-d_abs)});
+        cur_label->add_inst(SUBW, {res, n, res});
+        return true;
+    }
+
     build_sdiv_by_const(res, n, d);
     build_mul_by_const(res, res, d);
     cur_label->add_inst(SUBW, {res, n, res});

@@ -112,8 +112,13 @@ bool AlgebraicSimplify::apply_rules() {
     // (v1 / c1) / c2 -> v1 / (c1 * c2)
     if (idiv(idiv(any_val(v1), is_cint_like(c1)), is_cint_like(c2))
             ->match(inst)) {
-        auto div = insert_ibin(IBinaryInst::SDIV, v1, get_cint(c1 * c2));
-        inst->replace_all_use_with(div);
+        assert(c1 != 0 and c2 != 0);
+        if (c1 * c2 == 0) { // overflow on i32
+            inst->replace_all_use_with(get_cint(0));
+        } else {
+            auto div = insert_ibin(IBinaryInst::SDIV, v1, get_cint(c1 * c2));
+            inst->replace_all_use_with(div);
+        }
         return true;
     }
 

@@ -20,7 +20,7 @@ bool Inline::is_inline(Function *func) {
 
 bool Inline::run(PassManager *mgr) {
     auto m = mgr->get_module();
-    const unsigned upper_times = 1; // set iter_expanded upper times
+    const unsigned upper_times = 5; // set iter_expanded upper times
     deque<Instruction *> call_work_list{};
     unsigned iter_times = 0;
     Function *main_func;
