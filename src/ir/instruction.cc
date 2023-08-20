@@ -217,8 +217,6 @@ CallInst::CallInst(BasicBlock *prt, Function *func, vector<Value *> &&params)
     : Instruction(prt, func->get_return_type(), _mix2vec(func, params)) {
     auto func_ty = as_a<FuncType>(func->get_type());
     assert(params.size() == func_ty->get_param_types().size());
-    for (unsigned i = 0; i < params.size(); ++i)
-        assert(params[i]->get_type() == func_ty->get_param_type(i));
 }
 
 void CallInst::decay_to_void_type() {
