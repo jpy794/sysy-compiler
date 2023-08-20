@@ -216,7 +216,7 @@ void GVN::detect_equivalences(Function *func) {
             } else {
                 _pin[_bb] = clone(pin);
                 _pout[_bb] = clone(pin);
-        }
+            }
             for (auto &inst_r : _bb->insts()) {
                 if (::is_a<BrInst>(&inst_r) || ::is_a<PhiInst>(&inst_r) ||
                     ::is_a<RetInst>(&inst_r) ||
