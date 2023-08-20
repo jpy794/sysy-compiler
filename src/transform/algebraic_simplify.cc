@@ -113,7 +113,7 @@ bool AlgebraicSimplify::apply_rules() {
     if (idiv(idiv(any_val(v1), is_cint_like(c1)), is_cint_like(c2))
             ->match(inst)) {
         assert(c1 != 0 and c2 != 0);
-        if (c1 * c2 == 0) { // overflow on i32
+        if (c1 * c2 != static_cast<int64_t>(c1) * c2) { // overflow on i32
             inst->replace_all_use_with(get_cint(0));
         } else {
             auto div = insert_ibin(IBinaryInst::SDIV, v1, get_cint(c1 * c2));
