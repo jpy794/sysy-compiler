@@ -24,6 +24,7 @@
 #include "err.hh"
 #include "func_info.hh"
 #include "func_trim.hh"
+#include "gep_expand.hh"
 #include "global_localize.hh"
 #include "gvn.hh"
 #include "inline.hh"
@@ -134,6 +135,7 @@ int main(int argc, char **argv) {
     pm.add_pass<GVN>();
     pm.add_pass<FuncTrim>();
     pm.add_pass<PhiCombine>();
+    pm.add_pass<GEP_Expand>();
 
     if (cfg.optimize) {
         // the functions from ContinuousAdd and strength_reduce are implemented
@@ -152,6 +154,8 @@ int main(int argc, char **argv) {
         pm.run({PassID<Inline>()}, true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<LoopUnroll>()}, true);
+        pm.run_iteratively(iterative_passes);
+        pm.run({PassID<GEP_Expand>()}, true);
         pm.run_iteratively(iterative_passes);
     } else
         pm.run({PassID<Mem2reg>(), PassID<DeadCode>()});

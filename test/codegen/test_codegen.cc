@@ -1,4 +1,5 @@
 #include "algebraic_simplify.hh"
+#include "array_visit.hh"
 #include "ast.hh"
 #include "codegen.hh"
 #include "const_propagate.hh"
@@ -9,10 +10,13 @@
 #include "dominator.hh"
 #include "err.hh"
 #include "func_info.hh"
+#include "func_trim.hh"
+#include "gep_expand.hh"
 #include "global_localize.hh"
 #include "gvn.hh"
 #include "inline.hh"
 #include "ir_builder.hh"
+#include "local_cmnexpr.hh"
 #include "log.hh"
 #include "loop_find.hh"
 #include "loop_invariant.hh"
@@ -20,7 +24,9 @@
 #include "loop_unroll.hh"
 #include "mem2reg.hh"
 #include "pass.hh"
+#include "phi_combine.hh"
 #include "raw_ast.hh"
+#include "remove_unreach_bb.hh"
 #include "strength_reduce.hh"
 
 #include <filesystem>
@@ -66,44 +72,44 @@ int main(int argc, char **argv) {
 
     // transform
     pm.add_pass<RmUnreachBB>();
-    pm.add_pass<Mem2reg>();
     pm.add_pass<LoopSimplify>();
-    pm.add_pass<LoopInvariant>();
-    pm.add_pass<LoopUnroll>();
+    pm.add_pass<LoopInvariant>(); // TODO set changed
     pm.add_pass<ConstPro>();
     pm.add_pass<DeadCode>();
     pm.add_pass<ControlFlow>();
-    pm.add_pass<StrengthReduce>();
-    pm.add_pass<Inline>();
-    pm.add_pass<GVN>();
     pm.add_pass<GlobalVarLocalize>();
     pm.add_pass<ContinuousAdd>();
     pm.add_pass<AlgebraicSimplify>();
+    pm.add_pass<ArrayVisit>();
+    pm.add_pass<LocalCmnExpr>();
+    // passes unfit for running iteratively
+    pm.add_pass<LoopUnroll>();
+    pm.add_pass<Inline>();
+    pm.add_pass<Mem2reg>();
+    pm.add_pass<GVN>();
+    pm.add_pass<FuncTrim>();
+    pm.add_pass<PhiCombine>();
+    pm.add_pass<GEP_Expand>();
 
-    pm.run(
-        {
-            PassID<GlobalVarLocalize>(),
-            PassID<Mem2reg>(),
-            PassID<StrengthReduce>(),
-            PassID<GVN>(),
-            PassID<Inline>(),
-            PassID<AlgebraicSimplify>(),
-            // PassID<ContinuousAdd>(),
-            PassID<LoopInvariant>(),
-            PassID<LoopUnroll>(),
-            PassID<ControlFlow>(),
-        },
-        true);
-    pm.reset();
-    pm.run(
-        {
-            PassID<ConstPro>(),
-            PassID<LoopInvariant>(),
-            PassID<AlgebraicSimplify>(),
-            PassID<ControlFlow>(),
-            PassID<DeadCode>(),
-        },
-        true);
+    // the functions from ContinuousAdd and strength_reduce are implemented
+    // in algebraic simplify
+    PassOrder iterative_passes = {
+        PassID<RmUnreachBB>(),   PassID<GlobalVarLocalize>(),
+        PassID<ConstPro>(),      PassID<AlgebraicSimplify>(),
+        PassID<LoopInvariant>(), PassID<LocalCmnExpr>(),
+        PassID<ControlFlow>(),   PassID<ArrayVisit>(),
+        PassID<DeadCode>(),      PassID<PhiCombine>(),
+    };
+    pm.run({PassID<FuncTrim>(), PassID<Mem2reg>()}, true);
+    pm.run_iteratively(iterative_passes);
+    pm.run({PassID<GVN>()}, true);
+    pm.run_iteratively(iterative_passes);
+    pm.run({PassID<Inline>()}, true);
+    pm.run_iteratively(iterative_passes);
+    pm.run({PassID<LoopUnroll>()}, true);
+    pm.run_iteratively(iterative_passes);
+    pm.run({PassID<GEP_Expand>()}, true);
+    pm.run_iteratively(iterative_passes);
 
     // codegen, output stage1 asm only
     codegen::CodeGen codegen{pm.release_module(), false, true};
