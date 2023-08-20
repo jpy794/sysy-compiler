@@ -80,6 +80,34 @@ bool ConstPro::check(Instruction *inst) {
             }
             return false;
         }
+    } else if (is_a<IBinaryInst>(inst)) {
+        auto i_inst = as_a<IBinaryInst>(inst);
+        if (not(is_a<Constant>(inst->get_operand(0)) ||
+                contains(val2const, inst->get_operand(0))) ||
+            not(is_a<Constant>(inst->get_operand(1)) ||
+                contains(val2const, inst->get_operand(1))))
+            return false;
+        switch (i_inst->get_ibin_op()) {
+        case IBinaryInst::ADD:
+        case IBinaryInst::SUB:
+        case IBinaryInst::MUL:
+        case IBinaryInst::ASHR:
+        case IBinaryInst::LSHR:
+        case IBinaryInst::SHL:
+        case IBinaryInst::XOR:
+            return true;
+        case IBinaryInst::SDIV:
+        case IBinaryInst::SREM: {
+            Constant *r_val;
+            if (is_a<Constant>(inst->get_operand(1)))
+                r_val = as_a<Constant>(inst->get_operand(1));
+            else
+                r_val = val2const[inst->get_operand(1)];
+            if (as_a<ConstInt>(r_val)->val() == 0)
+                return false;
+            return true;
+        }
+        }
     } else {
         for (unsigned i = 0; i < inst->operands().size(); i++) {
             if (not(is_a<Constant>(inst->get_operand(i)) ||
