@@ -17,7 +17,7 @@ ssh_pass="sshpass -p $pass"
 $ssh_pass ssh -p $port ${user}@${ip} "mkdir -p /home/${user}/${tmp_path}"
 
 echo copying binaries...
-perf_bins=$(find build/test/sysyc/asm_opt_perf -type f ! -name "*.*")
+perf_bins=$(find build/test/sysyc/asm_opt_"$case_path" -type f ! -name "*.*")
 $ssh_pass scp -P $port $perf_bins ${user}@${ip}:/home/${user}/${tmp_path}
 
 echo running...
