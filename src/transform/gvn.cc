@@ -204,16 +204,19 @@ void GVN::detect_equivalences(Function *func) {
             partitions origin_pout = _pout[_bb];
             partitions pin = TOP;
             phi_construct_point = 0;
-            for (auto pre_bb : pre_bbs) {
-                pin = join(pin, _pout[pre_bb]);
-                phi_construct_point++;
-            }
+            if (pre_bbs.size() > 1)
+                for (auto pre_bb : pre_bbs) {
+                    pin = join(pin, _pout[pre_bb]);
+                    phi_construct_point++;
+                }
+            else // it can only produce phi_expr when pre_bb > 2
+                pin = non_copy_pout[*pre_bbs.begin()];
             if (_bb == func->get_entry_bb()) {
                 _pout[_bb] = clone(_pin[_bb]);
             } else {
                 _pin[_bb] = clone(pin);
                 _pout[_bb] = clone(pin);
-            }
+        }
             for (auto &inst_r : _bb->insts()) {
                 if (::is_a<BrInst>(&inst_r) || ::is_a<PhiInst>(&inst_r) ||
                     ::is_a<RetInst>(&inst_r) ||
