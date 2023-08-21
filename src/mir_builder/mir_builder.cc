@@ -73,7 +73,7 @@ MIRBuilder::MIRBuilder(unique_ptr<ir::Module> &&mod)
                 auto type = instruction.get_type();
                 if (type->is<ir::FloatType>())
                     value_map[&instruction] = create<FVReg>();
-                else if (type->is<ir::IntType>())
+                else if (type->is<ir::IntType>() or type->is<ir::I64IntType>())
                     value_map[&instruction] = create<IVReg>();
                 else if (type->is<ir::PointerType>()) {
                     if (is_a<const ir::AllocaInst>(&instruction)) {
@@ -595,11 +595,19 @@ any MIRBuilder::visit(const ir::IBinaryInst *instruction) {
     auto res = binary_helper(operands[0], operands[1],
                              contains(have_imm_version, ibin_op));
 
+    // support add only for i64 now
+    auto is_i64 = instruction->get_type()->is<ir::I64IntType>();
+    assert(not is_i64 or ibin_op == ir::IBinaryInst::ADD);
+
     switch (ibin_op) {
-    case ir::IBinaryInst::ADD:
-        cur_label->add_inst(res.op2_is_imm ? ADDIW : ADDW,
-                            {result_reg, res.op1, res.op2});
-        break;
+    case ir::IBinaryInst::ADD: {
+        MIR_INST add_op;
+        if (is_i64)
+            add_op = res.op2_is_imm ? ADDI : ADD;
+        else
+            add_op = res.op2_is_imm ? ADDIW : ADDW;
+        cur_label->add_inst(add_op, {result_reg, res.op1, res.op2});
+    } break;
     case ir::IBinaryInst::ASHR:
         cur_label->add_inst(res.op2_is_imm ? SRAIW : SRAW,
                             {result_reg, res.op1, res.op2});
@@ -964,5 +972,32 @@ any MIRBuilder::visit(const ir::Si2fpInst *instruction) {
         auto ireg = as_a<IVReg>(value_map.at(iop));
         cast_i2f(ireg, res_reg);
     }
+    return {};
+}
+any MIRBuilder::visit(const ir::Ptr2IntInst *instruction) {
+    auto ptr_value = parse_address(instruction->get_ptr()).second;
+    cur_label->add_inst(Move, {value_map.at(instruction), ptr_value});
+    return {};
+};
+any MIRBuilder::visit(const ir::Int2PtrInst *instruction) {
+    cur_label->add_inst(Move, {value_map.at(instruction),
+                               value_map.at(instruction->get_i64_int())});
+    return {};
+};
+
+any MIRBuilder::visit(const ir::SextInst *instruction) {
+    auto imm_result = parse_imm(instruction->get_operand(0));
+    auto target_reg = as_a<IVReg>(value_map.at(instruction));
+    if (imm_result.is_const)
+        load_imm(imm_result.val, target_reg);
+    else
+        cur_label->add_inst(
+            Move, {target_reg, value_map.at(instruction->get_operand(0))});
+    return {};
+}
+
+any MIRBuilder::visit(const ir::TruncInst *instruction) {
+    cur_label->add_inst(Move, {value_map.at(instruction),
+                               value_map.at(instruction->get_operand(0))});
     return {};
 }

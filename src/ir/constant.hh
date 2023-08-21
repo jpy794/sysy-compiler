@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <iomanip>
 #include <stdexcept>
 #include <string>
@@ -32,8 +33,11 @@ class ConstInt : public Constant {
     int _val;
 
   public:
-    ConstInt(int val)
-        : Constant(Types::get().int_type(), std::to_string(val)), _val(val){};
+    ConstInt(int val, bool i64 = false)
+        : Constant(i64 ? static_cast<Type *>(Types::get().i64_int_type())
+                       : Types::get().int_type(),
+                   std::to_string(val)),
+          _val(val){};
 
     int val() const { return _val; }
 };
@@ -142,6 +146,9 @@ class Constants {
         for (auto &&[_, con] : _int_hash) {
             delete con;
         }
+        for (auto &&[_, con] : _i64_hash) {
+            delete con;
+        }
         for (auto &&[_, con] : _float_hash) {
             delete con;
         }
@@ -155,6 +162,7 @@ class Constants {
 
     std::unordered_map<bool, ConstBool *> _bool_hash;
     std::unordered_map<int, ConstInt *> _int_hash;
+    std::unordered_map<int, ConstInt *> _i64_hash;
     std::unordered_map<float, ConstFloat *> _float_hash;
     std::unordered_map<std::vector<Constant *>, ConstArray *, VectorHash>
         _array_hash;
@@ -181,6 +189,15 @@ class Constants {
             _int_hash.insert({val, new ConstInt{val}});
         }
         return _int_hash[val];
+    }
+
+    ConstInt *i64_const(int64_t i64_val) {
+        assert(static_cast<int64_t>(static_cast<int32_t>(i64_val)) == i64_val);
+        auto val = static_cast<int32_t>(i64_val);
+        if (not contains(_i64_hash, val)) {
+            _i64_hash.insert({val, new ConstInt{val, true}});
+        }
+        return _i64_hash[i64_val];
     }
 
     ConstFloat *float_const(float val) {

@@ -83,8 +83,8 @@ IBinaryInst::IBinaryInst(BasicBlock *prt, IBinOp op, Value *lhs, Value *rhs)
         assert(is_a<BoolType>(lhs->get_type()));
         assert(is_a<BoolType>(rhs->get_type()));
     } else {
-        assert(is_a<IntType>(lhs->get_type()));
-        assert(is_a<IntType>(rhs->get_type()));
+        assert(lhs->get_type() == rhs->get_type());
+        assert(get_type()->is<IntType>() or get_type()->is<I64IntType>());
     }
 }
 
@@ -266,6 +266,11 @@ GetElementPtrInst::GetElementPtrInst(BasicBlock *prt, Value *baseptr,
 ZextInst::ZextInst(BasicBlock *prt, Value *boolv)
     : Instruction(prt, Types::get().int_type(), {boolv}) {
     assert(is_a<BoolType>(boolv->get_type()));
+}
+
+TruncInst::TruncInst(BasicBlock *prt, Value *i64)
+    : Instruction(prt, Types::get().int_type(), {i64}) {
+    assert(is_a<I64IntType>(i64->get_type()));
 }
 
 /* ===== print ir ===== */
@@ -485,4 +490,37 @@ string GetElementPtrInst::print() const {
 
 string ZextInst::print() const {
     return get_name() + " = zext i1 " + operands()[0]->get_name() + " to i32";
+}
+
+SextInst::SextInst(BasicBlock *prt, Value *i32)
+    : Instruction(prt, Types::get().i64_int_type(), {i32}) {
+    assert(is_a<IntType>(i32->get_type()));
+}
+
+string SextInst::print() const {
+    return get_name() + " = sext i32 " + operands()[0]->get_name() + " to i64";
+}
+
+Ptr2IntInst::Ptr2IntInst(BasicBlock *prt, Value *ptr)
+    : Instruction(prt, Types::get().i64_int_type(), {ptr}) {
+    assert(ptr->get_type()->is<PointerType>());
+}
+
+string Ptr2IntInst::print() const {
+    return get_name() + " = ptrtoint " + operands()[0]->get_type()->print() +
+           " " + operands()[0]->get_name() + " to i64";
+}
+
+Int2PtrInst::Int2PtrInst(BasicBlock *prt, Value *val, Type *elem_type)
+    : Instruction(prt, Types::get().ptr_type(elem_type), {val}) {
+    assert(val->get_type()->is<I64IntType>());
+}
+
+string Int2PtrInst::print() const {
+    return get_name() + " = inttoptr i64 " + operands()[0]->get_name() +
+           " to " + get_type()->print();
+}
+
+string TruncInst::print() const {
+    return get_name() + " = trunc i64 " + operands()[0]->get_name() + " to i32";
 }

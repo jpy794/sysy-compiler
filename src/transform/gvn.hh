@@ -138,7 +138,7 @@ class GVN final : public pass::TransformPass {
     };
     // the case, that operands of the current inst doesn't have ValExpr, won't
     // happen in depth_priority_oder
-    class UniqueExpr final : public Expression { // load/store/alloca
+    class UniqueExpr final : public Expression { // load/store/alloca/ptr2int/int2ptr
       public:
         UniqueExpr(ir::Value *val)
             : Expression(expr_type::e_unique), _val(val) {}
@@ -230,7 +230,7 @@ class GVN final : public pass::TransformPass {
 
     // If two UnitExprs' _unit is different, the exprs are
     // absolutely different
-    class UnitExpr final : public Expression { // zext/fp2si/si2fp
+    class UnitExpr final : public Expression { // zext/fp2si/si2fp/sext/trunc/
       public:
         UnitExpr(std::shared_ptr<Expression> oper)
             : Expression(expr_type::e_unit), _unit(oper) {}

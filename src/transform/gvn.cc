@@ -370,7 +370,9 @@ shared_ptr<GVN::Expression> GVN::valueExpr(Value *val, partitions &pin) {
         ve = create_expr<GepExpr>(std::move(idxs));
     } else if (::is_a<PhiInst>(val)) {
         throw unreachable_error{};
-    } else if (::is_a<AllocaInst>(val)) {
+    } else if (::is_a<AllocaInst>(val) || ::is_a<Ptr2IntInst>(val) ||
+               ::is_a<Int2PtrInst>(val) || ::is_a<TruncInst>(val) ||
+               ::is_a<SextInst>(val)) {
         ve = create_expr<UniqueExpr>(val);
     } else if (::is_a<LoadInst>(val)) {
         ve = create_expr<LoadExpr>(

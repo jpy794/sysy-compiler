@@ -1203,14 +1203,10 @@ void CodeGen::resolve_move() {
         safe_load_store(stack_object->store_op(), as_a<PhysicalRegister>(src),
                         off, tmp_reg);
     } else {
+        find_tmp_reg();
+        auto dest_reg = as_a<PhysicalRegister>(dest);
         auto stack_object = as_a<StackObject>(src);
-        int off = Offset2int(frame_location.at(stack_object));
-
-        if (not Imm12bit::check_in_range(off))
-            find_tmp_reg();
-
-        safe_load_store(stack_object->load_op(), as_a<PhysicalRegister>(dest),
-                        off, tmp_reg);
+        distinguish_stack_usage(dest_reg, stack_object, tmp_reg, 0);
     }
 
     if (need_recover)

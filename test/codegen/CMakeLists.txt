@@ -45,3 +45,19 @@ add_custom_target(
     check_codegen
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R 'test_codegen_'
 )
+
+add_executable(test_codegen_i64 test_codegen_i64.cc)
+
+target_link_libraries(
+    test_codegen_i64
+    PRIVATE ast
+    PRIVATE ir
+    PRIVATE ir_builder
+    PRIVATE mir
+    PRIVATE mir_builder
+    PRIVATE codegen
+    PRIVATE pass
+    PRIVATE analysis
+    PRIVATE transform
+    PRIVATE utils
+)

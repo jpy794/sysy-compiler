@@ -122,7 +122,16 @@ LocalCmnExpr::OP LocalCmnExpr::get_op(Instruction *inst) {
         return OP::SI2FP;
     } else if (is_a<Fp2siInst>(inst)) {
         return OP::FP2SI;
-    } else {
+    } else if (is_a<Ptr2IntInst>(inst)) {
+        return OP::PTR2INT;
+    } else if (is_a<Int2PtrInst>(inst)) {
+        return OP::INT2PTR;
+    } else if (is_a<SextInst>(inst)) {
+        return OP::SEXT;
+    } else if(is_a<TruncInst>(inst)){
+        return OP::TRUNC;
+    }
+    else{
         throw unreachable_error{};
     }
 }

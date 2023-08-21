@@ -130,14 +130,20 @@ void DeadCode::collect_store_not_critical(Function *func) {
                     related_store.insert(as_a<Instruction>(arr_use));
                     continue;
                 }
-                // gep arr-ptr, [offs]
-                for (auto &[use, _] :
-                     as_a<GetElementPtrInst>(arr_use)->get_use_list()) {
-                    if (is_a<StoreInst>(use)) {
-                        related_store.insert(as_a<Instruction>(use));
-                    } else {
-                        alloca_is_critical = true;
-                        break;
+                if (is_a<Ptr2IntInst>(arr_use)) {
+                    // algebraication
+                    // TODO
+                    alloca_is_critical = true;
+                } else if (is_a<GetElementPtrInst>(arr_use)) {
+                    // gep arr-ptr, [offs]
+                    for (auto &[use, _] :
+                         as_a<GetElementPtrInst>(arr_use)->get_use_list()) {
+                        if (is_a<StoreInst>(use)) {
+                            related_store.insert(as_a<Instruction>(use));
+                        } else {
+                            alloca_is_critical = true;
+                            break;
+                        }
                     }
                 }
                 if (alloca_is_critical)

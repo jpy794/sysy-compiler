@@ -367,4 +367,57 @@ class ZextInst : public Instruction {
     INST_CLONE(ZextInst)
 };
 
+// i32 to i64
+class SextInst : public Instruction {
+  public:
+    SextInst(BasicBlock *prt, Value *i32);
+    std::string print() const final;
+
+    virtual std::any accept(InstructionVisitor *visitor) const {
+        return visitor->visit(this);
+    }
+
+    INST_CLONE(SextInst)
+};
+
+class Ptr2IntInst : public Instruction {
+  public:
+    Ptr2IntInst(BasicBlock *prt, Value *ptr);
+    std::string print() const final;
+
+    Value *get_ptr() const { return get_operand(0); }
+
+    virtual std::any accept(InstructionVisitor *visitor) const {
+        return visitor->visit(this);
+    }
+
+    INST_CLONE(Ptr2IntInst);
+};
+
+class Int2PtrInst : public Instruction {
+  public:
+    Int2PtrInst(BasicBlock *prt, Value *val, Type *elem_type);
+    std::string print() const final;
+
+    Value *get_i64_int() const { return get_operand(0); }
+
+    virtual std::any accept(InstructionVisitor *visitor) const {
+        return visitor->visit(this);
+    }
+
+    INST_CLONE(Int2PtrInst);
+};
+
+class TruncInst : public Instruction {
+  public:
+    // only TruncInst i64 to i32
+    TruncInst(BasicBlock *prt, Value *val);
+    std::string print() const final;
+
+    virtual std::any accept(InstructionVisitor *visitor) const {
+        return visitor->visit(this);
+    }
+
+    INST_CLONE(TruncInst);
+};
 } // namespace ir

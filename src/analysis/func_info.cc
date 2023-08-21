@@ -85,7 +85,7 @@ bool FuncInfo::is_side_effect_inst(Instruction *inst) {
     } else {
         return false;
     }
-    if (is_a<AllocaInst>(addr))
+    if (addr and is_a<AllocaInst>(addr))
         return false;
     else
         return true;
@@ -95,8 +95,10 @@ bool FuncInfo::is_side_effect_inst(Instruction *inst) {
 Value *FuncInfo::get_origin_addr(Value *addr) {
     if (is_a<GetElementPtrInst>(addr))
         return get_origin_addr(as_a<Instruction>(addr)->get_operand(0));
-    else if (is_a<AllocaInst>(addr) || is_a<Argument>(addr) ||
-             is_a<GlobalVariable>(addr))
+    else if (is_a<Int2PtrInst>(addr)) {
+        return nullptr;
+    } else if (is_a<AllocaInst>(addr) || is_a<Argument>(addr) ||
+               is_a<GlobalVariable>(addr))
         return addr;
     throw logic_error{addr->get_name() + "is not a address"};
 }
