@@ -367,6 +367,19 @@ class ZextInst : public Instruction {
     INST_CLONE(ZextInst)
 };
 
+// i32 to i64
+class SextInst : public Instruction {
+  public:
+    SextInst(BasicBlock *prt, Value *i32);
+    std::string print() const final;
+
+    virtual std::any accept(InstructionVisitor *visitor) const {
+        return visitor->visit(this);
+    }
+
+    INST_CLONE(SextInst)
+};
+
 class Ptr2IntInst : public Instruction {
   public:
     Ptr2IntInst(BasicBlock *prt, Value *ptr);

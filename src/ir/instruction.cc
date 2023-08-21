@@ -487,6 +487,15 @@ string ZextInst::print() const {
     return get_name() + " = zext i1 " + operands()[0]->get_name() + " to i32";
 }
 
+SextInst::SextInst(BasicBlock *prt, Value *i32)
+    : Instruction(prt, Types::get().i64_int_type(), {i32}) {
+    assert(is_a<IntType>(i32->get_type()));
+}
+
+string SextInst::print() const {
+    return get_name() + " = sext i32 " + operands()[0]->get_name() + " to i64";
+}
+
 Ptr2IntInst::Ptr2IntInst(BasicBlock *prt, Value *ptr)
     : Instruction(prt, Types::get().i64_int_type(), {ptr}) {
     assert(ptr->get_type()->is<PointerType>());

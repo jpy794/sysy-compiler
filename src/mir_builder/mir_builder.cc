@@ -984,3 +984,9 @@ any MIRBuilder::visit(const ir::Int2PtrInst *instruction) {
                                value_map.at(instruction->get_i64_int())});
     return {};
 };
+
+any MIRBuilder::visit(const ir::SextInst *instruction) {
+    cur_label->add_inst(Move, {value_map.at(instruction),
+                               value_map.at(instruction->get_operand(0))});
+    return {};
+}

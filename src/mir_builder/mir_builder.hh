@@ -295,6 +295,7 @@ class MIRBuilder : public ir::InstructionVisitor {
     virtual any visit(const ir::Si2fpInst *instruction) override final;
     virtual any visit(const ir::GetElementPtrInst *instruction) override final;
     virtual any visit(const ir::ZextInst *instruction) override final;
+    virtual any visit(const ir::SextInst *instruction) override final;
     virtual any visit(const ir::Ptr2IntInst *instruction) override final;
     virtual any visit(const ir::Int2PtrInst *instruction) override final;
 
