@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
         pm.run({PassID<Inline>()}, true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<LoopUnroll>()}, true);
-        pm.run_iteratively(iterative_passes);
+        pm.run_iteratively(iterative_passes); 
         pm.run({PassID<GEP_Expand>()}, true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<InductionExpr>()}, true);

@@ -34,6 +34,8 @@ GlobalVarLocalize::Action GlobalVarLocalize::parse(GlobalVariable *global_var,
     } else if (type->is<ArrayType>()) { // prop const for case with no store
         bool no_write = true;
         for (auto &[user, _] : global_var->get_use_list()) {
+            if (not is_a<GetElementPtrInst>(user))
+                return JustSkip;
             auto gep = as_a<GetElementPtrInst>(user);
             for (auto &[gep_user, _] : gep->get_use_list()) {
                 if (not is_a<LoadInst>(gep_user)) {
