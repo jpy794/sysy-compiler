@@ -153,9 +153,9 @@ int main(int argc, char **argv) {
             PassID<ControlFlow>(),   PassID<ArrayVisit>(),
             PassID<DeadCode>(),      PassID<PhiCombine>(),
         };
-        pm.run({PassID<FuncTrim>(), PassID<Mem2reg>(), PassID<NaiveRecOpt>()},
-               true);
+        pm.run({PassID<FuncTrim>(), PassID<Mem2reg>()}, true);
         pm.run_iteratively(iterative_passes);
+        pm.run({PassID<NaiveRecOpt>()}, true);
         pm.run({PassID<GVN>()}, true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<Inline>()}, true);
