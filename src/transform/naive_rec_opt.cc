@@ -36,7 +36,7 @@ bool is_naive_rec(Function *func) {
         return false;
     }
     auto is_naive_rec_call = [&](CallInst *a) {
-        if (a->operands().size() != 2) {
+        if (a->operands().size() != 3) {
             return false;
         }
         if (a->get_operand(2)->is<IBinaryInst>()) {
@@ -48,20 +48,7 @@ bool is_naive_rec(Function *func) {
         }
         return false;
     };
-    auto is_continuous_rec_calls = [&](CallInst *a, CallInst *b) {
-        if (a->get_operand(1)->is<FBinaryInst>()) {
-            auto fbin = a->get_operand(1)->as<FBinaryInst>();
-            if (fbin->get_fbin_op() == ir::FBinaryInst::FADD and
-                (fbin->get_operand(0) == b or fbin->get_operand(1) == b)) {
-                return true;
-            }
-        }
-        return false;
-    };
-    return is_naive_rec_call(rec_calls[0]) and
-           is_naive_rec_call(rec_calls[1]) and
-           (is_continuous_rec_calls(rec_calls[0], rec_calls[1]) or
-            is_continuous_rec_calls(rec_calls[1], rec_calls[0]));
+    return is_naive_rec_call(rec_calls[0]) and is_naive_rec_call(rec_calls[1]);
 }
 
 void NaiveRecOpt::handle_func(Function *func) {
