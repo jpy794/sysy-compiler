@@ -82,6 +82,9 @@ bool LoopFind::run(PassManager *mgr) {
                         other_loop.sub_loops.insert(&bb);
                     }
                 }
+
+                // parse ind var
+                loop.ind_var_info = parse_ind_var(&bb, loop);
             }
         }
         _result.loop_info[&func].loops = std::move(loops);
@@ -111,6 +114,120 @@ set<BasicBlock *> LoopFind::find_bbs_by_latch(BasicBlock *header,
         }
     }
     return ret;
+}
+
+auto LoopFind::parse_ind_var(BasicBlock *header, const LoopInfo &loop)
+    -> optional<LoopInfo::IndVarInfo> {
+
+    LoopInfo::IndVarInfo ind_var_info;
+
+    if (loop.latches.size() > 1) {
+        return nullopt;
+    }
+
+    // the loop has too many exiting edges
+    if (loop.exits.size() > 1) {
+        return nullopt;
+    }
+
+    // the exiting bb is not header
+    auto exiting = loop.exits.begin()->first;
+    if (exiting != header) {
+        return nullopt;
+    }
+
+    // induction var
+    auto br_inst = header->insts().back().as<BrInst>();
+    assert(br_inst->operands().size() == 3);
+    auto cond = br_inst->get_operand(0);
+    // the induction variable should be of int type
+    if (not cond->is<ICmpInst>()) {
+        return nullopt;
+    }
+
+    auto icmp_inst = cond->as<ICmpInst>();
+    auto icmp_op = icmp_inst->get_icmp_op();
+    auto lhs = icmp_inst->lhs();
+    auto rhs = icmp_inst->rhs();
+
+    auto exit_cond = [&](bool is_ind_rhs) {
+        auto opposite = ICmpInst::opposite_icmp_op(icmp_op);
+        auto op = is_ind_rhs ? opposite : icmp_op;
+        if (not contains(loop.bbs, br_inst->get_operand(2)->as<BasicBlock>())) {
+            // exit if cond is true
+            return op;
+        } else if (not contains(loop.bbs,
+                                br_inst->get_operand(1)->as<BasicBlock>())) {
+            // exit if cond is false
+            return ICmpInst::not_icmp_op(op);
+        } else {
+            throw unreachable_error{};
+        }
+    };
+
+    auto is_loop_invariant = [&](Value *v) {
+        if (not v->is<Instruction>()) {
+            return true;
+        }
+        auto inst = as_a<Instruction>(v);
+        return not contains(loop.bbs, inst->get_parent());
+    };
+
+    if (is_loop_invariant(lhs)) {
+        ind_var_info.ind_var = rhs;
+        ind_var_info.icmp_op = exit_cond(true);
+        ind_var_info.bound = lhs;
+    } else if (is_loop_invariant(rhs)) {
+        ind_var_info.ind_var = lhs;
+        ind_var_info.icmp_op = exit_cond(false);
+        ind_var_info.bound = rhs;
+    } else {
+        return nullopt;
+    }
+
+    // find initial and step
+    ind_var_info.initial = nullptr;
+    ind_var_info.step = nullptr;
+    for (auto &&inst : header->insts()) {
+        if (not inst.is<PhiInst>()) {
+            break;
+        }
+        if (&inst != ind_var_info.ind_var) {
+            continue;
+        }
+        // the phi for induction variable
+        auto phi_inst = inst.as<PhiInst>();
+        // the phi should has two source, one from preheader and the other from
+        // loop body
+        if (phi_inst->to_pairs().size() != 2) {
+            return nullopt;
+        }
+        for (auto [value, source] : phi_inst->to_pairs()) {
+            if (contains(loop.bbs, source)) {
+                // step
+                if (not value->is<IBinaryInst>()) {
+                    continue;
+                }
+                auto ibinary_inst = value->as<IBinaryInst>();
+                auto ibin_op = ibinary_inst->get_ibin_op();
+                if (ibin_op != IBinaryInst::ADD) {
+                    continue;
+                }
+                if (ibinary_inst->rhs() == ind_var_info.ind_var) {
+                    ind_var_info.step = ibinary_inst->lhs();
+                } else if (ibinary_inst->lhs() == ind_var_info.ind_var) {
+                    ind_var_info.step = ibinary_inst->rhs();
+                }
+            } else {
+                // initial
+                ind_var_info.initial = value;
+            }
+        }
+    }
+    if (ind_var_info.initial == nullptr or ind_var_info.step == nullptr) {
+        return nullopt;
+    }
+    return ind_var_info;
 }
 
 vector<BasicBlock *>

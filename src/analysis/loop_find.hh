@@ -2,6 +2,7 @@
 
 #include "basic_block.hh"
 #include "dominator.hh"
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -16,6 +17,11 @@ class LoopFind final : public AnalysisPass {
             ir::BasicBlock *preheader;
             std::map<ir::BasicBlock *, ir::BasicBlock *> exits;
             std::set<ir::BasicBlock *> sub_loops;
+            struct IndVarInfo {
+                ir::Value *ind_var, *initial, *step, *bound;
+                ir::ICmpInst::ICmpOp icmp_op;
+            };
+            std::optional<IndVarInfo> ind_var_info{std::nullopt};
         };
         struct FuncLoopInfo {
             std::unordered_map<ir::BasicBlock *, LoopInfo> loops;
@@ -42,8 +48,12 @@ class LoopFind final : public AnalysisPass {
     }
 
   private:
+    using LoopInfo = ResultType::LoopInfo;
+
     std::set<ir::BasicBlock *> find_bbs_by_latch(ir::BasicBlock *header,
                                                  ir::BasicBlock *latch);
+    auto parse_ind_var(ir::BasicBlock *header, const LoopInfo &loop)
+        -> std::optional<LoopInfo::IndVarInfo>;
     void log() const;
 
     ResultType _result;
