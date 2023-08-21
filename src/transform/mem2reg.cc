@@ -24,6 +24,8 @@ bool pointer_is_basic_alloc(Value *v) {
             ->as<PointerType>()
             ->get_elem_type()
             ->is_basic_type();
+    else if (is_a<Int2PtrInst>(v))
+        return false;
     else
         throw unreachable_error{};
 }
