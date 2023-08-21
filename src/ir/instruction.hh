@@ -372,6 +372,8 @@ class Ptr2IntInst : public Instruction {
     Ptr2IntInst(BasicBlock *prt, Value *ptr);
     std::string print() const final;
 
+    Value *get_ptr() const { return get_operand(0); }
+
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
     }
@@ -383,6 +385,8 @@ class Int2PtrInst : public Instruction {
   public:
     Int2PtrInst(BasicBlock *prt, Value *val, Type *elem_type);
     std::string print() const final;
+
+    Value *get_i64_int() const { return get_operand(0); }
 
     virtual std::any accept(InstructionVisitor *visitor) const {
         return visitor->visit(this);
