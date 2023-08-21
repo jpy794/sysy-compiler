@@ -293,6 +293,12 @@ class MIRBuilder : public ir::InstructionVisitor {
     virtual any visit(const ir::Si2fpInst *instruction) override final;
     virtual any visit(const ir::GetElementPtrInst *instruction) override final;
     virtual any visit(const ir::ZextInst *instruction) override final;
+    virtual any visit(const ir::Ptr2IntInst *instruction) override final {
+        throw not_implemented_error{};
+    };
+    virtual any visit(const ir::Int2PtrInst *instruction) override final {
+        throw not_implemented_error{};
+    };
 
     // specialized inst builder
     void build_sdiv_by_const(Value *res, Value *n, int d);

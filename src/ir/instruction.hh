@@ -367,4 +367,28 @@ class ZextInst : public Instruction {
     INST_CLONE(ZextInst)
 };
 
+class Ptr2IntInst : public Instruction {
+  public:
+    Ptr2IntInst(BasicBlock *prt, Value *ptr);
+    std::string print() const final;
+
+    virtual std::any accept(InstructionVisitor *visitor) const {
+        return visitor->visit(this);
+    }
+
+    INST_CLONE(Ptr2IntInst);
+};
+
+class Int2PtrInst : public Instruction {
+  public:
+    Int2PtrInst(BasicBlock *prt, Value *val, Type *elem_type);
+    std::string print() const final;
+
+    virtual std::any accept(InstructionVisitor *visitor) const {
+        return visitor->visit(this);
+    }
+
+    INST_CLONE(Int2PtrInst);
+};
+
 } // namespace ir

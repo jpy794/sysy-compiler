@@ -19,6 +19,8 @@ class Fp2siInst;
 class Si2fpInst;
 class GetElementPtrInst;
 class ZextInst;
+class Ptr2IntInst;
+class Int2PtrInst;
 
 class InstructionVisitor {
   public:
@@ -37,6 +39,8 @@ class InstructionVisitor {
     virtual std::any visit(const Si2fpInst *instruction) = 0;
     virtual std::any visit(const GetElementPtrInst *instruction) = 0;
     virtual std::any visit(const ZextInst *instruction) = 0;
+    virtual std::any visit(const Ptr2IntInst *instruction) = 0;
+    virtual std::any visit(const Int2PtrInst *instruction) = 0;
 };
 
 } // namespace ir
