@@ -23,6 +23,9 @@ bool is_naive_rec(Function *func) {
     if (not func->is_recursion()) {
         return false;
     }
+    if (func->get_args().size() != 2) {
+        return false;
+    }
     vector<CallInst *> rec_calls;
     for (auto &&call : func->get_use_list()) {
         if (call.user->as<Instruction>()->get_parent()->get_func() == func) {
@@ -33,6 +36,9 @@ bool is_naive_rec(Function *func) {
         return false;
     }
     auto is_naive_rec_call = [&](CallInst *a) {
+        if (a->operands().size() != 2) {
+            return false;
+        }
         if (a->get_operand(2)->is<IBinaryInst>()) {
             auto ibin = a->get_operand(2)->as<IBinaryInst>();
             if (ibin->get_ibin_op() == ir::IBinaryInst::SUB and
@@ -42,7 +48,20 @@ bool is_naive_rec(Function *func) {
         }
         return false;
     };
-    return is_naive_rec_call(rec_calls[0]) and is_naive_rec_call(rec_calls[1]);
+    auto is_continuous_rec_calls = [&](CallInst *a, CallInst *b) {
+        if (a->get_operand(1)->is<FBinaryInst>()) {
+            auto fbin = a->get_operand(1)->as<FBinaryInst>();
+            if (fbin->get_fbin_op() == ir::FBinaryInst::FADD and
+                (fbin->get_operand(0) == b or fbin->get_operand(1) == b)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    return is_naive_rec_call(rec_calls[0]) and
+           is_naive_rec_call(rec_calls[1]) and
+           (is_continuous_rec_calls(rec_calls[0], rec_calls[1]) or
+            is_continuous_rec_calls(rec_calls[1], rec_calls[0]));
 }
 
 void NaiveRecOpt::handle_func(Function *func) {
