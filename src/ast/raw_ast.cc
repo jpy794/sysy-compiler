@@ -7,6 +7,7 @@
 
 using namespace std;
 using namespace ast;
+using namespace antlr4;
 
 // FIXME: c++17 doesn't support 'using enum'
 // using enum BaseType;
@@ -401,6 +402,14 @@ void macro_replace(string &s) {
     }
 }
 
+class SysyErrorListener : public BaseErrorListener {
+    void syntaxError(Recognizer *recognizer, Token *offendingSymbol,
+                     size_t line, size_t charPositionInLine,
+                     const std::string &msg, std::exception_ptr e) final {
+        throw runtime_error{"antlr error"};
+    }
+};
+
 RawAST::RawAST(const string &src) {
     ifstream src_s{src};
     ostringstream src_ss;
@@ -408,10 +417,14 @@ RawAST::RawAST(const string &src) {
     auto src_str = src_ss.str();
     macro_replace(src_str);
 
-    antlr4::ANTLRInputStream input_s{src_str};
+    SysyErrorListener sy_error;
+
+    ANTLRInputStream input_s{src_str};
     sysyLexer lexer{&input_s};
-    antlr4::CommonTokenStream token_s{&lexer};
+    lexer.addErrorListener(&sy_error);
+    CommonTokenStream token_s{&lexer};
     sysyParser parser{&token_s};
+    parser.addErrorListener(&sy_error);
 
     RawASTBuilder builder;
     root = as_ptr<Root>(builder.visit(parser.compUnit()));
