@@ -997,6 +997,7 @@ any MIRBuilder::visit(const ir::SextInst *instruction) {
 }
 
 any MIRBuilder::visit(const ir::TruncInst *instruction) {
-    // TODO:
+    cur_label->add_inst(Move, {value_map.at(instruction),
+                               value_map.at(instruction->get_operand(0))});
     return {};
 }
