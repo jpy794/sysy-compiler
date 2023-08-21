@@ -16,9 +16,11 @@ using namespace pass;
 using namespace ir;
 using namespace Matcher;
 
-auto get_cint(int v) {
-    return v ? static_cast<Constant *>(Constants::get().int_const(v))
-             : Constants::get().zero_const(Types::get().int_type());
+Constant *get_cint(int v, bool i64) {
+    if (i64)
+        return Constants::get().i64_const(v);
+    else
+        return Constants::get().int_const(v);
 }
 
 bool AlgebraicSimplify::run(PassManager *mgr) {
@@ -54,6 +56,7 @@ bool AlgebraicSimplify::run(PassManager *mgr) {
 bool AlgebraicSimplify::apply_rules() {
     Value *v1, *v2, *v3, *v4;
     int c1, c2;
+    bool i64 = inst->get_type()->is<I64IntType>();
 
     /* meaningless computation */
     // a + 0 -> a
@@ -68,7 +71,7 @@ bool AlgebraicSimplify::apply_rules() {
     }
     // a * 0 -> 0
     if (imul(any_val(v1), is_cint(0))->match(inst)) {
-        inst->replace_all_use_with(get_cint(0));
+        inst->replace_all_use_with(get_cint(0, i64));
         return true;
     }
     // a * 1 -> a
@@ -78,7 +81,7 @@ bool AlgebraicSimplify::apply_rules() {
     }
     // 0 / a -> 0
     if (idiv(is_cint(0), any_val(v1))->match(inst)) {
-        inst->replace_all_use_with(get_cint(0));
+        inst->replace_all_use_with(get_cint(0, i64));
         return true;
     }
     // a / 1 -> a
@@ -91,21 +94,21 @@ bool AlgebraicSimplify::apply_rules() {
     // (v1 + c1) + c2 -> v1 + (c1 + c2)
     if (iadd(iadd(any_val(v1), is_cint_like(c1)), is_cint_like(c2))
             ->match(inst)) {
-        auto add = insert_ibin(IBinaryInst::ADD, v1, get_cint(c1 + c2));
+        auto add = insert_ibin(IBinaryInst::ADD, v1, get_cint(c1 + c2, i64));
         inst->replace_all_use_with(add);
         return true;
     }
     // (v1 - c1) - c2 -> v1 - (c1 + c2)
     if (isub(isub(any_val(v1), is_cint_like(c1)), is_cint_like(c2))
             ->match(inst)) {
-        auto sub = insert_ibin(IBinaryInst::SUB, v1, get_cint(c1 + c2));
+        auto sub = insert_ibin(IBinaryInst::SUB, v1, get_cint(c1 + c2, i64));
         inst->replace_all_use_with(sub);
         return true;
     }
     // (a * c1) * c2 -> a * (c1 * c2)
     if (imul(imul(any_val(v1), is_cint_like(c1)), is_cint_like(c2))
             ->match(inst)) {
-        auto mul = insert_ibin(IBinaryInst::MUL, v1, get_cint(c1 * c2));
+        auto mul = insert_ibin(IBinaryInst::MUL, v1, get_cint(c1 * c2, i64));
         inst->replace_all_use_with(mul);
         return true;
     }
@@ -114,9 +117,10 @@ bool AlgebraicSimplify::apply_rules() {
             ->match(inst)) {
         assert(c1 != 0 and c2 != 0);
         if (c1 * c2 != static_cast<int64_t>(c1) * c2) { // overflow on i32
-            inst->replace_all_use_with(get_cint(0));
+            inst->replace_all_use_with(get_cint(0, i64));
         } else {
-            auto div = insert_ibin(IBinaryInst::SDIV, v1, get_cint(c1 * c2));
+            auto div =
+                insert_ibin(IBinaryInst::SDIV, v1, get_cint(c1 * c2, i64));
             inst->replace_all_use_with(div);
         }
         return true;
@@ -136,14 +140,14 @@ bool AlgebraicSimplify::apply_rules() {
     // (v1 + c1) - c2
     if (isub(iadd(any_val(v1), is_cint_like(c1)), is_cint_like(c2))
             ->match(inst)) {
-        auto add = insert_ibin(IBinaryInst::ADD, v1, get_cint(c1 - c2));
+        auto add = insert_ibin(IBinaryInst::ADD, v1, get_cint(c1 - c2, i64));
         inst->replace_all_use_with(add);
         return true;
     }
     // (v1 - c1) + c2
     if (iadd(isub(any_val(v1), is_cint_like(c1)), is_cint_like(c2))
             ->match(inst)) {
-        auto add = insert_ibin(IBinaryInst::ADD, v1, get_cint(c2 - c1));
+        auto add = insert_ibin(IBinaryInst::ADD, v1, get_cint(c2 - c1, i64));
         inst->replace_all_use_with(add);
         return true;
     }
@@ -151,7 +155,7 @@ bool AlgebraicSimplify::apply_rules() {
     if (idiv(imul(any_val(v1), is_cint_like(c1)), is_cint_like(c2))
             ->match(inst) and
         c1 % c2 == 0) {
-        auto mul = insert_ibin(IBinaryInst::MUL, v1, get_cint(c1 / c2));
+        auto mul = insert_ibin(IBinaryInst::MUL, v1, get_cint(c1 / c2, i64));
         inst->replace_all_use_with(mul);
         return true;
     }
@@ -159,7 +163,7 @@ bool AlgebraicSimplify::apply_rules() {
     if (imul(idiv(any_val(v1), is_cint_like(c1)), is_cint_like(c2))
             ->match(inst) and
         c2 % c1 == 0) {
-        auto mul = insert_ibin(IBinaryInst::MUL, v1, get_cint(c2 / c1));
+        auto mul = insert_ibin(IBinaryInst::MUL, v1, get_cint(c2 / c1, i64));
         inst->replace_all_use_with(mul);
         return true;
     }
@@ -171,7 +175,7 @@ bool AlgebraicSimplify::apply_rules() {
         (v1 == v2 or v1 == v3 or v2 == v3)) {
         // v1 + v1 + v1 -> v1 * 3
         if (v1 == v2 and v2 == v3) {
-            auto mul = insert_ibin(IBinaryInst::MUL, v1, get_cint(3));
+            auto mul = insert_ibin(IBinaryInst::MUL, v1, get_cint(3, i64));
             inst->replace_all_use_with(mul);
         } else {
             // v1 + v2 + v2 -> v1 + v2 * 2
@@ -179,7 +183,7 @@ bool AlgebraicSimplify::apply_rules() {
                 std::swap(v1, v2);
             else if (v1 == v2)
                 std::swap(v1, v3);
-            auto mul = insert_ibin(IBinaryInst::MUL, v2, get_cint(2));
+            auto mul = insert_ibin(IBinaryInst::MUL, v2, get_cint(2, i64));
             auto add = insert_ibin(IBinaryInst::ADD, v1, mul);
             inst->replace_all_use_with(add);
         }
@@ -192,7 +196,7 @@ bool AlgebraicSimplify::apply_rules() {
         (v1 == v3 or v2 == v3)) {
         if (v2 == v3)
             std::swap(v1, v2);
-        auto times = insert_ibin(IBinaryInst::ADD, v2, get_cint(1));
+        auto times = insert_ibin(IBinaryInst::ADD, v2, get_cint(1, i64));
         auto mul = insert_ibin(IBinaryInst::MUL, v1, times);
         inst->replace_all_use_with(mul);
         return true;
@@ -206,7 +210,7 @@ bool AlgebraicSimplify::apply_rules() {
 
         if (v3 == v4)
             std::swap(v2, v3);
-        auto times = insert_ibin(IBinaryInst::ADD, v3, get_cint(1));
+        auto times = insert_ibin(IBinaryInst::ADD, v3, get_cint(1, i64));
         auto mul = insert_ibin(IBinaryInst::MUL, v2, times);
         auto new_v = insert_ibin(IBinaryInst::ADD, v1, mul);
         inst->replace_all_use_with(new_v);

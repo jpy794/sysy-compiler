@@ -50,7 +50,10 @@ class LocalCmnExpr final : public pass::TransformPass {
         GEP,
         SI2FP,
         FP2SI,
-        ZEXT
+        ZEXT,
+        SEXT,
+        PTR2INT,
+        INT2PTR,
     };
 
     // check whether inst is required to calculate HASH_MAP

@@ -59,7 +59,8 @@ bool ConstPro::check(Instruction *inst) {
     if (not(is_a<PhiInst>(inst) || is_a<IBinaryInst>(inst) ||
             is_a<FBinaryInst>(inst) || is_a<ICmpInst>(inst) ||
             is_a<FCmpInst>(inst) || is_a<Fp2siInst>(inst) ||
-            is_a<Si2fpInst>(inst) || is_a<ZextInst>(inst)))
+            is_a<Si2fpInst>(inst) || is_a<ZextInst>(inst) ||
+            is_a<SextInst>(inst)))
         return false; // except for these instructions, other can't be folded
                       // constantly
     if (is_a<PhiInst>(inst)) {
@@ -219,6 +220,9 @@ Constant *ConstPro::const_folder(Instruction *inst) {
         bool val = const_int_like(get_const(inst->get_operand(0)));
         auto zext_val = (int)(val);
         return Constants::get().int_const(zext_val);
+    } else if (is_a<SextInst>(inst)) {
+        int val = const_int_like(get_const(inst->get_operand(0)));
+        return Constants::get().i64_const(val);
     } else {
         throw logic_error{inst->get_type()->print() +
                           " can't be folded constantly"};
