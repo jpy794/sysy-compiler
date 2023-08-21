@@ -3,7 +3,11 @@
 #include "instruction.hh"
 #include "loop_find.hh"
 #include "pass.hh"
+#include "rm_useless_loop.hh"
+#include "user.hh"
 #include "value.hh"
+#include <map>
+#include <utility>
 
 namespace pass {
 
@@ -15,6 +19,7 @@ class InductionExpr final : public pass::TransformPass {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::Normal);
         AU.add_require<LoopFind>();
+        AU.add_post<RmUselessLoop>();
     }
 
     virtual bool run(pass::PassManager *mgr) override;
@@ -22,34 +27,24 @@ class InductionExpr final : public pass::TransformPass {
     // be used out of the loop
     bool is_induction_expr(ir::Instruction *);
 
-    bool induction(ir::Instruction *expr, ir::Instruction *user);
+    void induction(ir::Instruction *expr, const ir::Use &);
 
     // induction rules
-    bool add_rem(ir::Instruction *expr, ir::Instruction *user);
+    ir::Value *induce_add_rem(ir::Instruction *expr, ir::Instruction *user);
 
     // require loop_find to give these interfaces as follow
     // judge whether a bb is a loop head
     bool is_loop_head(ir::BasicBlock *bb) {
-        for (auto &&[func, loops] : _func_loops->loop_info) {
-            for (auto &&[header, loop] : loops.loops) {
-                if (bb == header) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return _func_loops->loop_info.at(bb->get_func()).loops.find(bb) !=
+               _func_loops->loop_info.at(bb->get_func()).loops.end();
     }
 
     // judge whether user is out of the loop of loop_head
     bool out_of_loop(ir::BasicBlock *user, ir::BasicBlock *loop_head) {
-        for (auto &&[func, loops] : _func_loops->loop_info) {
-            for (auto &&[header, loop] : loops.loops) {
-                if (loop_head == header) {
-                    return contains(loop.bbs, user);
-                }
-            }
-        }
-        throw unreachable_error{};
+        return not contains(_func_loops->loop_info.at(loop_head->get_func())
+                                .loops.at(loop_head)
+                                .bbs,
+                            user);
     }
 
     // calculate the iter times of a loop
@@ -84,6 +79,10 @@ class InductionExpr final : public pass::TransformPass {
     }
 
   private:
+    bool changed;
+
+    std::map<ir::Value *, std::pair<ir::User *, unsigned>> replace_table;
+
     const LoopFind::ResultType *_func_loops;
 };
 
