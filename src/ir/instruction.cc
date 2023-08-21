@@ -268,6 +268,11 @@ ZextInst::ZextInst(BasicBlock *prt, Value *boolv)
     assert(is_a<BoolType>(boolv->get_type()));
 }
 
+TruncInst::TruncInst(BasicBlock *prt, Value *i64)
+    : Instruction(prt, Types::get().int_type(), {i64}) {
+    assert(is_a<I64IntType>(i64->get_type()));
+}
+
 /* ===== print ir ===== */
 
 string RetInst::print() const {
@@ -512,6 +517,11 @@ Int2PtrInst::Int2PtrInst(BasicBlock *prt, Value *val, Type *elem_type)
 }
 
 string Int2PtrInst::print() const {
-    return get_name() + " = inttoptr i64 " + operands()[0]->get_name() + " to " +
-           get_type()->print();
+    return get_name() + " = inttoptr i64 " + operands()[0]->get_name() +
+           " to " + get_type()->print();
+}
+
+string TruncInst::print() const {
+    return get_name() + " = TruncInst i32 " + operands()[0]->get_name() +
+           " to i32";
 }

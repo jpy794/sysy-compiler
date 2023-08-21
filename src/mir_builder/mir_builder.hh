@@ -298,6 +298,7 @@ class MIRBuilder : public ir::InstructionVisitor {
     virtual any visit(const ir::SextInst *instruction) override final;
     virtual any visit(const ir::Ptr2IntInst *instruction) override final;
     virtual any visit(const ir::Int2PtrInst *instruction) override final;
+    virtual any visit(const ir::TruncInst *instruction) override final;
 
     // specialized inst builder
     void build_sdiv_by_const(Value *res, Value *n, int d);

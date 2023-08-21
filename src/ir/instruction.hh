@@ -408,4 +408,16 @@ class Int2PtrInst : public Instruction {
     INST_CLONE(Int2PtrInst);
 };
 
+class TruncInst : public Instruction {
+  public:
+    // only TruncInst i64 to i32
+    TruncInst(BasicBlock *prt, Value *val);
+    std::string print() const final;
+
+    virtual std::any accept(InstructionVisitor *visitor) const {
+        return visitor->visit(this);
+    }
+
+    INST_CLONE(TruncInst);
+};
 } // namespace ir

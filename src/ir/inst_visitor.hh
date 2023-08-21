@@ -22,6 +22,7 @@ class ZextInst;
 class SextInst;
 class Ptr2IntInst;
 class Int2PtrInst;
+class TruncInst;
 
 class InstructionVisitor {
   public:
@@ -43,6 +44,7 @@ class InstructionVisitor {
     virtual std::any visit(const SextInst *instruction) = 0;
     virtual std::any visit(const Ptr2IntInst *instruction) = 0;
     virtual std::any visit(const Int2PtrInst *instruction) = 0;
+    virtual std::any visit(const TruncInst *instruction) = 0;
 };
 
 } // namespace ir

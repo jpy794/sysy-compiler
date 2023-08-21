@@ -995,3 +995,8 @@ any MIRBuilder::visit(const ir::SextInst *instruction) {
             Move, {target_reg, value_map.at(instruction->get_operand(0))});
     return {};
 }
+
+any MIRBuilder::visit(const ir::TruncInst *instruction) {
+    // TODO:
+    return {};
+}
