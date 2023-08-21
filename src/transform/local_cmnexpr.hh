@@ -54,6 +54,7 @@ class LocalCmnExpr final : public pass::TransformPass {
         SEXT,
         PTR2INT,
         INT2PTR,
+        TRUNC,
     };
 
     // check whether inst is required to calculate HASH_MAP

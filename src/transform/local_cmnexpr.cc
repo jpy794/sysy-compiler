@@ -128,7 +128,10 @@ LocalCmnExpr::OP LocalCmnExpr::get_op(Instruction *inst) {
         return OP::INT2PTR;
     } else if (is_a<SextInst>(inst)) {
         return OP::SEXT;
-    } else {
+    } else if(is_a<TruncInst>(inst)){
+        return OP::TRUNC;
+    }
+    else{
         throw unreachable_error{};
     }
 }

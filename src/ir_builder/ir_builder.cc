@@ -239,8 +239,6 @@ class IRBuilderImpl : public ast::ASTVisitor {
     Value *get_addr(Value *base_addr,
                     const PtrList<Expr> &idxs) { // calculate the indexes of
                                                  // the variable in GEP
-        const auto ADD = IBinaryInst::ADD;
-        const auto MUL = IBinaryInst::MUL;
         auto elem_type =
             base_addr->get_type()->as<PointerType>()->get_elem_type();
         if ((base_addr->is<Argument>() || elem_type->is_basic_type()) &&
@@ -248,7 +246,7 @@ class IRBuilderImpl : public ast::ASTVisitor {
             return base_addr;
         }
 
-        vector<Value *> index, i64_index;
+        vector<Value *> index;
         if (!is_a<Argument>(base_addr)) { // add 0 in front of the index
             index.push_back(zero_init(BaseType::INT));
         }
@@ -263,27 +261,8 @@ class IRBuilderImpl : public ast::ASTVisitor {
         if (dims > index.size() - 1) // add 0 in the back of the index
             index.push_back(zero_init(BaseType::INT));
 
-        // use i64 offset
-        for (auto off : index) {
-            i64_index.push_back(cur_bb->create_inst<SextInst>(off));
-        }
-
-        auto i64_base = cur_bb->create_inst<Ptr2IntInst>(base_addr);
-        auto i64_off = i64_index[0];
-
-        for (auto i = 1; i < i64_index.size(); ++i) {
-            auto arr_type = as_a<ArrayType>(elem_type);
-            auto arr_cnt = constants.i64_const(arr_type->get_elem_cnt());
-            i64_off = cur_bb->create_inst<IBinaryInst>(MUL, i64_off, arr_cnt);
-            i64_off =
-                cur_bb->create_inst<IBinaryInst>(ADD, i64_off, i64_index[i]);
-            elem_type = arr_type->get_elem_type();
-        }
-        i64_off = cur_bb->create_inst<IBinaryInst>(MUL, i64_off,
-                                                   constants.i64_const(4));
-        auto i64_addr_value =
-            cur_bb->create_inst<IBinaryInst>(ADD, i64_base, i64_off);
-        auto addr = cur_bb->create_inst<Int2PtrInst>(i64_addr_value, elem_type);
+        auto addr =
+            cur_bb->create_inst<GetElementPtrInst>(base_addr, std::move(index));
         return addr;
     }
 

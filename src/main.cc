@@ -42,6 +42,7 @@
 #include "phi_combine.hh"
 #include "raw_ast.hh"
 #include "remove_unreach_bb.hh"
+#include "rm_useless_loop.hh"
 #include "strength_reduce.hh"
 
 using namespace std;
@@ -130,6 +131,7 @@ int main(int argc, char **argv) {
     pm.add_pass<AlgebraicSimplify>();
     pm.add_pass<ArrayVisit>();
     pm.add_pass<LocalCmnExpr>();
+    pm.add_pass<RmUselessLoop>();
     // passes unfit for running iteratively
     pm.add_pass<LoopUnroll>();
     pm.add_pass<Inline>();
@@ -146,26 +148,28 @@ int main(int argc, char **argv) {
         // in algebraic simplify
         PassOrder iterative_passes = {
             PassID<RmUnreachBB>(),
-            // PassID<GlobalVarLocalize>(),
+            PassID<GlobalVarLocalize>(),
             PassID<ConstPro>(),
             PassID<AlgebraicSimplify>(),
             PassID<LoopInvariant>(),
             PassID<LocalCmnExpr>(),
             PassID<ControlFlow>(),
-            // PassID<ArrayVisit>(),
+            PassID<ArrayVisit>(),
             PassID<DeadCode>(),
             PassID<PhiCombine>(),
         };
         pm.run({PassID<NaiveRecOpt>()}, true);
         pm.run({PassID<FuncTrim>(), PassID<Mem2reg>()}, true);
         pm.run_iteratively(iterative_passes);
-        /* pm.run({PassID<GVN>()}, true);
-         * pm.run_iteratively(iterative_passes); */
-        /* pm.run({PassID<Inline>()}, true);
-         * pm.run_iteratively(iterative_passes);   */
+        pm.run({PassID<GVN>()}, true);
+        pm.run_iteratively(iterative_passes);
+        pm.run({PassID<Inline>()}, true);
+        pm.run_iteratively(iterative_passes);
         pm.run({PassID<LoopUnroll>()}, true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<GEP_Expand>()}, true);
+        pm.run_iteratively(iterative_passes);
+        pm.run({PassID<InductionExpr>()}, true);
         pm.run_iteratively(iterative_passes);
     } else
         pm.run({PassID<Mem2reg>(), PassID<DeadCode>()});

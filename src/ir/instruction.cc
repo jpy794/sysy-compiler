@@ -522,6 +522,5 @@ string Int2PtrInst::print() const {
 }
 
 string TruncInst::print() const {
-    return get_name() + " = TruncInst i32 " + operands()[0]->get_name() +
-           " to i32";
+    return get_name() + " = trunc i64 " + operands()[0]->get_name() + " to i32";
 }
