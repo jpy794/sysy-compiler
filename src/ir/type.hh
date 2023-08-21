@@ -52,7 +52,12 @@ class BoolType : public Type {
 
 class IntType : public Type {
   public:
-    std::string print() const final { return "i32"; }
+    virtual std::string print() const { return "i32"; }
+};
+
+class I64IntType : public Type {
+  public:
+    virtual std::string print() const { return "i64"; }
 };
 
 class PointerType : public Type {
@@ -152,6 +157,7 @@ class Types {
 
     BoolType *_bool_tp{new BoolType};
     IntType *_int_tp{new IntType};
+    I64IntType *_i64_int_tp{new I64IntType};
     FloatType *_float_tp{new FloatType};
     VoidType *_void_tp{new VoidType};
     LabelType *_label_tp{new LabelType};
@@ -190,6 +196,7 @@ class Types {
     FloatType *float_type() const { return _float_tp; }
     VoidType *void_type() const { return _void_tp; }
     LabelType *label_type() const { return _label_tp; }
+    I64IntType *i64_int_type() const { return _i64_int_tp; }
     PointerType *ptr_type(Type *elem_type) {
         return as_a<PointerType>(_arr_or_ptr_type(elem_type, 0));
     }
