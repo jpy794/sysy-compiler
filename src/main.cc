@@ -147,25 +147,21 @@ int main(int argc, char **argv) {
         // the functions from ContinuousAdd and strength_reduce are implemented
         // in algebraic simplify
         PassOrder iterative_passes = {
-            PassID<RmUnreachBB>(),
-            PassID<GlobalVarLocalize>(),
-            PassID<ConstPro>(),
-            PassID<AlgebraicSimplify>(),
-            PassID<LoopInvariant>(),
-            PassID<LocalCmnExpr>(),
-            PassID<ControlFlow>(),
-            PassID<ArrayVisit>(),
-            PassID<DeadCode>(),
-            PassID<PhiCombine>(),
+            PassID<RmUnreachBB>(),   PassID<GlobalVarLocalize>(),
+            PassID<ConstPro>(),      PassID<AlgebraicSimplify>(),
+            PassID<LoopInvariant>(), PassID<LocalCmnExpr>(),
+            PassID<ControlFlow>(),   PassID<ArrayVisit>(),
+            PassID<DeadCode>(),      PassID<PhiCombine>(),
         };
-        pm.run({PassID<FuncTrim>(), PassID<Mem2reg>(), PassID<NaiveRecOpt>()}, true);
+        pm.run({PassID<FuncTrim>(), PassID<Mem2reg>(), PassID<NaiveRecOpt>()},
+               true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<GVN>()}, true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<Inline>()}, true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<LoopUnroll>()}, true);
-        pm.run_iteratively(iterative_passes); 
+        pm.run_iteratively(iterative_passes);
         pm.run({PassID<GEP_Expand>()}, true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<InductionExpr>()}, true);

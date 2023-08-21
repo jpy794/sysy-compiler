@@ -53,7 +53,7 @@ bool AlgebraicSimplify::run(PassManager *mgr) {
     return changed;
 }
 
-bool AlgebraicSimplify::apply_rules() {
+__attribute__((optnone)) bool AlgebraicSimplify::apply_rules() {
     Value *v1, *v2, *v3, *v4;
     int c1, c2;
     bool i64 = inst->get_type()->is<I64IntType>();
