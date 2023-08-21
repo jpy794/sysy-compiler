@@ -986,7 +986,12 @@ any MIRBuilder::visit(const ir::Int2PtrInst *instruction) {
 };
 
 any MIRBuilder::visit(const ir::SextInst *instruction) {
-    cur_label->add_inst(Move, {value_map.at(instruction),
-                               value_map.at(instruction->get_operand(0))});
+    auto imm_result = parse_imm(instruction->get_operand(0));
+    auto target_reg = as_a<IVReg>(value_map.at(instruction));
+    if (imm_result.is_const)
+        load_imm(imm_result.val, target_reg);
+    else
+        cur_label->add_inst(
+            Move, {target_reg, value_map.at(instruction->get_operand(0))});
     return {};
 }

@@ -512,6 +512,6 @@ Int2PtrInst::Int2PtrInst(BasicBlock *prt, Value *val, Type *elem_type)
 }
 
 string Int2PtrInst::print() const {
-    return get_name() + " = int2ptr i64 " + operands()[0]->get_name() + " to " +
+    return get_name() + " = inttoptr i64 " + operands()[0]->get_name() + " to " +
            get_type()->print();
 }
