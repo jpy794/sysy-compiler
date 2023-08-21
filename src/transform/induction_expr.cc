@@ -1,5 +1,6 @@
 #include "induction_expr.hh"
 #include "instruction.hh"
+#include "loop_find.hh"
 #include "utils.hh"
 
 using namespace std;
@@ -19,11 +20,15 @@ inline bool InductionExpr::is_induction_expr(Instruction *inst) {
 
 bool InductionExpr::run(pass::PassManager *mgr) {
     auto m = mgr->get_module();
+    _func_loops = &mgr->get_result<LoopFind>();
     bool changed = false;
     for (auto &f_r : m->functions()) {
         for (auto &bb_r : f_r.bbs()) {
             for (auto &inst_r : bb_r.insts()) {
                 if (is_induction_expr(&inst_r)) {
+                    if (get_iter_times(&inst_r) == nullptr) {
+                        continue;
+                    }
                     for (auto &use : inst_r.get_use_list()) {
                         // induction_expr is used out of the loop
                         auto user_inst = as_a<Instruction>(use.user);

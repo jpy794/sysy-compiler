@@ -27,6 +27,7 @@
 #include "gep_expand.hh"
 #include "global_localize.hh"
 #include "gvn.hh"
+#include "induction_expr.hh"
 #include "inline.hh"
 #include "ir_builder.hh"
 #include "local_cmnexpr.hh"
@@ -136,6 +137,7 @@ int main(int argc, char **argv) {
     pm.add_pass<FuncTrim>();
     pm.add_pass<PhiCombine>();
     pm.add_pass<GEP_Expand>();
+    pm.add_pass<InductionExpr>();
 
     if (cfg.optimize) {
         // the functions from ContinuousAdd and strength_reduce are implemented
@@ -156,6 +158,8 @@ int main(int argc, char **argv) {
         pm.run({PassID<LoopUnroll>()}, true);
         pm.run_iteratively(iterative_passes);
         pm.run({PassID<GEP_Expand>()}, true);
+        pm.run_iteratively(iterative_passes);
+        pm.run({PassID<InductionExpr>()}, true);
         pm.run_iteratively(iterative_passes);
     } else
         pm.run({PassID<Mem2reg>(), PassID<DeadCode>()});

@@ -1,6 +1,7 @@
 #pragma once
 #include "basic_block.hh"
 #include "instruction.hh"
+#include "loop_find.hh"
 #include "pass.hh"
 #include "value.hh"
 
@@ -13,6 +14,7 @@ class InductionExpr final : public pass::TransformPass {
     virtual void get_analysis_usage(pass::AnalysisUsage &AU) const override {
         using KillType = pass::AnalysisUsage::KillType;
         AU.set_kill_type(KillType::Normal);
+        AU.add_require<LoopFind>();
     }
 
     virtual bool run(pass::PassManager *mgr) override;
@@ -27,15 +29,62 @@ class InductionExpr final : public pass::TransformPass {
 
     // require loop_find to give these interfaces as follow
     // judge whether a bb is a loop head
-    bool is_loop_head(ir::BasicBlock *); // TODO:
+    bool is_loop_head(ir::BasicBlock *bb) {
+        for (auto &&[func, loops] : _func_loops->loop_info) {
+            for (auto &&[header, loop] : loops.loops) {
+                if (bb == header) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     // judge whether user is out of the loop of loop_head
-    bool out_of_loop(ir::BasicBlock *user, ir::BasicBlock *loop_head); // TODO:
+    bool out_of_loop(ir::BasicBlock *user, ir::BasicBlock *loop_head) {
+        for (auto &&[func, loops] : _func_loops->loop_info) {
+            for (auto &&[header, loop] : loops.loops) {
+                if (loop_head == header) {
+                    return contains(loop.bbs, user);
+                }
+            }
+        }
+        throw unreachable_error{};
+    }
 
     // calculate the iter times of a loop
-    ir::Value *get_iter_times(ir::Instruction *); // TODO:
+    ir::Value *get_iter_times(ir::Instruction *expr) {
+        auto cal_iter_times =
+            [&](const LoopFind::ResultType::LoopInfo::IndVarInfo &ind_var_info)
+            -> ir::Value * {
+            if (not ind_var_info.initial->is<ir::ConstInt>() or
+                ind_var_info.initial->as<ir::ConstInt>()->val() != 0) {
+                return nullptr;
+            }
+            if (ind_var_info.icmp_op != ir::ICmpInst::ICmpOp::LT) {
+                return nullptr;
+            }
+            if (not ind_var_info.step->is<ir::ConstInt>() or
+                ind_var_info.step->as<ir::ConstInt>()->val() != 1) {
+                return nullptr;
+            }
+            return ind_var_info.bound;
+        };
+        for (auto &&[func, loops] : _func_loops->loop_info) {
+            for (auto &&[header, loop] : loops.loops) {
+                if (contains(loop.bbs, expr->get_parent())) {
+                    if (not loop.ind_var_info.has_value()) {
+                        return nullptr;
+                    }
+                    return cal_iter_times(loop.ind_var_info.value());
+                }
+            }
+        }
+        throw unreachable_error{};
+    }
 
   private:
+    const LoopFind::ResultType *_func_loops;
 };
 
 }; // namespace pass
