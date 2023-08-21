@@ -37,6 +37,7 @@
 #include "loop_simplify.hh"
 #include "loop_unroll.hh"
 #include "mem2reg.hh"
+#include "naive_rec_opt.hh"
 #include "pass.hh"
 #include "phi_combine.hh"
 #include "raw_ast.hh"
@@ -138,6 +139,7 @@ int main(int argc, char **argv) {
     pm.add_pass<PhiCombine>();
     pm.add_pass<GEP_Expand>();
     pm.add_pass<InductionExpr>();
+    pm.add_pass<NaiveRecOpt>();
 
     if (cfg.optimize) {
         // the functions from ContinuousAdd and strength_reduce are implemented
@@ -154,6 +156,7 @@ int main(int argc, char **argv) {
             PassID<DeadCode>(),
             PassID<PhiCombine>(),
         };
+        pm.run({PassID<NaiveRecOpt>()}, true);
         pm.run({PassID<FuncTrim>(), PassID<Mem2reg>()}, true);
         pm.run_iteratively(iterative_passes);
         /* pm.run({PassID<GVN>()}, true);
